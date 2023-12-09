@@ -3,6 +3,7 @@ use crate::ast::node::AstNode;
 use crate::ast::sort::Sort;
 use crate::core::syntax::{Identifier, SourceLocation};
 
+use std::fmt::{Debug, Formatter};
 use std::rc::{Rc, Weak};
 
 pub struct Expr {
@@ -17,12 +18,20 @@ impl Expr {
     }
 }
 
+impl Debug for Expr {
+    fn fmt(&self, formatter: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(formatter, "{:?}", self.value)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
 pub enum ExprEnum {
     Id {
         id: Identifier,
     },
     Number {
-        value: NumberValue,
+        value: u64,
     },
     Bool {
         value: bool,
@@ -48,8 +57,8 @@ pub enum ExprEnum {
         callee: Rc<Expr>,
         args: Vec<Rc<Expr>>,
     },
-    BoolNot {
-
+    LogicalNot {
+        value: Rc<Expr>,
     },
     Negate {
         value: Rc<Expr>,
@@ -73,11 +82,11 @@ pub enum ExprEnum {
         lhs: Rc<Expr>,
         rhs: Rc<Expr>,
     },
-    BoolOr {
+    LogicalOr {
         lhs: Rc<Expr>,
         rhs: Rc<Expr>,
     },
-    BoolAnd {
+    LogicalAnd {
         lhs: Rc<Expr>,
         rhs: Rc<Expr>,
     },
@@ -153,8 +162,4 @@ pub enum ExprEnum {
         expr: Rc<Expr>,
         assignments: Vec<(Identifier, Rc<Expr>)>,
     },
-}
-
-pub struct NumberValue {
-    // TODO
 }

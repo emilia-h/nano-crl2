@@ -4,6 +4,7 @@ use crate::ast::node::AstNode;
 use crate::ast::sort::Sort;
 use crate::core::syntax::{Identifier, SourceLocation};
 
+use std::fmt::{Debug, Formatter};
 use std::rc::{Rc, Weak};
 
 pub struct Decl {
@@ -18,6 +19,14 @@ impl Decl {
     }
 }
 
+impl Debug for Decl {
+    fn fmt(&self, formatter: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(formatter, "{:?}", self.value)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
 pub enum DeclEnum {
     ActionDecl {
         ids: Vec<Identifier>,

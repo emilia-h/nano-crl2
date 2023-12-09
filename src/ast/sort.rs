@@ -2,8 +2,8 @@
 use crate::ast::node::AstNode;
 use crate::core::syntax::{Identifier, SourceLocation};
 
-use std::rc::Rc;
-use std::rc::Weak;
+use std::fmt::{Debug, Formatter};
+use std::rc::{Rc, Weak};
 
 pub struct Sort {
     pub value: SortEnum,
@@ -17,6 +17,14 @@ impl Sort {
     }
 }
 
+impl Debug for Sort {
+    fn fmt(&self, formatter: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(formatter, "{:?}", self.value)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
 pub enum SortEnum {
     Bool,
     Pos,
@@ -42,7 +50,7 @@ pub enum SortEnum {
         id: Identifier,
     },
     Struct {
-        constructor_list: Vec<Constructor>,
+        constructors: Vec<Constructor>,
     },
     Carthesian {
         lhs: Rc<Sort>,
@@ -57,6 +65,7 @@ pub enum SortEnum {
 /// A constructor for a structured type.
 /// 
 /// This is written in mCRL2 as `id(name1: Sort1, ...) ? recognizer`
+#[derive(Debug)]
 pub struct Constructor {
     pub id: Identifier,
     pub properties: Vec<(Option<Identifier>, Rc<Sort>)>,

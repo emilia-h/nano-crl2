@@ -1,6 +1,6 @@
 
 use crate::ast::node::AstNode;
-use crate::core::syntax::SourceLocation;
+use crate::core::syntax::{Identifier, SourceLocation};
 
 use std::rc::{Rc, Weak};
 
@@ -12,4 +12,8 @@ pub struct Proc {
 
 pub enum ProcEnum {
 
+}
+
+pub struct Action {
+    id: Identifier,
 }

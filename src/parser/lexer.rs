@@ -3,7 +3,6 @@ use crate::core::error::Mcrl2Error;
 use crate::core::syntax::SourceLocation;
 
 use std::fmt::{Display, Formatter};
-use std::option;
 use std::str::Chars;
 
 #[derive(Debug)]
@@ -162,7 +161,7 @@ impl Display for LexicalElement {
             DoubleEquals => Some("=="),
             NotEquals => Some("!="),
             LessThanEquals => Some("<="),
-            GreaterThanEquals => Some("<="),
+            GreaterThanEquals => Some(">="),
             Diamond => Some("<>"),
             Arrow => Some("->"),
             ThickArrow => Some("=>"),
@@ -590,4 +589,24 @@ fn is_word_character(c: char) -> bool {
     c == '_' ||
     c == '\'' ||
     (ascii >= '0' as u8 && ascii <= '9' as u8)
+}
+
+#[test]
+fn test_tokenize_symbols() {
+    use LexicalElement::*;
+
+    let string = "()[]{}~!@#$^&*-=+|;:,<.>/?||&&==!==<=>=<>->=>|><|++";
+    let tokens = &[
+        OpeningParen, ClosingParen, OpeningBracket, ClosingBracket,
+        OpeningBrace, ClosingBrace, Tilde, ExclamationMark, AtSign, HashSign,
+        DollarSign, Circonflex, Ampersand, Asterisk, Dash, Equals, Plus, Pipe,
+        Semicolon, Colon, Comma, LessThan, Period, GreaterThan, Slash,
+        QuestionMark, LogicalOr, LogicalAnd, DoubleEquals, NotEquals, Equals,
+        LessThanEquals, GreaterThanEquals, Diamond, Arrow, ThickArrow,
+        ConsOperator, SnocOperator, Concat,
+    ];
+    let result = tokenize(string).unwrap();
+    for i in 0 .. tokens.len() {
+        assert_eq!(result[i].value, tokens[i]);
+    }
 }
