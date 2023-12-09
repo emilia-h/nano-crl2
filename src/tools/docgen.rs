@@ -27,8 +27,8 @@ pub fn docgen(options: &CliOptions) -> Result<Docs, Mcrl2Error> {
     for input_file in input_files {
         let string = std::fs::read_to_string(input_file)?;
         let tokens = propagate_error_into!(tokenize(&string));
-        let mut parser = Parser::new(&tokens);
-        let model = propagate_error_into!(parser.parse_model());
+        // let mut parser = Parser::new(&tokens);
+        // let _model = propagate_error_into!(parser.parse_model());
 
         std::fs::write(output_file, reconstruct_from_tokens(&tokens))?;
     }

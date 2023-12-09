@@ -6,7 +6,7 @@ use std::env;
 const HELP_STRING: &'static str = "
 nanoCRL2: a minimalistic implementation of mCRL2. Usage:
 
-$ nanocrl2 <tool> <args...>
+$ nanocrl2 <tool> <options...>
 
 Where <tool> is one of:
   docgen                Parses .mcrl2 files and generates documentation for the

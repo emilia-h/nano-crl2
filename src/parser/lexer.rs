@@ -1,5 +1,6 @@
 
 use crate::core::error::Mcrl2Error;
+use crate::core::syntax::SourceLocation;
 
 use std::fmt::{Display, Formatter};
 use std::str::Chars;
@@ -24,7 +25,7 @@ impl Into<Mcrl2Error> for LexError {
 /// A single lexical element
 /// # See also
 /// https://www.mcrl2.org/web/user_manual/language_reference/lex.html
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LexicalElement {
     OpeningParen, // (
     ClosingParen, // )
@@ -122,91 +123,93 @@ pub enum LexicalElement {
 
 impl Display for LexicalElement {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        use LexicalElement::*;
+
         if let Some(value) = match self {
-            LexicalElement::OpeningParen => Some("("),
-            LexicalElement::ClosingParen => Some(")"),
-            LexicalElement::OpeningBracket => Some("["),
-            LexicalElement::ClosingBracket => Some("]"),
-            LexicalElement::OpeningBrace => Some("{"),
-            LexicalElement::ClosingBrace => Some("}"),
-            LexicalElement::Tilde => Some("~"),
-            LexicalElement::ExclamationMark => Some("!"),
-            LexicalElement::AtSign => Some("@"),
-            LexicalElement::HashSign => Some("#"),
-            LexicalElement::DollarSign => Some("$"),
-            LexicalElement::Circonflex => Some("^"),
-            LexicalElement::Ampersand => Some("&"),
-            LexicalElement::Asterisk => Some("*"),
-            LexicalElement::Dash => Some("-"),
-            LexicalElement::Equals => Some("="),
-            LexicalElement::Plus => Some("+"),
-            LexicalElement::Pipe => Some("|"),
-            LexicalElement::Semicolon => Some(";"),
-            LexicalElement::Colon => Some(":"),
-            LexicalElement::Comma => Some(","),
-            LexicalElement::LessThan => Some("<"),
-            LexicalElement::Period => Some("."),
-            LexicalElement::GreaterThan => Some(">"),
-            LexicalElement::Slash => Some("/"),
-            LexicalElement::QuestionMark => Some("?"),
-            LexicalElement::LogicalOr => Some("||"),
-            LexicalElement::LogicalAnd => Some("&&"),
-            LexicalElement::DoubleEquals => Some("=="),
-            LexicalElement::NotEquals => Some("!="),
-            LexicalElement::LessThanEquals => Some("<="),
-            LexicalElement::GreaterThanEquals => Some("<="),
-            LexicalElement::Diamond => Some("<>"),
-            LexicalElement::Arrow => Some("->"),
-            LexicalElement::ThickArrow => Some("=>"),
-            LexicalElement::ConsOperator => Some("|>"),
-            LexicalElement::SnocOperator => Some("<|"),
-            LexicalElement::Concat => Some("++"),
-            LexicalElement::Act => Some("act"),
-            LexicalElement::Allow => Some("allow"),
-            LexicalElement::Block => Some("block"),
-            LexicalElement::Comm => Some("comm"),
-            LexicalElement::Cons => Some("cons"),
-            LexicalElement::Delay => Some("delay"),
-            LexicalElement::Div => Some("div"),
-            LexicalElement::End => Some("end"),
-            LexicalElement::Eqn => Some("eqn"),
-            LexicalElement::Exists => Some("exists"),
-            LexicalElement::Forall => Some("forall"),
-            LexicalElement::Glob => Some("glob"),
-            LexicalElement::Hide => Some("hide"),
-            LexicalElement::If => Some("if"),
-            LexicalElement::In => Some("in"),
-            LexicalElement::Init => Some("init"),
-            LexicalElement::Lambda => Some("lambda"),
-            LexicalElement::Map => Some("map"),
-            LexicalElement::Mod => Some("mod"),
-            LexicalElement::Mu => Some("mu"),
-            LexicalElement::Nu => Some("nu"),
-            LexicalElement::Pbes => Some("pbes"),
-            LexicalElement::Proc => Some("proc"),
-            LexicalElement::Rename => Some("rename"),
-            LexicalElement::Sort => Some("sort"),
-            LexicalElement::Struct => Some("struct"),
-            LexicalElement::Sum => Some("sum"),
-            LexicalElement::Val => Some("val"),
-            LexicalElement::Var => Some("var"),
-            LexicalElement::Whr => Some("whr"),
-            LexicalElement::Yaled => Some("yaled"),
-            LexicalElement::Bag => Some("Bag"),
-            LexicalElement::Bool => Some("Bool"),
-            LexicalElement::Int => Some("Int"),
-            LexicalElement::List => Some("List"),
-            LexicalElement::Nat => Some("Nat"),
-            LexicalElement::Pos => Some("Pos"),
-            LexicalElement::Real => Some("Real"),
-            LexicalElement::Set => Some("Set"),
-            LexicalElement::Delta => Some("delta"),
-            LexicalElement::False => Some("false"),
-            LexicalElement::Nil => Some("nil"),
-            LexicalElement::Tau => Some("tau"),
-            LexicalElement::True => Some("true"),
-            LexicalElement::Identifier(string) => Some(string.as_str()),
-            LexicalElement::Comment(string) => {
+            OpeningParen => Some("("),
+            ClosingParen => Some(")"),
+            OpeningBracket => Some("["),
+            ClosingBracket => Some("]"),
+            OpeningBrace => Some("{"),
+            ClosingBrace => Some("}"),
+            Tilde => Some("~"),
+            ExclamationMark => Some("!"),
+            AtSign => Some("@"),
+            HashSign => Some("#"),
+            DollarSign => Some("$"),
+            Circonflex => Some("^"),
+            Ampersand => Some("&"),
+            Asterisk => Some("*"),
+            Dash => Some("-"),
+            Equals => Some("="),
+            Plus => Some("+"),
+            Pipe => Some("|"),
+            Semicolon => Some(";"),
+            Colon => Some(":"),
+            Comma => Some(","),
+            LessThan => Some("<"),
+            Period => Some("."),
+            GreaterThan => Some(">"),
+            Slash => Some("/"),
+            QuestionMark => Some("?"),
+            LogicalOr => Some("||"),
+            LogicalAnd => Some("&&"),
+            DoubleEquals => Some("=="),
+            NotEquals => Some("!="),
+            LessThanEquals => Some("<="),
+            GreaterThanEquals => Some("<="),
+            Diamond => Some("<>"),
+            Arrow => Some("->"),
+            ThickArrow => Some("=>"),
+            ConsOperator => Some("|>"),
+            SnocOperator => Some("<|"),
+            Concat => Some("++"),
+            Act => Some("act"),
+            Allow => Some("allow"),
+            Block => Some("block"),
+            Comm => Some("comm"),
+            Cons => Some("cons"),
+            Delay => Some("delay"),
+            Div => Some("div"),
+            End => Some("end"),
+            Eqn => Some("eqn"),
+            Exists => Some("exists"),
+            Forall => Some("forall"),
+            Glob => Some("glob"),
+            Hide => Some("hide"),
+            If => Some("if"),
+            In => Some("in"),
+            Init => Some("init"),
+            Lambda => Some("lambda"),
+            Map => Some("map"),
+            Mod => Some("mod"),
+            Mu => Some("mu"),
+            Nu => Some("nu"),
+            Pbes => Some("pbes"),
+            Proc => Some("proc"),
+            Rename => Some("rename"),
+            Sort => Some("sort"),
+            Struct => Some("struct"),
+            Sum => Some("sum"),
+            Val => Some("val"),
+            Var => Some("var"),
+            Whr => Some("whr"),
+            Yaled => Some("yaled"),
+            Bag => Some("Bag"),
+            Bool => Some("Bool"),
+            Int => Some("Int"),
+            List => Some("List"),
+            Nat => Some("Nat"),
+            Pos => Some("Pos"),
+            Real => Some("Real"),
+            Set => Some("Set"),
+            Delta => Some("delta"),
+            False => Some("false"),
+            Nil => Some("nil"),
+            Tau => Some("tau"),
+            True => Some("true"),
+            Identifier(string) => Some(string.as_str()),
+            Comment(string) => {
                 write!(f, "%{}", string)?;
                 None
             },
@@ -221,10 +224,10 @@ impl Display for LexicalElement {
     }
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct Token {
     pub value: LexicalElement,
-    pub line: usize,
-    pub character: usize,
+    pub loc: SourceLocation,
 }
 
 impl std::fmt::Debug for Token {
@@ -234,7 +237,7 @@ impl std::fmt::Debug for Token {
 }
 impl Display for Token {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        write!(f, "{} ({}, {})", self.value, self.line, self.character)?;
+        write!(f, "{} ({}, {})", self.value, self.loc.get_line(), self.loc.get_char())?;
         Ok(())
     }
 }
@@ -259,17 +262,17 @@ pub fn reconstruct_from_tokens(input: &[Token]) -> String {
     let mut curr_line = 0;
     let mut curr_char = 0;
     for token in input {
-        assert!(token.line >= curr_line);
-        if token.line == curr_line {
-            assert!(token.character >= curr_char, "{} {} {}", token.value, token.character, curr_char);
+        assert!(token.loc.get_line() >= curr_line);
+        if token.loc.get_line() == curr_line {
+            assert!(token.loc.get_char() >= curr_char);
         }
 
-        while curr_line < token.line {
+        while curr_line < token.loc.get_line() {
             result.push('\n');
             curr_line += 1;
             curr_char = 0;
         }
-        while curr_char < token.character {
+        while curr_char < token.loc.get_char() {
             result.push(' ');
             curr_char += 1;
         }
@@ -547,8 +550,7 @@ impl<'a> Lexer<'a> {
     fn push_token(&mut self, element: LexicalElement) {
         self.tokens.push(Token {
             value: element,
-            line: self.token_line,
-            character: self.token_char,
+            loc: SourceLocation::new(self.token_line, self.token_char),
         });
         self.skip_whitespace();
         self.token_line = self.curr_line;
