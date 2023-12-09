@@ -48,4 +48,5 @@ pub enum ProcEnum {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Action {
     pub id: Identifier,
+    // TODO data
 }

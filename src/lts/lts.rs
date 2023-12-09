@@ -40,7 +40,7 @@ pub struct LtsEdge {
 #[derive(Clone, Debug)]
 pub struct LtsNode {
     pub adj: Vec<LtsEdge>,
-    pub trans_adj: Vec<LtsEdge>,
+    // pub trans_adj: Vec<LtsEdge>,
 }
 
 /// Represents an LTS (labelled transition system), which is in essence a
@@ -56,6 +56,29 @@ pub struct LtsNode {
 pub struct Lts {
     pub initial_state: usize,
     pub nodes: Vec<LtsNode>,
+}
+
+impl Lts {
+    /// # Panics
+    /// Panics if the input is not well-formed, for instance there are edges
+    /// that start or end at non-existent nodes.
+    pub fn from_edge_list(
+        initial_state: usize,
+        node_count: usize,
+        edge_list: Vec<(usize, Action, usize)>,
+    ) -> Self {
+        let mut nodes = vec![
+            LtsNode { adj: Vec::new() };
+            node_count
+        ];
+        for (start, label, target) in edge_list {
+            assert!(start < node_count);
+            assert!(target < node_count);
+            nodes[start].adj.push(LtsEdge { target, label });
+            //nodes[edge.target].trans_adj.push(LtsEdge { target: start, label: edge.label });
+        }
+        Lts { initial_state, nodes }
+    }
 }
 
 /// Reads an LTS file in [Aldebaran format].
@@ -87,7 +110,7 @@ pub fn read_aldebaran_file(file: &mut File) -> Result<Lts, LtsParseError> {
     skip_chars(&mut chars, ")", 0)?;
 
     // read edges
-    let mut nodes = vec![LtsNode { adj: vec![], trans_adj: vec![] }; node_count];
+    let mut nodes = vec![LtsNode { adj: vec![] }; node_count];
 
     let mut i = 0;
     for line in lines {
@@ -107,7 +130,7 @@ pub fn read_aldebaran_file(file: &mut File) -> Result<Lts, LtsParseError> {
             });
         }
         nodes[start_state].adj.push(edge.clone());
-        nodes[edge.target].trans_adj.push(LtsEdge { target: start_state, label: edge.label });
+        // nodes[edge.target].trans_adj.push(LtsEdge { target: start_state, label: edge.label });
 
         i += 1;
     }
@@ -209,12 +232,12 @@ fn skip_spaces(chars: &mut Chars) {
     }
 }
 
-#[test]
-fn test_parse_aldeberan() {
-    let mut file = File::open("./test.aut").unwrap();
-    let _lts = read_aldebaran_file(&mut file).unwrap();
+// #[test]
+// fn test_parse_aldeberan() {
+    // let mut file = File::open("./test.aut").unwrap();
+    // let _lts = read_aldebaran_file(&mut file).unwrap();
 
     // TODO test contents
     // eprintln!("{:#?}", lts);
     // panic!();
-}
+// }

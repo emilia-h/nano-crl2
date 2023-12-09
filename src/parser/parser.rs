@@ -3,10 +3,13 @@
 //! 
 //! # Examples
 //! ```
-//! let tokens = tokenize("act a: Nat; proc Repeat = a(123).Repeat; init Repeat;");
-//! let parser = Parser::new(&tokens);
+//! # use nano_crl2::parser::lexer::tokenize;
+//! # use nano_crl2::parser::parser::Parser;
+//! let tokens = tokenize("act a: Nat; proc Repeat = a(123).Repeat; init Repeat;")
+//!     .expect("input was free of syntax errors");
+//! let mut parser = Parser::new(&tokens);
 //! let model = parser.parse_model()
-//!     .expect("input was guaranteed to be free of syntax errors");
+//!     .expect("input was free of syntax errors");
 //! 
 //! assert!(model.initial.is_some());
 //! assert_eq!(model.decls.len(), 2);
@@ -17,6 +20,7 @@ use crate::core::error::Mcrl2Error;
 use crate::ast::decl::DeclEnum;
 use crate::ast::model::Model;
 use crate::core::syntax::Identifier;
+use crate::core::syntax::SourceLocation;
 use crate::parser::lexer::LexicalElement;
 use crate::parser::lexer::Token;
 
@@ -37,8 +41,7 @@ impl ParseError {
     pub fn expected(expectation: &str, token: &Token) -> Self {
         let mut message = String::from("expected ");
         message.push_str(expectation);
-        message.push_str(" but found ");
-        message.push_str(&format!("{}", token.value));
+        message.push_str(&format!(" but found {}", token.value));
         ParseError {
             message,
             line: token.loc.get_line(),
@@ -124,6 +127,11 @@ impl<'a> Parser<'a> {
     pub fn get_token(&self) -> &Token {
         assert!(self.has_token());
         &self.tokens[self.index]
+    }
+
+    pub fn get_loc(&mut self) -> SourceLocation {
+        assert!(self.has_token());
+        self.tokens[self.index].loc
     }
 
     pub fn get_next_token(&self) -> Option<&Token> {

@@ -10,11 +10,13 @@
 
 use crate::ast::expr::Expr;
 use crate::ast::node::AstNode;
+use crate::ast::proc::Proc;
 use crate::ast::sort::Sort;
 use crate::core::syntax::{Identifier, SourceLocation};
 
 use std::fmt::{Debug, Formatter};
 use std::rc::{Rc, Weak};
+
 
 /// Describes a declaration in an mCRL2 model.
 pub struct Decl {
@@ -48,24 +50,36 @@ pub enum DeclEnum {
         ids: Vec<Identifier>,
         sort: Rc<Sort>,
     },
-    EquationDecl {
-        // TODO
+    EquationSetDecl {
+        variables: Vec<VariableDecl>,
+        equations: Vec<EquationDecl>,
     },
     GlobalVariableDecl {
-        // TODO
-    },
-    InitialDecl {
-        value: Rc<Expr>,
-    },
-    MapDecl {
         ids: Vec<Identifier>,
         sort: Rc<Sort>,
     },
+    InitialDecl {
+        value: Rc<Proc>,
+    },
+    MapDecl {
+        id: Identifier,
+        sort: Rc<Sort>,
+    },
+    /// Represents a process declaration of the form `proc Name(params) =
+    /// process;`.
+    /// 
+    /// Note that parameters are of the form `(id11, ..., id1M: Sort1, ...,
+    /// idN1, ..., idNM: SortN)` i.e. parameters can be grouped together, hence
+    /// the complicated data representation of the parameters.
     ProcessDecl {
         id: Identifier,
+        params: Vec<(Vec<Identifier>, Rc<Sort>)>,
+        process: Rc<Proc>,
     },
     SortDecl {
-        id: Identifier,
+        // can be either "sort a1, ..., aN;" or "sort a = S;"
+        ids: Vec<Identifier>,
+        value: Option<Rc<Sort>>,
     },
 }
 
@@ -74,6 +88,17 @@ pub enum DeclEnum {
 /// Note that a variable declaration is not a top-level declaration like
 /// [`Decl`](./struct.Decl). It is instead used to specify parameters for
 /// equations for `map`s.
+#[derive(Debug)]
 pub struct VariableDecl {
-    pub id: Identifier,
+    pub ids: Vec<Identifier>,
+    pub sort: Rc<Sort>,
+}
+
+/// Describes a single equation declaration of the form `(condition) -> lhs =
+/// rhs`.
+#[derive(Debug)]
+pub struct EquationDecl {
+    pub condition: Option<Rc<Expr>>,
+    pub lhs: Rc<Expr>,
+    pub rhs: Rc<Expr>,    
 }

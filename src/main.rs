@@ -10,7 +10,7 @@ nanoCRL2: a simple toolset for mCRL2. Usage:
 $ nanocrl2 <tool> <options...>
 
 Where <tool> is one of:
-  checklts              Parses an LTS file (.aut) and a formula file (.mcf) and
+  check-lts             Parses an LTS file (.aut) and a formula file (.mcf) and
                         outputs for which states of the LTS file it holds.
   docgen                Parses .mcrl2 files and generates documentation for the
                         declarations in those files
@@ -27,7 +27,7 @@ fn main() {
     let tool = args[1].as_str();
     let options = &args[2..];
 
-    if tool == "checklts" {
+    if tool == "check-lts" {
         let cli_config = CliConfig::new(&[
             ("help", "help", 'h'),
             ("input", "input", 'i'),

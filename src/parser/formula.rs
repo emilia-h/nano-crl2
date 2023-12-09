@@ -26,7 +26,7 @@ impl<'a> Parser<'a> {
     /// [state formula]: ../ast/formula/struct.StateFormula.html
     pub fn parse_state_formula(&mut self) -> Result<StateFormula, ParseError> {
         // || (associative, treat as if it associates to the right)
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
         let lhs = self.parse_and_state_formula()?;
 
         if self.skip_if_equal(&LexicalElement::LogicalOr) {
@@ -41,7 +41,7 @@ impl<'a> Parser<'a> {
 
     // || (associative, treat as if it associates to the right)
     fn parse_and_state_formula(&mut self) -> Result<StateFormula, ParseError> {
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
         let lhs = self.parse_basic_state_formula()?;
 
         if self.skip_if_equal(&LexicalElement::LogicalAnd) {
@@ -75,16 +75,16 @@ impl<'a> Parser<'a> {
                 // let regular_formula = Rc::new(self.parse_regular_formula()?);
                 let id = self.parse_identifier()?;
                 self.expect_token(&LexicalElement::ClosingBracket)?;
-                let state_formula = Rc::new(self.parse_basic_state_formula()?);
-                Ok(StateFormula::new(StateFormulaEnum::Box { action: Action { id }, state_formula }, loc))
+                let formula = Rc::new(self.parse_basic_state_formula()?);
+                Ok(StateFormula::new(StateFormulaEnum::Box { action: Action { id }, formula }, loc))
             },
             LexicalElement::LessThan => {
                 self.skip_token();
                 // let regular_formula = Rc::new(self.parse_regular_formula()?);
                 let id = self.parse_identifier()?;
                 self.expect_token(&LexicalElement::GreaterThan)?;
-                let state_formula = Rc::new(self.parse_basic_state_formula()?);
-                Ok(StateFormula::new(StateFormulaEnum::Diamond { action: Action { id }, state_formula }, loc))
+                let formula = Rc::new(self.parse_basic_state_formula()?);
+                Ok(StateFormula::new(StateFormulaEnum::Diamond { action: Action { id }, formula }, loc))
             },
             LexicalElement::Mu => {
                 self.skip_token();
@@ -113,7 +113,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_regular_formula(&mut self) -> Result<RegularFormula, ParseError> {
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
 
         let value = Rc::new(self.parse_action_formula()?);
         // TODO other regular formulas
@@ -152,7 +152,7 @@ fn test_state_formula_basic() {
     let (and_lhs, and_rhs) = unwrap_pattern!(&or_lhs.value, StateFormulaEnum::And { lhs, rhs } => (lhs, rhs));
 
     let (box_action, box_formula) =
-        unwrap_pattern!(&and_lhs.value, StateFormulaEnum::Box { action, state_formula } => (action, state_formula));
+        unwrap_pattern!(&and_lhs.value, StateFormulaEnum::Box { action, formula } => (action, formula));
     assert_eq!(box_action.id.get_value(), "aa");
     unwrap_pattern!(&box_formula.value, StateFormulaEnum::False => ());
 
@@ -160,7 +160,7 @@ fn test_state_formula_basic() {
     assert_eq!(mu_id.get_value(), "X");
 
     let (diamond_action, diamond_formula) =
-        unwrap_pattern!(&mu_formula.value, StateFormulaEnum::Diamond { action, state_formula } => (action, state_formula));
+        unwrap_pattern!(&mu_formula.value, StateFormulaEnum::Diamond { action, formula } => (action, formula));
     assert_eq!(diamond_action.id.get_value(), "a");
     
     let x = unwrap_pattern!(&diamond_formula.value, StateFormulaEnum::Id { id } => id);
@@ -169,7 +169,7 @@ fn test_state_formula_basic() {
     let (nu_id, nu_formula) = unwrap_pattern!(&or_rhs.value, StateFormulaEnum::Nu { id, formula } => (id, formula));
     assert_eq!(nu_id.get_value(), "Y");
     let (diamond_action, diamond_formula) =
-        unwrap_pattern!(&nu_formula.value, StateFormulaEnum::Diamond { action, state_formula } => (action, state_formula));
+        unwrap_pattern!(&nu_formula.value, StateFormulaEnum::Diamond { action, formula } => (action, formula));
     assert_eq!(diamond_action.id.get_value(), "a");
     
     let y = unwrap_pattern!(&diamond_formula.value, StateFormulaEnum::Id { id } => id);

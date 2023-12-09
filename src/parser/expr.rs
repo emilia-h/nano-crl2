@@ -28,7 +28,7 @@ impl<'a> Parser<'a> {
         // /, *, div, mod (left associative)
         // .
         // - (negation), !, #
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
         let expr = self.parse_binder_expr()?;
 
         if self.skip_if_equal(&LexicalElement::Whr) {
@@ -51,7 +51,7 @@ impl<'a> Parser<'a> {
 
     // forall, exists, lambda
     fn parse_binder_expr(&mut self) -> Result<Expr, ParseError> {
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
 
         match self.get_token().value {
             LexicalElement::Exists => {
@@ -83,7 +83,7 @@ impl<'a> Parser<'a> {
 
     // => (associative to the right, i.e. a => b => c is a => (b => c))
     fn parse_implies_expr(&mut self) -> Result<Expr, ParseError> {
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
         let lhs = self.parse_or_expr()?;
 
         if self.skip_if_equal(&LexicalElement::ThickArrow) {
@@ -96,7 +96,7 @@ impl<'a> Parser<'a> {
 
     // || (associative, so we pretend it associates to the right)
     fn parse_or_expr(&mut self) -> Result<Expr, ParseError> {
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
         let lhs = self.parse_and_expr()?;
 
         if self.skip_if_equal(&LexicalElement::LogicalOr) {
@@ -109,7 +109,7 @@ impl<'a> Parser<'a> {
 
     // && (associative, so we pretend it associates to the right)
     fn parse_and_expr(&mut self) -> Result<Expr, ParseError> {
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
         let lhs = self.parse_equals_expr()?;
 
         if self.skip_if_equal(&LexicalElement::LogicalOr) {
@@ -125,7 +125,7 @@ impl<'a> Parser<'a> {
         self.parse_left_associative_expr(
             |parser| parser.parse_comparison_expr(),
             &[
-                (&LexicalElement::Equals, &|lhs, rhs| ExprEnum::Equals { lhs, rhs }),
+                (&LexicalElement::DoubleEquals, &|lhs, rhs| ExprEnum::Equals { lhs, rhs }),
                 (&LexicalElement::NotEquals, &|lhs, rhs| ExprEnum::NotEquals { lhs, rhs }),
             ],
         )
@@ -198,7 +198,7 @@ impl<'a> Parser<'a> {
 
     // - (negation), !, #
     fn parse_unary_expr(&mut self) -> Result<Expr, ParseError> {
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
 
         if self.skip_if_equal(&LexicalElement::Dash) {
             let expr = self.parse_unary_expr()?;
@@ -266,7 +266,7 @@ impl<'a> Parser<'a> {
                 self.parse_binder_expr()?
             },
             _ => {
-                return Err(ParseError::expected("expectation", token));
+                return Err(ParseError::expected("an expression", token));
             },
         };
 
@@ -313,7 +313,7 @@ impl<'a> Parser<'a> {
     where
         F: FnMut(&mut Parser<'a>) -> Result<Expr, ParseError>
     {
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
         let mut result = sub_parser(self)?;
 
         'outer: loop {
@@ -401,4 +401,11 @@ fn test_parse_expr_binary() {
     assert_eq!(af321.get_value(), "af321");
     let fa123 = unwrap_pattern!(&add_rhs.value, ExprEnum::Id { id } => id);
     assert_eq!(fa123.get_value(), "fa123");
+}
+
+#[test]
+fn test_parse_expr_logical() {
+    let tokens = tokenize("a < b == c || d == e && f").unwrap();
+    let expr = unwrap_result(Parser::new(&tokens).parse_expr());
+    eprintln!("{:?}", expr);
 }

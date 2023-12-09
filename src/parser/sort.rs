@@ -16,7 +16,7 @@ impl<'a> Parser<'a> {
     pub fn parse_sort(&mut self) -> Result<Sort, ParseError> {
         // the grammar is not very clear, but -> binds less strong than #
         // also note that -> is right-associative
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
         let lhs = self.parse_carthesian_sort()?;
 
         if self.skip_if_equal(&LexicalElement::Arrow) {
@@ -29,7 +29,7 @@ impl<'a> Parser<'a> {
 
     fn parse_carthesian_sort(&mut self) -> Result<Sort, ParseError> {
         // note that it's associative
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
         let lhs = self.parse_basic_sort()?;
 
         if self.skip_if_equal(&LexicalElement::HashSign) {
@@ -46,6 +46,7 @@ impl<'a> Parser<'a> {
     fn parse_basic_sort(&mut self) -> Result<Sort, ParseError> {
         let token = self.get_token();
         let loc = token.loc;
+
         let result = match &token.value {
             LexicalElement::Bool => {
                 self.skip_token();

@@ -10,6 +10,7 @@
 use crate::ast::expr::Expr;
 use crate::ast::node::AstNode;
 use crate::ast::proc::Action;
+use crate::ast::sort::Sort;
 use crate::core::syntax::{Identifier, SourceLocation};
 
 use std::fmt::{Debug, Formatter};
@@ -84,12 +85,12 @@ pub enum StateFormulaEnum {
     Box {
         action: Action,
         // TODO regular_formula: Rc<RegularFormula>,
-        state_formula: Rc<StateFormula>,
+        formula: Rc<StateFormula>,
     },
     Diamond {
         action: Action,
         // TODO regular_formula: Rc<RegularFormula>,
-        state_formula: Rc<StateFormula>,
+        formula: Rc<StateFormula>,
     },
 }
 
@@ -164,8 +165,14 @@ pub enum ActionFormulaEnum {
     },
     True,
     False,
-    //Forall {},
-    //Exists {},
+    Forall {
+        ids: Vec<(Identifier, Rc<Sort>)>,
+        action_formula: Rc<ActionFormula>,
+    },
+    Exists {
+        ids: Vec<(Identifier, Rc<Sort>)>,
+        action_formula: Rc<ActionFormula>,
+    },
     Implies {
         lhs: Rc<ActionFormula>,
         rhs: Rc<ActionFormula>,

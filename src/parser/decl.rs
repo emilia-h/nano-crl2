@@ -4,7 +4,7 @@
 //! 
 //! [here]: ../parser/struct.Parser.html#method.parse_decl
 
-use crate::ast::decl::{Decl, DeclEnum};
+use crate::ast::decl::{Decl, DeclEnum, VariableDecl, EquationDecl};
 use crate::ast::sort::Sort;
 use crate::core::syntax::Identifier;
 use crate::parser::lexer::LexicalElement;
@@ -20,7 +20,7 @@ impl<'a> Parser<'a> {
         let mut decls = Vec::new();
 
         let mut current_decl_type = None;
-        loop {
+        while self.has_token() {
             let token = self.get_token();
             if let Some(new_decl_type) = match &token.value {
                 Var => Some(Eqn),
@@ -37,8 +37,6 @@ impl<'a> Parser<'a> {
                 // got some completely other token that a declaration cannot start with
                 return Err(ParseError::expected("a declaration", token));
             }
-
-            self.skip_token();
 
             decls.push(match current_decl_type.as_ref().unwrap() {
                 Act => self.parse_action_decl()?,
@@ -57,7 +55,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_action_decl(&mut self) -> Result<Decl, ParseError> {
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
         self.skip_if_equal(&LexicalElement::Act);
 
         // [act] a1, ..., an: Sort;
@@ -72,7 +70,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_constructor_decl(&mut self) -> Result<Decl, ParseError> {
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
         self.skip_if_equal(&LexicalElement::Cons);
 
         // [cons] a1, ..., an: Sort;
@@ -87,46 +85,122 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_equation_decl(&mut self) -> Result<Decl, ParseError> {
-        //...
-        todo!()
+        let loc = self.get_loc();
+
+        // parse variables
+        let mut variables = Vec::new();
+        if self.skip_if_equal(&LexicalElement::Var) {
+            while !self.is_token(&LexicalElement::Eqn) {
+                let ids = self.parse_identifier_list()?;
+                self.expect_token(&LexicalElement::Colon)?;
+                let sort = Rc::new(self.parse_sort()?);
+                self.expect_token(&LexicalElement::Semicolon)?;
+                variables.push(VariableDecl { ids, sort });
+            }
+        }
+
+        // parse equations
+        self.expect_token(&LexicalElement::Eqn)?;
+        let mut equations = Vec::new();
+        while self.has_token() && !is_decl_keyword(&self.get_token().value) {
+            let expr = Rc::new(self.parse_expr()?);
+            if self.skip_if_equal(&LexicalElement::Equals) {
+                let rhs = Rc::new(self.parse_expr()?);
+
+                equations.push(EquationDecl { condition: None, lhs: expr, rhs });
+            } else if self.skip_if_equal(&LexicalElement::Arrow) {
+                let lhs = Rc::new(self.parse_expr()?);
+                self.expect_token(&LexicalElement::Equals)?;
+                let rhs = Rc::new(self.parse_expr()?);
+
+                equations.push(EquationDecl { condition: Some(expr), lhs, rhs });
+            } else {
+                return Err(ParseError::expected("either = or -> in an 'eqn' declaration", self.get_token()));
+            }
+
+            self.expect_token(&LexicalElement::Semicolon)?;
+        }
+
+        Ok(Decl::new(DeclEnum::EquationSetDecl { variables, equations }, loc))
     }
 
     fn parse_global_variable_decl(&mut self) -> Result<Decl, ParseError> {
         self.skip_if_equal(&LexicalElement::Glob);
-        todo!()
+        let loc = self.get_loc();
+
+        let ids = self.parse_identifier_list()?;
+        self.expect_token(&LexicalElement::Colon)?;
+        let sort = Rc::new(self.parse_sort()?);
+        self.expect_token(&LexicalElement::Semicolon)?;
+
+        Ok(Decl::new(DeclEnum::GlobalVariableDecl { ids, sort }, loc))
     }
 
     fn parse_initial_decl(&mut self) -> Result<Decl, ParseError> {
-        let loc = self.get_token().loc;
+        let loc = self.get_loc();
         self.expect_token(&LexicalElement::Init).unwrap();
 
-        let value = Rc::new(self.parse_expr()?);
+        let value = Rc::new(self.parse_proc()?);
+
         Ok(Decl::new(DeclEnum::InitialDecl { value }, loc))
     }
 
     fn parse_map_decl(&mut self) -> Result<Decl, ParseError> {
+        let loc = self.get_loc();
         self.skip_if_equal(&LexicalElement::Map);
-        todo!()
+
+        let id = self.parse_identifier()?;
+        self.expect_token(&LexicalElement::Colon)?;
+        let sort = Rc::new(self.parse_sort()?);
+        self.expect_token(&LexicalElement::Semicolon)?;
+
+        Ok(Decl::new(DeclEnum::MapDecl { id, sort }, loc))
     }
 
     fn parse_process_decl(&mut self) -> Result<Decl, ParseError> {
+        let loc = self.get_loc();
         self.skip_if_equal(&LexicalElement::Proc);
-        todo!()
+
+        let id = self.parse_identifier()?;
+
+        let mut params = Vec::new();
+        if self.skip_if_equal(&LexicalElement::OpeningParen) {
+            // (id11, .., id1M: Sort1, ..., idN1, .., idNM: SortN)
+            //  ^^^^^^^^^^^^^^^^^^^^^
+            //  one element in the vector
+            while {
+                let ids = self.parse_identifier_list()?;
+                self.expect_token(&LexicalElement::Colon)?;
+                let sort = Rc::new(self.parse_sort()?);
+                params.push((ids, sort));
+
+                self.skip_if_equal(&LexicalElement::Comma)
+            } {}
+            self.expect_token(&LexicalElement::ClosingParen)?;
+        }
+        self.expect_token(&LexicalElement::Equals)?;
+
+        let process = Rc::new(self.parse_proc()?);
+
+        Ok(Decl::new(DeclEnum::ProcessDecl { id, params, process }, loc))
     }
 
-    // sort A = B;
-    // sort A;
     fn parse_sort_decl(&mut self) -> Result<Decl, ParseError> {
+        let loc = self.get_loc();
         self.skip_if_equal(&LexicalElement::Sort);
 
-        let loc = self.get_token().loc;
-
         if self.is_next_token(&LexicalElement::Equals) {
+            // sort A = B;
             let id = self.parse_identifier()?;
             self.expect_token(&LexicalElement::Equals).unwrap();
-            Ok(Decl::new(DeclEnum::SortDecl { id }, loc))
+            let value = Some(Rc::new(self.parse_sort()?));
+
+            Ok(Decl::new(DeclEnum::SortDecl { ids: vec![id], value }, loc))
         } else {
-            todo!()
+            // sort A;
+            let ids = self.parse_identifier_list()?;
+
+            Ok(Decl::new(DeclEnum::SortDecl { ids, value: None }, loc))
         }
     }
 
@@ -149,4 +223,77 @@ impl<'a> Parser<'a> {
 
         Ok(result)
     }
+}
+
+fn is_decl_keyword(element: &LexicalElement) -> bool {
+    use LexicalElement::*;
+
+    matches!(element, Sort | Cons | Map | Var | Eqn | Glob | Act | Proc | Init)
+}
+
+#[cfg(test)]
+use crate::parser::lexer::tokenize;
+#[cfg(test)]
+use crate::util::unwrap_result;
+#[cfg(test)]
+use crate::unwrap_pattern;
+
+#[test]
+fn test_parse_decl_eqn() {
+    use crate::ast::expr::ExprEnum;
+    use crate::ast::sort::SortEnum;
+
+    let tokens = tokenize("
+        var y, z, a: Nat;
+            b: Set(Int);
+        eqn y == z = a in b;
+            y == z -> y == z = true;
+    ").unwrap();
+    let decl = unwrap_result(Parser::new(&tokens).parse_decl());
+    assert_eq!(decl.len(), 1);
+
+    let (variables, equations) = unwrap_pattern!(&decl[0].value,
+        DeclEnum::EquationSetDecl { variables, equations } => (variables, equations)
+    );
+
+    assert_eq!(variables.len(), 2);
+    assert_eq!(equations.len(), 2);
+
+    assert_eq!(&variables[0].ids, &vec![Identifier::new("y"), Identifier::new("z"), Identifier::new("a")]);
+    unwrap_pattern!(&variables[0].sort.value, &SortEnum::Nat => ());
+    assert_eq!(&variables[1].ids, &vec![Identifier::new("b")]);
+
+    // first equation
+    let EquationDecl { condition, lhs, rhs } = &equations[0];
+    assert!(condition.is_none());
+    
+    let (equals_lhs, equals_rhs) = unwrap_pattern!(&lhs.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));
+    let y = unwrap_pattern!(&equals_lhs.value, ExprEnum::Id { id } => id);
+    assert_eq!(y.get_value(), "y");
+    let z = unwrap_pattern!(&equals_rhs.value, ExprEnum::Id { id } => id);
+    assert_eq!(z.get_value(), "z");
+
+    let (in_lhs, in_rhs) = unwrap_pattern!(&rhs.value, ExprEnum::In { lhs, rhs } => (lhs, rhs));
+    let a = unwrap_pattern!(&in_lhs.value, ExprEnum::Id { id } => id);
+    assert_eq!(a.get_value(), "a");
+    let b = unwrap_pattern!(&in_rhs.value, ExprEnum::Id { id } => id);
+    assert_eq!(b.get_value(), "b");
+
+    // second equation
+    let EquationDecl { condition, lhs, rhs } = &equations[1];
+
+    let condition = condition.as_ref().unwrap();
+    let (equals_lhs, equals_rhs) = unwrap_pattern!(&condition.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));
+    let y = unwrap_pattern!(&equals_lhs.value, ExprEnum::Id { id } => id);
+    assert_eq!(y.get_value(), "y");
+    let z = unwrap_pattern!(&equals_rhs.value, ExprEnum::Id { id } => id);
+    assert_eq!(z.get_value(), "z");
+
+    let (equals_lhs, equals_rhs) = unwrap_pattern!(&lhs.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));
+    let y = unwrap_pattern!(&equals_lhs.value, ExprEnum::Id { id } => id);
+    assert_eq!(y.get_value(), "y");
+    let z = unwrap_pattern!(&equals_rhs.value, ExprEnum::Id { id } => id);
+    assert_eq!(z.get_value(), "z");
+
+    unwrap_pattern!(&rhs.value, ExprEnum::Bool { value } => assert!(value));
 }

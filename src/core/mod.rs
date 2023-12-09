@@ -6,4 +6,5 @@
 
 #[macro_use]
 pub mod error;
+pub mod state_set;
 pub mod syntax;
