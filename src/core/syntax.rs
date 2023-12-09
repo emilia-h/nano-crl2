@@ -1,5 +1,5 @@
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Identifier {
     value: String,
 }
@@ -21,7 +21,7 @@ pub struct SourceLocation {
 }
 
 impl SourceLocation {
-    pub fn new(line: usize, character: usize) -> Self {
+    pub const fn new(line: usize, character: usize) -> Self {
         SourceLocation { line, character }
     }
 

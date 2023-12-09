@@ -18,17 +18,17 @@ impl Decl {
     }
 }
 
-#[derive(Debug)]
 pub enum DeclEnum {
     ActionDecl {
-        identifiers: Vec<Identifier>,
+        ids: Vec<Identifier>,
         sort: Rc<Sort>,
     },
     ConstructorDecl {
-
+        ids: Vec<Identifier>,
+        sort: Rc<Sort>,
     },
     EquationDecl {
-
+    
     },
     GlobalVariableDecl {
 
@@ -37,15 +37,16 @@ pub enum DeclEnum {
         value: Rc<Expr>,
     },
     MapDecl {
-        identifier: Identifier,
+        ids: Vec<Identifier>,
+        sort: Rc<Sort>,
     },
     ProcessDecl {
-
+        id: Identifier,
     },
     SortDecl {
-
+        id: Identifier,
     },
-    VariableDecl {
-
-    },
+}
+pub struct VariableDecl {
+    pub id: Identifier,
 }

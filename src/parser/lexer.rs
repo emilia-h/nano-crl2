@@ -3,6 +3,7 @@ use crate::core::error::Mcrl2Error;
 use crate::core::syntax::SourceLocation;
 
 use std::fmt::{Display, Formatter};
+use std::option;
 use std::str::Chars;
 
 #[derive(Debug)]
@@ -99,14 +100,18 @@ pub enum LexicalElement {
     Var,
     Whr,
     Yaled,
+
     Bag,
     Bool,
+    FBag,
+    FSet,
     Int,
     List,
     Nat,
     Pos,
     Real,
     Set,
+
     Delta,
     False,
     Nil,
@@ -197,6 +202,8 @@ impl Display for LexicalElement {
             Yaled => Some("yaled"),
             Bag => Some("Bag"),
             Bool => Some("Bool"),
+            FBag => Some("FBag"),
+            FSet => Some("FSet"),
             Int => Some("Int"),
             List => Some("List"),
             Nat => Some("Nat"),
@@ -322,125 +329,131 @@ impl<'a> Lexer<'a> {
 
         let mut symbol = None;
 
-        while let Some(next) = self.iterator.clone().next() {
-            if next == '\r' { // skip this cursed character
-                self.advance_char(next);
-                continue;
-            }
+        // when we are out of characters, we shouldn't forget to add the last
+        // token, which is why this is a `loop`
+        loop {
+            let option_next = self.iterator.clone().next();
 
-            if !in_comment && is_number_character(next) { // 0 - 9
-                if let Some(e) = symbol {
-                    self.push_token(e);
-                    symbol = None;
-                    continue; // do not advance
-                } else if in_identifier {
-                    identifier.push(next);
-                } else {
-                    in_integer = true;
-                    integer *= 10;
-                    integer += next as u64 - '0' as u64;
+            if let Some(next) = option_next {
+                if next == '\r' { // skip this cursed character
+                    self.advance_char(next);
+                    continue;
                 }
-                self.advance_char(next);
-                continue;
-            }
 
-            if !in_comment && is_word_character(next) { // a - z, A - Z, _, '
-                if let Some(e) = symbol {
-                    self.push_token(e);
-                    symbol = None;
-                    continue; // do not advance
-                } else if in_integer {
-                    return Err(LexError {
-                        message: String::from("found word character right after integer"),
-                        line: 0,
-                        character: 0,
-                    });
+                if !in_comment && is_number_character(next) { // 0 - 9
+                    if let Some(e) = symbol {
+                        self.push_token(e);
+                        symbol = None;
+                        continue; // do not advance
+                    } else if in_identifier {
+                        identifier.push(next);
+                    } else {
+                        in_integer = true;
+                        integer *= 10;
+                        integer += next as u64 - '0' as u64;
+                    }
+                    self.advance_char(next);
+                    continue;
                 }
-                in_identifier = true;
-                identifier.push(next);
-                self.advance_char(next);
-                continue;
-            }
 
-            if !in_comment && next == '%' {
-                in_comment = true;
-                self.advance_char(next);
-                continue;
-            }
-
-            // TODO exceptions: |, &, =, !, <, >, -, +
-            if !in_identifier && !in_integer && !in_comment {
-                if let Some(e) = match next {
-                    '(' => Some(LexicalElement::OpeningParen),
-                    ')' => Some(LexicalElement::ClosingParen),
-                    '[' => Some(LexicalElement::OpeningBracket),
-                    ']' => Some(LexicalElement::ClosingBracket),
-                    '{' => Some(LexicalElement::OpeningBrace),
-                    '}' => Some(LexicalElement::ClosingBrace),
-                    '~' => Some(LexicalElement::Tilde),
-                    '!' => Some(LexicalElement::ExclamationMark),
-                    '@' => Some(LexicalElement::AtSign),
-                    '#' => Some(LexicalElement::HashSign),
-                    '$' => Some(LexicalElement::DollarSign),
-                    '^' => Some(LexicalElement::Circonflex),
-                    '&' => Some(LexicalElement::Ampersand),
-                    '*' => Some(LexicalElement::Asterisk),
-                    '-' => Some(LexicalElement::Dash),
-                    '=' => Some(LexicalElement::Equals),
-                    '+' => Some(LexicalElement::Plus),
-                    '|' => Some(LexicalElement::Pipe),
-                    ';' => Some(LexicalElement::Semicolon),
-                    ':' => Some(LexicalElement::Colon),
-                    ',' => Some(LexicalElement::Comma),
-                    '<' => Some(LexicalElement::LessThan),
-                    '.' => Some(LexicalElement::Period),
-                    '>' => Some(LexicalElement::GreaterThan),
-                    '/' => Some(LexicalElement::Slash),
-                    '?' => Some(LexicalElement::QuestionMark),
-                    ' ' => None,
-                    '\n' => None,
-                    '\r' => None,
-                    _ => {
+                if !in_comment && is_word_character(next) { // a - z, A - Z, _, '
+                    if let Some(e) = symbol {
+                        self.push_token(e);
+                        symbol = None;
+                        continue; // do not advance
+                    } else if in_integer {
                         return Err(LexError {
-                            message: format!("Found unknown character {:?}", next),
-                            character: 0,
+                            message: String::from("found word character right after integer"),
                             line: 0,
+                            character: 0,
                         });
                     }
-                } {
-                    // try combining with a previous symbol
-                    if let Some(prev_symbol) = &symbol {
-                        if let Some(combined) = match (&prev_symbol, &e) {
-                            (LexicalElement::Pipe, LexicalElement::Pipe) => Some(LexicalElement::LogicalOr),
-                            (LexicalElement::Ampersand, LexicalElement::Ampersand) => Some(LexicalElement::LogicalAnd),
-                            (LexicalElement::Equals, LexicalElement::Equals) => Some(LexicalElement::DoubleEquals),
-                            (LexicalElement::ExclamationMark, LexicalElement::Equals) => Some(LexicalElement::NotEquals),
-                            (LexicalElement::LessThan, LexicalElement::Equals) => Some(LexicalElement::LessThanEquals),
-                            (LexicalElement::GreaterThan, LexicalElement::Equals) => Some(LexicalElement::GreaterThanEquals),
-                            (LexicalElement::LessThan, LexicalElement::GreaterThan) => Some(LexicalElement::Diamond),
-                            (LexicalElement::Dash, LexicalElement::GreaterThan) => Some(LexicalElement::Arrow),
-                            (LexicalElement::Equals, LexicalElement::GreaterThan) => Some(LexicalElement::ThickArrow),
-                            (LexicalElement::Pipe, LexicalElement::GreaterThan) => Some(LexicalElement::ConsOperator),
-                            (LexicalElement::LessThan, LexicalElement::Pipe) => Some(LexicalElement::SnocOperator),
-                            (LexicalElement::Plus, LexicalElement::Plus) => Some(LexicalElement::Concat),
-                            _ => None,
-                        } {
-                            symbol = Some(combined);
+                    in_identifier = true;
+                    identifier.push(next);
+                    self.advance_char(next);
+                    continue;
+                }
+
+                if !in_comment && next == '%' {
+                    in_comment = true;
+                    self.advance_char(next);
+                    continue;
+                }
+
+                // TODO exceptions: |, &, =, !, <, >, -, +
+                if !in_identifier && !in_integer && !in_comment {
+                    if let Some(e) = match next {
+                        '(' => Some(LexicalElement::OpeningParen),
+                        ')' => Some(LexicalElement::ClosingParen),
+                        '[' => Some(LexicalElement::OpeningBracket),
+                        ']' => Some(LexicalElement::ClosingBracket),
+                        '{' => Some(LexicalElement::OpeningBrace),
+                        '}' => Some(LexicalElement::ClosingBrace),
+                        '~' => Some(LexicalElement::Tilde),
+                        '!' => Some(LexicalElement::ExclamationMark),
+                        '@' => Some(LexicalElement::AtSign),
+                        '#' => Some(LexicalElement::HashSign),
+                        '$' => Some(LexicalElement::DollarSign),
+                        '^' => Some(LexicalElement::Circonflex),
+                        '&' => Some(LexicalElement::Ampersand),
+                        '*' => Some(LexicalElement::Asterisk),
+                        '-' => Some(LexicalElement::Dash),
+                        '=' => Some(LexicalElement::Equals),
+                        '+' => Some(LexicalElement::Plus),
+                        '|' => Some(LexicalElement::Pipe),
+                        ';' => Some(LexicalElement::Semicolon),
+                        ':' => Some(LexicalElement::Colon),
+                        ',' => Some(LexicalElement::Comma),
+                        '<' => Some(LexicalElement::LessThan),
+                        '.' => Some(LexicalElement::Period),
+                        '>' => Some(LexicalElement::GreaterThan),
+                        '/' => Some(LexicalElement::Slash),
+                        '?' => Some(LexicalElement::QuestionMark),
+                        ' ' => None,
+                        '\n' => None,
+                        '\r' => None,
+                        _ => {
+                            return Err(LexError {
+                                message: format!("Found unknown character {:?}", next),
+                                character: 0,
+                                line: 0,
+                            });
+                        }
+                    } {
+                        // try combining with a previous symbol
+                        if let Some(prev_symbol) = &symbol {
+                            if let Some(combined) = match (&prev_symbol, &e) {
+                                (LexicalElement::Pipe, LexicalElement::Pipe) => Some(LexicalElement::LogicalOr),
+                                (LexicalElement::Ampersand, LexicalElement::Ampersand) => Some(LexicalElement::LogicalAnd),
+                                (LexicalElement::Equals, LexicalElement::Equals) => Some(LexicalElement::DoubleEquals),
+                                (LexicalElement::ExclamationMark, LexicalElement::Equals) => Some(LexicalElement::NotEquals),
+                                (LexicalElement::LessThan, LexicalElement::Equals) => Some(LexicalElement::LessThanEquals),
+                                (LexicalElement::GreaterThan, LexicalElement::Equals) => Some(LexicalElement::GreaterThanEquals),
+                                (LexicalElement::LessThan, LexicalElement::GreaterThan) => Some(LexicalElement::Diamond),
+                                (LexicalElement::Dash, LexicalElement::GreaterThan) => Some(LexicalElement::Arrow),
+                                (LexicalElement::Equals, LexicalElement::GreaterThan) => Some(LexicalElement::ThickArrow),
+                                (LexicalElement::Pipe, LexicalElement::GreaterThan) => Some(LexicalElement::ConsOperator),
+                                (LexicalElement::LessThan, LexicalElement::Pipe) => Some(LexicalElement::SnocOperator),
+                                (LexicalElement::Plus, LexicalElement::Plus) => Some(LexicalElement::Concat),
+                                _ => None,
+                            } {
+                                symbol = Some(combined);
+                                self.advance_char(next);
+                                continue;
+                            } // else (if None), do not advance
+                        } else {
+                            // there was no previous symbol
                             self.advance_char(next);
+                            symbol = Some(e);
                             continue;
-                        } // else (if None), do not advance
-                    } else {
-                        // there was no previous symbol
-                        self.advance_char(next);
-                        symbol = Some(e);
-                        continue;
+                        }
                     }
                 }
             }
 
             // if while building integer/identifier/comment/symbol, another
             // character is found, then finish the token
-            if in_comment {
+            /*if in_comment { // TODO fix
                 self.advance_char(next);
                 if next == '\n' {
                     self.push_token(LexicalElement::Comment(comment));
@@ -449,7 +462,7 @@ impl<'a> Lexer<'a> {
                 } else {
                     comment.push(next);
                 }
-            }
+            }*/
 
             if in_identifier {
                 let e = match identifier.as_str() {
@@ -484,8 +497,10 @@ impl<'a> Lexer<'a> {
                     "var" => LexicalElement::Var,
                     "whr" => LexicalElement::Whr,
                     "yaled" => LexicalElement::Yaled,
-                    "bag" => LexicalElement::Bag,
+                    "Bag" => LexicalElement::Bag,
                     "Bool" => LexicalElement::Bool,
+                    "FBag" => LexicalElement::FBag,
+                    "FSet" => LexicalElement::FSet,
                     "Int" => LexicalElement::Int,
                     "List" => LexicalElement::List,
                     "Nat" => LexicalElement::Nat,
@@ -517,6 +532,10 @@ impl<'a> Lexer<'a> {
             if let Some(e) = symbol {
                 self.push_token(e);
                 symbol = None;
+            }
+
+            if option_next.is_none() {
+                break; // out of characters
             }
         }
 
