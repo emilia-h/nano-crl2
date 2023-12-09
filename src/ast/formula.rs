@@ -1,3 +1,11 @@
+//! This module contains definitions for mu-calculus formulas.
+//! 
+//! This includes both the "top-level" state formulas and also the regular
+//! formulas and action formulas that can be used inside of a box or diamond
+//! operator.
+//! 
+//! # See also
+//! The [mCRL2 spec on this](https://mcrl2.org/web/user_manual/language_reference/mucalc.html#state-formulas).
 
 use crate::ast::expr::Expr;
 use crate::ast::node::AstNode;
@@ -14,6 +22,7 @@ pub struct StateFormula {
 }
 
 impl StateFormula {
+    /// Creates a new state formula with `parent` set to `None`.
     pub fn new(value: StateFormulaEnum, loc: SourceLocation) -> Self {
         StateFormula { value, loc, parent: None }
     }
@@ -69,6 +78,9 @@ pub enum StateFormulaEnum {
         lhs: Rc<StateFormula>,
         rhs: Rc<StateFormula>,
     },
+    Not {
+        value: Rc<StateFormula>,
+    },
     Box {
         action: Action,
         // TODO regular_formula: Rc<RegularFormula>,
@@ -79,9 +91,6 @@ pub enum StateFormulaEnum {
         // TODO regular_formula: Rc<RegularFormula>,
         state_formula: Rc<StateFormula>,
     },
-    Not {
-        value: Rc<StateFormula>,
-    },
 }
 
 pub struct RegularFormula {
@@ -91,6 +100,7 @@ pub struct RegularFormula {
 }
 
 impl RegularFormula {
+    /// Creates a new regular formula with `parent` set to `None`.
     pub fn new(value: RegularFormulaEnum, loc: SourceLocation) -> Self {
         RegularFormula { value, loc, parent: None }
     }
@@ -131,6 +141,7 @@ pub struct ActionFormula {
 }
 
 impl ActionFormula {
+    /// Creates a new action formula with `parent` set to `None`.
     pub fn new(value: ActionFormulaEnum, loc: SourceLocation) -> Self {
         ActionFormula { value, loc, parent: None }
     }

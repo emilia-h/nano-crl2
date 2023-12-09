@@ -1,3 +1,10 @@
+//! A sort is a type of an [`Expr`].
+//! 
+//! There are basic sorts such as `Bool` and `Int`, user-defined sorts (defined
+//! using a [`SortDecl`]) and composed sorts such as `Set(T)` or `List(T)`.
+//! 
+//! [`Expr`]: ../expr/struct.Expr.html
+//! [`SortDecl`]: ../decl/enum.DeclEnum.html#variant.SortDecl
 
 use crate::ast::node::AstNode;
 use crate::core::syntax::{Identifier, SourceLocation};
@@ -12,6 +19,7 @@ pub struct Sort {
 }
 
 impl Sort {
+    /// Creates a new sort with `parent` set to `None`.
     pub fn new(value: SortEnum, loc: SourceLocation) -> Self {
         Sort { value, loc, parent: None }
     }

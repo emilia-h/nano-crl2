@@ -1,3 +1,8 @@
+//! Implements an mCRL2 model expression parser.
+//! 
+//! The functions can be found [here].
+//! 
+//! [here]: ../parser/struct.Parser.html#method.parse_expr
 
 use crate::ast::expr::{Expr, ExprEnum};
 use crate::core::syntax::Identifier;
@@ -7,6 +12,7 @@ use crate::parser::parser::{ParseError, Parser};
 use std::rc::Rc;
 
 impl<'a> Parser<'a> {
+    /// Parses an `Expr` (short for expression).
     pub fn parse_expr(&mut self) -> Result<Expr, ParseError> {
         // the grammar is unclear but precedence seems to be (low to high):
         // whr

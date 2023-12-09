@@ -1,3 +1,7 @@
+//! ...
+//! 
+//! # See also
+//! The [mCRL2 spec on this](https://mcrl2.org/web/user_manual/language_reference/data.html).
 
 use crate::ast::node::AstNode;
 use crate::ast::sort::Sort;
@@ -13,6 +17,7 @@ pub struct Expr {
 }
 
 impl Expr {
+    /// Creates a new expression with `parent` set to `None`.
     pub fn new(value: ExprEnum, loc: SourceLocation) -> Self {
         Expr { value, loc, parent: None }
     }

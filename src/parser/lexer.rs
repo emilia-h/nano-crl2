@@ -1,3 +1,14 @@
+//! The lexer is a facility for transforming a string into tokens (AKA
+//! tokenization).
+//! 
+//! For instance, the string `"eqn test(a) = a ++ a;"` would be turned into
+//! the tokens `["eqn", "test", "(", "a", ")", "=", "a", "++", "a", ";"]`.
+//! 
+//! Tokenization makes parsing a lot easier. This lexer is used for both the
+//! [mCRL2 model parser] and the [mu-calculus parser].
+//! 
+//! [mCRL2 model parser]: ../parser/index.html
+//! [mu-calculus parser]: ../formula/index.html
 
 use crate::core::error::Mcrl2Error;
 use crate::core::syntax::SourceLocation;
@@ -5,6 +16,15 @@ use crate::core::syntax::SourceLocation;
 use std::fmt::{Display, Formatter};
 use std::str::Chars;
 
+/// Represents an error during the tokenization process, which happens when the
+/// input is invalid.
+/// 
+/// # Examples
+/// ```
+/// // a word character is not allowed after a number
+/// let error = tokenize("123t").unwrap_err();
+/// eprintln!("{:?}", error);
+/// ```
 #[derive(Debug)]
 pub struct LexError {
     pub message: String,
@@ -22,9 +42,11 @@ impl Into<Mcrl2Error> for LexError {
     }
 }
 
-/// A single lexical element
+/// Represents a single lexical element, for instance `"++"`, `my_map`, `123`
+/// or `struct`.
+/// 
 /// # See also
-/// https://www.mcrl2.org/web/user_manual/language_reference/lex.html
+/// [The mCRL2 spec on this](https://www.mcrl2.org/web/user_manual/language_reference/lex.html)
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LexicalElement {
     OpeningParen, // (
@@ -230,6 +252,8 @@ impl Display for LexicalElement {
     }
 }
 
+/// Represents a single token with information about the location of the token
+/// in the original string (line and character on that line).
 #[derive(Clone, Eq, PartialEq)]
 pub struct Token {
     pub value: LexicalElement,
@@ -248,7 +272,7 @@ impl Display for Token {
     }
 }
 
-/// Tokenizes a string of character.
+/// Tokenizes a string of characters.
 /// 
 /// Returns: a vector of `Token`s, or an error if the input was in an invalid
 /// format.
@@ -261,7 +285,10 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, LexError> {
 /// Takes a list of characters and turns it back into a string.
 /// 
 /// # Panics
-/// This assumes that the tokens are sorted on .
+/// This assumes that the tokens are sorted on location, which is guaranteed
+/// when the tokens came from a [`tokenize`] call.
+/// 
+/// [`tokenize`]: ./fn.tokenize.html
 pub fn reconstruct_from_tokens(input: &[Token]) -> String {
     let mut result = String::new();
 
@@ -301,6 +328,7 @@ struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
+    /// Creates a new `Lexer` from an input string.
     pub fn new(input: &'a str) -> Lexer<'a> {
         Lexer {
             tokens: Vec::new(),
@@ -312,6 +340,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Tokenizes the string given in [`Lexer::new`](./fn.new.html).
     pub fn parse_tokens(&mut self) -> Result<(), LexError> {
         self.skip_whitespace();
         self.token_char = self.curr_char;

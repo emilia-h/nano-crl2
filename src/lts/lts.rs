@@ -7,6 +7,8 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str::Chars;
 
+/// Represents an error while parsing the LTS, which happens when the given
+/// string is not in the correct format.
 #[derive(Debug)]
 pub struct LtsParseError {
     pub message: String,
@@ -22,24 +24,45 @@ impl Into<Mcrl2Error> for LtsParseError {
     }
 }
 
+/// A directed edge from one LTS node to another.
+/// 
+/// An edge in an LTS has a "label", which is an [`Action`] that can have data
+/// attached to it.
+/// 
+/// [`Action`]: ../ast/proc/struct.Proc.html
 #[derive(Clone, Debug)]
 pub struct LtsEdge {
     pub target: usize,
     pub label: Action,
 }
 
+/// 
 #[derive(Clone, Debug)]
 pub struct LtsNode {
     pub adj: Vec<LtsEdge>,
     pub trans_adj: Vec<LtsEdge>,
 }
 
+/// Represents an LTS (labelled transition system), which is in essence a
+/// directed graph with unlabelled nodes and with edges that are labelled with
+/// an action.
+/// 
+/// An LTS usually represents a state space, where the labels represent steps
+/// in the program from one state to another.
+/// 
+/// Note that this is a multigraph, so there for a pair of states there can be
+/// arbitrarily many edges as long as the labels are distinct.
 #[derive(Clone, Debug)]
 pub struct Lts {
     pub initial_state: usize,
     pub nodes: Vec<LtsNode>,
 }
 
+/// Reads an LTS file in [Aldebaran format].
+/// 
+/// These files usually have a `.aut` extension.
+/// 
+/// [Aldebaran format]: https://mcrl2.org/web/user_manual/tools/lts.html#the-aut-format
 pub fn read_aldebaran_file(file: &mut File) -> Result<Lts, LtsParseError> {
     let reader = BufReader::new(file);
     let mut lines = reader.lines();
@@ -84,7 +107,7 @@ pub fn read_aldebaran_file(file: &mut File) -> Result<Lts, LtsParseError> {
             });
         }
         nodes[start_state].adj.push(edge.clone());
-        nodes[edge.target].adj.push(LtsEdge { target: start_state, label: edge.label });
+        nodes[edge.target].trans_adj.push(LtsEdge { target: start_state, label: edge.label });
 
         i += 1;
     }

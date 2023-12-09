@@ -1,3 +1,8 @@
+//! Implements an mCRL2 model sort parser.
+//! 
+//! The functions can be found [here].
+//! 
+//! [here]: ../parser/struct.Parser.html#method.parse_sort
 
 use crate::ast::sort::{Constructor, Sort, SortEnum};
 use crate::core::syntax::Identifier;
@@ -7,6 +12,7 @@ use crate::parser::parser::{ParseError, Parser};
 use std::rc::Rc;
 
 impl<'a> Parser<'a> {
+    /// Parses a sort.
     pub fn parse_sort(&mut self) -> Result<Sort, ParseError> {
         // the grammar is not very clear, but -> binds less strong than #
         // also note that -> is right-associative

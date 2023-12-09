@@ -1,4 +1,5 @@
 
+/// 
 #[derive(Debug)]
 pub enum Mcrl2Error {
     /// A tool usage error, for instance when the user incorrectly passes CLI
@@ -23,6 +24,12 @@ impl From<std::io::Error> for Mcrl2Error {
     }
 }
 
+/// Does the same as [`try!`] or the `?` operator, except it uses the [`Into`]
+/// trait rather than the [`From`] trait.
+/// 
+/// [`try!`]: https://doc.rust-lang.org/std/macro.try.html
+/// [`Into`]: https://doc.rust-lang.org/std/convert/trait.Into.html
+/// [`From`]: https://doc.rust-lang.org/std/convert/trait.From.html
 #[macro_export]
 macro_rules! try_into {
     ($expr:expr) => {

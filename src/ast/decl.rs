@@ -1,3 +1,12 @@
+//! A declaration (also called spec/specification in the mCRL2 spec) defines
+//! somethiing in a model, often with a name (an identifier).
+//! 
+//! Examples are action declarations written as `act name: Sort;` or process
+//! declarations written as "proc Name(param: Sort) = process;"
+//! 
+//! # See also
+//! 
+//! The [mCRL2 spec on this](https://mcrl2.org/web/user_manual/language_reference/mcrl2.html#specification-syntax).
 
 use crate::ast::expr::Expr;
 use crate::ast::node::AstNode;
@@ -7,6 +16,7 @@ use crate::core::syntax::{Identifier, SourceLocation};
 use std::fmt::{Debug, Formatter};
 use std::rc::{Rc, Weak};
 
+/// Describes a declaration in an mCRL2 model.
 pub struct Decl {
     pub value: DeclEnum,
     pub loc: SourceLocation,
@@ -14,6 +24,7 @@ pub struct Decl {
 }
 
 impl Decl {
+    /// Creates a new declaration with `parent` set to `None`.
     pub fn new(value: DeclEnum, loc: SourceLocation) -> Self {
         Decl { value, loc, parent: None }
     }
@@ -26,6 +37,7 @@ impl Debug for Decl {
     }
 }
 
+/// Contains the options for a declaration.
 #[derive(Debug)]
 pub enum DeclEnum {
     ActionDecl {
@@ -37,10 +49,10 @@ pub enum DeclEnum {
         sort: Rc<Sort>,
     },
     EquationDecl {
-    
+        // TODO
     },
     GlobalVariableDecl {
-
+        // TODO
     },
     InitialDecl {
         value: Rc<Expr>,
@@ -56,6 +68,12 @@ pub enum DeclEnum {
         id: Identifier,
     },
 }
+
+/// Describes a variable declaration.
+/// 
+/// Note that a variable declaration is not a top-level declaration like
+/// [`Decl`](./struct.Decl). It is instead used to specify parameters for
+/// equations for `map`s.
 pub struct VariableDecl {
     pub id: Identifier,
 }

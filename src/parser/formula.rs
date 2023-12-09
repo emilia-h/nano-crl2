@@ -1,3 +1,8 @@
+//! Implements a mu-calculus formula parser.
+//! 
+//! The functions can be found [here].
+//! 
+//! [here]: ../parser/struct.Parser.html#method.parse_state_formula
 
 use crate::ast::formula::{
     ActionFormula, ActionFormulaEnum, RegularFormula, RegularFormulaEnum,
@@ -11,8 +16,16 @@ use crate::parser::parser::{Parser, ParseError};
 use std::rc::Rc;
 
 impl<'a> Parser<'a> {
-    // || (associative, treat as if it associates to the right)
+    /// Parses a state formula.
+    /// 
+    /// # Returns
+    /// A [`StateFormula`] if the parser starts at a list of tokens that
+    /// represent a state formula, a [parse error] otherwise.
+    /// 
+    /// [parse error]: ../parser/struct.ParseError.html
+    /// [state formula]: ../ast/formula/struct.StateFormula.html
     pub fn parse_state_formula(&mut self) -> Result<StateFormula, ParseError> {
+        // || (associative, treat as if it associates to the right)
         let loc = self.get_token().loc;
         let lhs = self.parse_and_state_formula()?;
 

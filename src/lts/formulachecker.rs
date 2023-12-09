@@ -8,6 +8,11 @@ use std::collections::hash_map::HashMap;
 use std::collections::hash_set::HashSet;
 use std::rc::Rc;
 
+/// An error in the semantics of the formula.
+/// 
+/// Examples are a bound variable being reused, a variable not being bound
+/// anywhere, or a non-monotonic formula being written inside of a fixed point
+/// operator.
 pub struct FormulaCheckError {
     pub message: String,
 }
@@ -20,16 +25,55 @@ impl Into<Mcrl2Error> for FormulaCheckError {
     }
 }
 
+/// Checks if a labelled transtion system (LTS) satisfies the property
+/// specified in a given mu-calculus state formula.
+/// 
+/// Equivalently, this means that the initial state is in the set of states
+/// that satisfy `formula`.
+/// 
+/// It does this by recursively calculating the set of states for each subformula
+/// of `formula`.
 pub fn check_formula(lts: &Lts, formula: &StateFormula) -> Result<bool, FormulaCheckError> {
-    let set = calculate_set(lts, formula)?;
-    Ok(set.contains(&lts.initial_state))
+    use StateFormulaEnum::*;
+
+    Ok(match &formula.value {
+        True => true,
+        False => false,
+        Id { id } => {
+            return Err(FormulaCheckError {
+                message: format!("Unbound variable {}", id.get_value()),
+            });
+        },
+        Implies { lhs, rhs } => {
+            !(check_formula(lts, &*lhs)?) || check_formula(lts, &*rhs)?
+        },
+        Or { lhs, rhs } => {
+            check_formula(lts, &*lhs)? || check_formula(lts, &*rhs)?
+        },
+        And { lhs, rhs } => {
+            check_formula(lts, &*lhs)? && check_formula(lts, &*rhs)?
+        },
+        Not { value } => {
+            !check_formula(lts, &*value)?
+        },
+        // TODO Box and Diamond
+        _ => {
+            let set = calculate_set(lts, formula)?;
+            set.contains(&lts.initial_state)
+        },
+    })
 }
 
+/// Calculates the set of states in an labelled transition system (LTS).
+/// 
+/// # Returns
+/// If successful, a ref-counted hash set of states, where a state is encoded
+/// using an index in `lts.nodes`. Otherwise, an error describing why the given
+/// formula was specified incorrectly.
 pub fn calculate_set(
     lts: &Lts,
     formula: &StateFormula,
 ) -> Result<Rc<HashSet<usize>>, FormulaCheckError> {
-
     let mut state_set = HashSet::new();
     for i in 0 .. lts.nodes.len() {
         state_set.insert(i);
@@ -46,13 +90,9 @@ fn calculate_set_impl(
 ) -> Result<Rc<HashSet<usize>>, FormulaCheckError> {
     use StateFormulaEnum::*;
 
-    let result = match &formula.value {
-        True => {
-            full_set
-        },
-        False => {
-            Rc::new(HashSet::new())
-        },
+    Ok(match &formula.value {
+        True => full_set,
+        False => Rc::new(HashSet::new()),
         Id { id } => {
             if let Some(value) = environment.get(id) {
                 value.clone()
@@ -99,6 +139,11 @@ fn calculate_set_impl(
             let r = calculate_set_impl(lts, rhs, full_set, environment)?;
             Rc::new(l.intersection(&r).map(|&x| x).collect())
         },
+        Not { value } => {
+            let v = calculate_set_impl(lts, value, full_set.clone(), environment)?;
+
+            Rc::new(full_set.difference(&v).map(|&x| x).collect())
+        },
         Box { action, state_formula } => {
             let r = calculate_set_impl(lts, state_formula, full_set.clone(), environment)?;
 
@@ -137,13 +182,7 @@ fn calculate_set_impl(
 
             Rc::new(result)
         },
-        Not { value } => {
-            let v = calculate_set_impl(lts, value, full_set.clone(), environment)?;
-
-            Rc::new(full_set.difference(&v).map(|&x| x).collect())
-        },
-    };
-    Ok(result)
+    })
 }
 
 fn calculate_fixpoint_set(
