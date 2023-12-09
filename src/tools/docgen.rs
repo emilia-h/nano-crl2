@@ -2,7 +2,7 @@
 use crate::propagate_error_into;
 use crate::core::error::Mcrl2Error;
 // use crate::core::model::Model;
-use crate::parser::lexer::tokenize;
+use crate::parser::lexer::{tokenize, reconstruct_from_tokens};
 use crate::parser::parser::Parser;
 use crate::tools::cli::CliOptions;
 
@@ -30,7 +30,7 @@ pub fn docgen(options: &CliOptions) -> Result<Docs, Mcrl2Error> {
         let mut parser = Parser::new(&tokens);
         let model = propagate_error_into!(parser.parse_model());
 
-        std::fs::write(output_file, format!("{:?}", model))?;
+        std::fs::write(output_file, reconstruct_from_tokens(&tokens))?;
     }
 
     Ok(Docs {})

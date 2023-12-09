@@ -54,6 +54,19 @@ pub enum LexicalElement {
     Slash, // /
     QuestionMark, // ?
 
+    LogicalOr, // ||
+    LogicalAnd, // &&
+    DoubleEquals, // ==
+    NotEquals, // !=
+    LessThanEquals, // <=
+    GreaterThanEquals, // >=
+    Diamond, // <>
+    Arrow, // ->
+    ThickArrow, // =>
+    ConsOperator, // |>
+    SnocOperator, // <|
+    Concat, // ++
+
     Act,
     Allow,
     Block,
@@ -136,6 +149,18 @@ impl Display for LexicalElement {
             LexicalElement::GreaterThan => Some(">"),
             LexicalElement::Slash => Some("/"),
             LexicalElement::QuestionMark => Some("?"),
+            LexicalElement::LogicalOr => Some("||"),
+            LexicalElement::LogicalAnd => Some("&&"),
+            LexicalElement::DoubleEquals => Some("=="),
+            LexicalElement::NotEquals => Some("!="),
+            LexicalElement::LessThanEquals => Some("<="),
+            LexicalElement::GreaterThanEquals => Some("<="),
+            LexicalElement::Diamond => Some("<>"),
+            LexicalElement::Arrow => Some("->"),
+            LexicalElement::ThickArrow => Some("=>"),
+            LexicalElement::ConsOperator => Some("|>"),
+            LexicalElement::SnocOperator => Some("<|"),
+            LexicalElement::Concat => Some("++"),
             LexicalElement::Act => Some("act"),
             LexicalElement::Allow => Some("allow"),
             LexicalElement::Block => Some("block"),
@@ -182,7 +207,7 @@ impl Display for LexicalElement {
             LexicalElement::True => Some("true"),
             LexicalElement::Identifier(string) => Some(string.as_str()),
             LexicalElement::Comment(string) => {
-                write!(f, "% {}", string)?;
+                write!(f, "%{}", string)?;
                 None
             },
             LexicalElement::Integer(value) => {
@@ -190,7 +215,7 @@ impl Display for LexicalElement {
                 None
             },
         } {
-            write!(f, "\"{}\"", value)?;
+            write!(f, "{}", value)?;
         }
         Ok(())
     }
@@ -214,29 +239,74 @@ impl Display for Token {
     }
 }
 
+/// Tokenizes a string of character.
+/// 
+/// Returns: a vector of `Token`s, or an error if the input was in an invalid
+/// format.
 pub fn tokenize(input: &str) -> Result<Vec<Token>, LexError> {
-    Lexer::new(input).parse_tokens()
+    let mut lexer = Lexer::new(input);
+    lexer.parse_tokens()?;
+    Ok(lexer.into_tokens())
+}
+
+/// Takes a list of characters and turns it back into a string.
+/// 
+/// # Panics
+/// This assumes that the tokens are sorted on .
+pub fn reconstruct_from_tokens(input: &[Token]) -> String {
+    let mut result = String::new();
+
+    let mut curr_line = 0;
+    let mut curr_char = 0;
+    for token in input {
+        assert!(token.line >= curr_line);
+        if token.line == curr_line {
+            assert!(token.character >= curr_char, "{} {} {}", token.value, token.character, curr_char);
+        }
+
+        while curr_line < token.line {
+            result.push('\n');
+            curr_line += 1;
+            curr_char = 0;
+        }
+        while curr_char < token.character {
+            result.push(' ');
+            curr_char += 1;
+        }
+
+        let string = format!("{}", token.value);
+        result.push_str(&string);
+        curr_char += string.len();
+    }
+
+    result
 }
 
 struct Lexer<'a> {
+    tokens: Vec<Token>,
     curr_line: usize,
     curr_char: usize,
+    token_line: usize,
+    token_char: usize,
     iterator: Chars<'a>,
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Lexer<'a> {
         Lexer {
+            tokens: Vec::new(),
             curr_line: 0,
             curr_char: 0,
+            token_line: 0,
+            token_char: 0,
             iterator: input.chars(),
         }
     }
 
-    pub fn parse_tokens(&mut self) -> Result<Vec<Token>, LexError> {
+    pub fn parse_tokens(&mut self) -> Result<(), LexError> {
         self.skip_whitespace();
-
-        let mut tokens = Vec::new();
+        self.token_char = self.curr_char;
+        self.token_line = self.curr_line;
 
         let mut in_identifier = false;
         let mut identifier = String::new();
@@ -247,15 +317,20 @@ impl<'a> Lexer<'a> {
         let mut in_comment = false;
         let mut comment = String::new();
 
-        let mut in_symbol = false; // TODO
+        let mut symbol = None;
 
-        let new_line = self.curr_line;
-        let new_char = self.curr_char;
-
-        // parse next lexical element
         while let Some(next) = self.iterator.clone().next() {
-            if is_number_character(next) { // 0 - 9
-                if in_identifier {
+            if next == '\r' { // skip this cursed character
+                self.advance_char(next);
+                continue;
+            }
+
+            if !in_comment && is_number_character(next) { // 0 - 9
+                if let Some(e) = symbol {
+                    self.push_token(e);
+                    symbol = None;
+                    continue; // do not advance
+                } else if in_identifier {
                     identifier.push(next);
                 } else {
                     in_integer = true;
@@ -266,8 +341,12 @@ impl<'a> Lexer<'a> {
                 continue;
             }
 
-            if is_word_character(next) { // a - z, A - Z, _, '
-                if in_integer {
+            if !in_comment && is_word_character(next) { // a - z, A - Z, _, '
+                if let Some(e) = symbol {
+                    self.push_token(e);
+                    symbol = None;
+                    continue; // do not advance
+                } else if in_integer {
                     return Err(LexError {
                         message: String::from("found word character right after integer"),
                         line: 0,
@@ -280,74 +359,93 @@ impl<'a> Lexer<'a> {
                 continue;
             }
 
-            if next == '%' {
+            if !in_comment && next == '%' {
                 in_comment = true;
                 self.advance_char(next);
                 continue;
             }
 
-            if let Some(e) = match next {
-                '(' => Some(LexicalElement::OpeningParen),
-                ')' => Some(LexicalElement::ClosingParen),
-                '[' => Some(LexicalElement::OpeningBracket),
-                ']' => Some(LexicalElement::ClosingBracket),
-                '{' => Some(LexicalElement::OpeningBrace),
-                '}' => Some(LexicalElement::ClosingBrace),
-                '~' => Some(LexicalElement::Tilde),
-                '!' => Some(LexicalElement::ExclamationMark),
-                '@' => Some(LexicalElement::AtSign),
-                '#' => Some(LexicalElement::HashSign),
-                '$' => Some(LexicalElement::DollarSign),
-                '^' => Some(LexicalElement::Circonflex),
-                '&' => Some(LexicalElement::Ampersand),
-                '*' => Some(LexicalElement::Asterisk),
-                '-' => Some(LexicalElement::Dash),
-                '=' => Some(LexicalElement::Equals),
-                '+' => Some(LexicalElement::Plus),
-                '|' => Some(LexicalElement::Pipe),
-                ';' => Some(LexicalElement::Semicolon),
-                ':' => Some(LexicalElement::Colon),
-                ',' => Some(LexicalElement::Comma),
-                '<' => Some(LexicalElement::LessThan),
-                '.' => Some(LexicalElement::Period),
-                '>' => Some(LexicalElement::GreaterThan),
-                '/' => Some(LexicalElement::Slash),
-                '?' => Some(LexicalElement::QuestionMark),
-                ' ' => None,
-                '\n' => None,
-                '\r' => None,
-                _ => {
-                    return Err(LexError {
-                        message: format!("Found unknown character {:?}", next),
-                        character: 0,
-                        line: 0,
-                    });
-                }
-            } {
-                if !in_identifier && !in_integer && !in_comment {
-                    // in_symbol = true;
-                    tokens.push(Token {
-                        value: e,
-                        line: new_line,
-                        character: new_char,
-                    });
-                    self.advance_char(next);
-                    self.skip_whitespace();
-                    continue;
+            // TODO exceptions: |, &, =, !, <, >, -, +
+            if !in_identifier && !in_integer && !in_comment {
+                if let Some(e) = match next {
+                    '(' => Some(LexicalElement::OpeningParen),
+                    ')' => Some(LexicalElement::ClosingParen),
+                    '[' => Some(LexicalElement::OpeningBracket),
+                    ']' => Some(LexicalElement::ClosingBracket),
+                    '{' => Some(LexicalElement::OpeningBrace),
+                    '}' => Some(LexicalElement::ClosingBrace),
+                    '~' => Some(LexicalElement::Tilde),
+                    '!' => Some(LexicalElement::ExclamationMark),
+                    '@' => Some(LexicalElement::AtSign),
+                    '#' => Some(LexicalElement::HashSign),
+                    '$' => Some(LexicalElement::DollarSign),
+                    '^' => Some(LexicalElement::Circonflex),
+                    '&' => Some(LexicalElement::Ampersand),
+                    '*' => Some(LexicalElement::Asterisk),
+                    '-' => Some(LexicalElement::Dash),
+                    '=' => Some(LexicalElement::Equals),
+                    '+' => Some(LexicalElement::Plus),
+                    '|' => Some(LexicalElement::Pipe),
+                    ';' => Some(LexicalElement::Semicolon),
+                    ':' => Some(LexicalElement::Colon),
+                    ',' => Some(LexicalElement::Comma),
+                    '<' => Some(LexicalElement::LessThan),
+                    '.' => Some(LexicalElement::Period),
+                    '>' => Some(LexicalElement::GreaterThan),
+                    '/' => Some(LexicalElement::Slash),
+                    '?' => Some(LexicalElement::QuestionMark),
+                    ' ' => None,
+                    '\n' => None,
+                    '\r' => None,
+                    _ => {
+                        return Err(LexError {
+                            message: format!("Found unknown character {:?}", next),
+                            character: 0,
+                            line: 0,
+                        });
+                    }
+                } {
+                    // try combining with a previous symbol
+                    if let Some(prev_symbol) = &symbol {
+                        if let Some(combined) = match (&prev_symbol, &e) {
+                            (LexicalElement::Pipe, LexicalElement::Pipe) => Some(LexicalElement::LogicalOr),
+                            (LexicalElement::Ampersand, LexicalElement::Ampersand) => Some(LexicalElement::LogicalAnd),
+                            (LexicalElement::Equals, LexicalElement::Equals) => Some(LexicalElement::DoubleEquals),
+                            (LexicalElement::ExclamationMark, LexicalElement::Equals) => Some(LexicalElement::NotEquals),
+                            (LexicalElement::LessThan, LexicalElement::Equals) => Some(LexicalElement::LessThanEquals),
+                            (LexicalElement::GreaterThan, LexicalElement::Equals) => Some(LexicalElement::GreaterThanEquals),
+                            (LexicalElement::LessThan, LexicalElement::GreaterThan) => Some(LexicalElement::Diamond),
+                            (LexicalElement::Dash, LexicalElement::GreaterThan) => Some(LexicalElement::Arrow),
+                            (LexicalElement::Equals, LexicalElement::GreaterThan) => Some(LexicalElement::ThickArrow),
+                            (LexicalElement::Pipe, LexicalElement::GreaterThan) => Some(LexicalElement::ConsOperator),
+                            (LexicalElement::LessThan, LexicalElement::Pipe) => Some(LexicalElement::SnocOperator),
+                            (LexicalElement::Plus, LexicalElement::Plus) => Some(LexicalElement::Concat),
+                            _ => None,
+                        } {
+                            symbol = Some(combined);
+                            self.advance_char(next);
+                            continue;
+                        } // else (if None), do not advance
+                    } else {
+                        // there was no previous symbol
+                        self.advance_char(next);
+                        symbol = Some(e);
+                        continue;
+                    }
                 }
             }
 
-            // if while building integer/identifier/comment, another character
-            // is found, then finish the token
+            // if while building integer/identifier/comment/symbol, another
+            // character is found, then finish the token
             if in_comment {
                 self.advance_char(next);
                 if next == '\n' {
+                    self.push_token(LexicalElement::Comment(comment));
+                    comment = String::new();
                     in_comment = false;
-                    continue;
                 } else {
                     comment.push(next);
                 }
-                self.skip_whitespace();
             }
 
             if in_identifier {
@@ -402,46 +500,35 @@ impl<'a> Lexer<'a> {
                     },
                 };
 
-                tokens.push(Token {
-                    value: e,
-                    line: new_line,
-                    character: new_char,
-                });
+                self.push_token(e);
                 identifier = String::new();
                 in_identifier = false;
-                self.skip_whitespace();
-                continue;
             }
 
             if in_integer {
-                tokens.push(Token {
-                    value: LexicalElement::Integer(integer),
-                    line: new_line,
-                    character: new_char,
-                });
+                self.push_token(LexicalElement::Integer(integer));
                 integer = 0;
                 in_integer = false;
-                self.skip_whitespace();
-                continue;
             }
 
-            if in_symbol {
-                // TODO
+            if let Some(e) = symbol {
+                self.push_token(e);
+                symbol = None;
             }
         }
 
-        Ok(tokens)
+        Ok(())
+    }
+
+    /// Returns the tokens parsed by `parse_tokens`, consuming the `Lexer`.
+    pub fn into_tokens(self) -> Vec<Token> {
+        self.tokens
     }
 
     fn skip_whitespace(&mut self) {
         while let Some(next) = self.iterator.clone().next() {
-            if next == '\n' {
-                self.curr_line += 1;
-                self.curr_char = 0;
-            } else if next == ' ' || next == '\r' {
-                self.curr_char += 1;
-            } else {
-                return;
+            if next != '\n' && next != ' ' && next != '\r' && next != '\t' {
+                break;
             }
             self.advance_char(next);
         }
@@ -455,6 +542,17 @@ impl<'a> Lexer<'a> {
         } else {
             self.curr_char += 1;
         }
+    }
+
+    fn push_token(&mut self, element: LexicalElement) {
+        self.tokens.push(Token {
+            value: element,
+            line: self.token_line,
+            character: self.token_char,
+        });
+        self.skip_whitespace();
+        self.token_line = self.curr_line;
+        self.token_char = self.curr_char;
     }
 }
 

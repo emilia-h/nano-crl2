@@ -1,5 +1,6 @@
 
 use crate::core::error::Mcrl2Error;
+use crate::core::expr::Expr;
 use crate::core::model::Model;
 use crate::parser::lexer::Token;
 
@@ -33,6 +34,7 @@ impl<'a> Parser<'a> {
 
         Ok(Model {
             declarations: Vec::new(),
+            initial: Some(Expr {}),
         })
     }
 }
