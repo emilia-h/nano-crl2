@@ -1,14 +1,17 @@
 
+use nano_crl2::tools::check_lts::check_lts;
 use nano_crl2::tools::cli::{CliConfig, CliOptions};
 use nano_crl2::tools::docgen::docgen;
 use std::env;
 
 const HELP_STRING: &'static str = "
-nanoCRL2: a minimalistic implementation of mCRL2. Usage:
+nanoCRL2: a simple toolset for mCRL2. Usage:
 
 $ nanocrl2 <tool> <options...>
 
 Where <tool> is one of:
+  checklts              Parses an LTS file (.aut) and a formula file (.mcf) and
+                        outputs for which states of the LTS file it holds.
   docgen                Parses .mcrl2 files and generates documentation for the
                         declarations in those files
 ";
@@ -23,8 +26,27 @@ fn main() {
 
     let tool = args[1].as_str();
     let options = &args[2..];
-    if tool == "docgen" {
-        let cli_config: CliConfig = CliConfig::new(&[
+
+    if tool == "checklts" {
+        let cli_config = CliConfig::new(&[
+            ("help", "help", 'h'),
+            ("input", "input", 'i'),
+            ("formula", "formula", 'f'),
+            ("output", "output", 'o'),
+        ]);
+        match CliOptions::parse(&cli_config, options) {
+            Ok(options) => {
+                match check_lts(&options) {
+                    Ok(set) => println!("{}", set),
+                    Err(error) => eprintln!("{:?}", error),
+                }
+            },
+            Err(error) => {
+                eprintln!("{:?}", error);
+            }
+        }
+    } else if tool == "docgen" {
+        let cli_config = CliConfig::new(&[
             ("help", "help", 'h'),
             ("input", "input", 'i'),
             ("output", "output", 'o'),

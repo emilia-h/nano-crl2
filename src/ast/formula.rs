@@ -4,6 +4,7 @@ use crate::ast::node::AstNode;
 use crate::ast::proc::Action;
 use crate::core::syntax::{Identifier, SourceLocation};
 
+use std::fmt::{Debug, Formatter};
 use std::rc::{Rc, Weak};
 
 pub struct StateFormula {
@@ -12,6 +13,20 @@ pub struct StateFormula {
     pub parent: Option<Weak<dyn AstNode>>,
 }
 
+impl StateFormula {
+    pub fn new(value: StateFormulaEnum, loc: SourceLocation) -> Self {
+        StateFormula { value, loc, parent: None }
+    }
+}
+
+impl Debug for StateFormula {
+    fn fmt(&self, formatter: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(formatter, "{:?}", self.value)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
 pub enum StateFormulaEnum {
     True,
     False,
@@ -25,18 +40,22 @@ pub enum StateFormulaEnum {
         expr: Rc<Expr>,
     },
     Mu {
-        // TODO
+        id: Identifier,
+        // TODO data
+        formula: Rc<StateFormula>,
     },
     Nu {
-        // TODO
+        id: Identifier,
+        // TODO data
+        formula: Rc<StateFormula>,
     },
     Forall {
         ids: Vec<(Identifier, Rc<StateFormula>)>,
-        expr: Rc<Expr>,
+        formula: Rc<StateFormula>,
     },
     Exists {
         ids: Vec<(Identifier, Rc<StateFormula>)>,
-        expr: Rc<Expr>,
+        formula: Rc<StateFormula>,
     },
     Implies {
         lhs: Rc<StateFormula>,
@@ -51,11 +70,13 @@ pub enum StateFormulaEnum {
         rhs: Rc<StateFormula>,
     },
     Box {
-        regular_formula: Rc<RegularFormula>,
+        action: Action,
+        // TODO regular_formula: Rc<RegularFormula>,
         state_formula: Rc<StateFormula>,
     },
     Diamond {
-        regular_formula: Rc<RegularFormula>,
+        action: Action,
+        // TODO regular_formula: Rc<RegularFormula>,
         state_formula: Rc<StateFormula>,
     },
     Not {
@@ -69,6 +90,20 @@ pub struct RegularFormula {
     pub parent: Option<Weak<dyn AstNode>>,
 }
 
+impl RegularFormula {
+    pub fn new(value: RegularFormulaEnum, loc: SourceLocation) -> Self {
+        RegularFormula { value, loc, parent: None }
+    }
+}
+
+impl Debug for RegularFormula {
+    fn fmt(&self, formatter: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(formatter, "{:?}", self.value)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
 pub enum RegularFormulaEnum {
     ActionFormula {
         value: Rc<ActionFormula>,
@@ -95,6 +130,20 @@ pub struct ActionFormula {
     pub parent: Option<Weak<dyn AstNode>>,
 }
 
+impl ActionFormula {
+    pub fn new(value: ActionFormulaEnum, loc: SourceLocation) -> Self {
+        ActionFormula { value, loc, parent: None }
+    }
+}
+
+impl Debug for ActionFormula {
+    fn fmt(&self, formatter: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(formatter, "{:?}", self.value)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
 pub enum ActionFormulaEnum {
     Val {
         value: Rc<Expr>,

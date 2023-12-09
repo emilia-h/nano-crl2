@@ -1,10 +1,9 @@
 
 use crate::core::error::Mcrl2Error;
 use crate::ast::decl::{Decl, DeclEnum};
-use crate::ast::expr::{Expr, ExprEnum};
 use crate::ast::model::Model;
-use crate::ast::proc::{Proc, ProcEnum};
-use crate::ast::sort::{Sort, SortEnum, Constructor};
+use crate::ast::proc::Proc;
+use crate::ast::sort::Sort;
 use crate::core::syntax::Identifier;
 use crate::parser::lexer::LexicalElement;
 use crate::parser::lexer::Token;
@@ -34,7 +33,7 @@ impl ParseError {
 
 impl Into<Mcrl2Error> for ParseError {
     fn into(self) -> Mcrl2Error {
-        Mcrl2Error::ModelSyntaxError {
+        Mcrl2Error::ModelError {
             message: self.message,
             line: self.line,
             character: self.character,

@@ -5,8 +5,14 @@ pub enum Mcrl2Error {
     /// arguments or passes a file that does not exist.
     ToolUsageError { message: String },
 
-    /// A syntax error in an mCRL2 model.
-    ModelSyntaxError { message: String, line: usize, character: usize },
+    /// A syntax or other compilation error in a mu-calculus formula.
+    FormulaError { message: String },
+
+    /// A syntax or other compilation error in an mCRL2 model.
+    ModelError { message: String, line: usize, character: usize },
+
+    /// A syntax error in an LTS file.
+    LtsSyntaxError { message: String, line: usize },
 }
 
 impl From<std::io::Error> for Mcrl2Error {
@@ -18,7 +24,7 @@ impl From<std::io::Error> for Mcrl2Error {
 }
 
 #[macro_export]
-macro_rules! propagate_error_into {
+macro_rules! try_into {
     ($expr:expr) => {
         match $expr {
             Ok(value) => {

@@ -14,7 +14,7 @@ pub struct LexError {
 
 impl Into<Mcrl2Error> for LexError {
     fn into(self) -> Mcrl2Error {
-        Mcrl2Error::ModelSyntaxError {
+        Mcrl2Error::ModelError {
             message: self.message,
             line: self.line,
             character: self.character,

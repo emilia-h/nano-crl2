@@ -26,7 +26,18 @@ impl<'a> Parser<'a> {
         let expr = self.parse_binder_expr()?;
 
         if self.skip_if_equal(&LexicalElement::Whr) {
-            todo!()
+            let mut assignments = Vec::new();
+            loop {
+                if self.skip_if_equal(&LexicalElement::End) {
+                    break;
+                }
+
+                let id = self.parse_identifier()?;
+                self.expect_token(&LexicalElement::Equals)?;
+                let value = Rc::new(self.parse_expr()?);
+                assignments.push((id, value));
+            }
+            Ok(Expr::new(ExprEnum::Where { expr: Rc::new(expr), assignments }, loc))
         } else {
             Ok(expr)
         }
