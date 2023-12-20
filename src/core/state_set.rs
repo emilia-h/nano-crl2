@@ -15,7 +15,7 @@ use std::rc::Rc;
 /// [ROBDD]s (reduced ordered binary decision diagrams).
 /// 
 /// [`StateSet`]: ../struct.StateSet.html
-/// [ROBDD]: https://en.wikipedia.org/wiki/Negation_normal_form
+/// [ROBDD]: https://en.wikipedia.org/wiki/Binary_decision_diagram
 #[derive(Debug)]
 pub struct StateSetManager(Rc<StateSetManagerData>);
 
@@ -74,7 +74,12 @@ pub struct StateSet {
 
 impl StateSet {
     /// Returns whether a state is in this set.
+    /// 
+    /// # Preconditions
+    /// `state` must be within the range of the `StateSetManager` that this set
+    /// was created by.
     pub fn contains(&self, state: usize) -> bool {
+        assert!(state < self.manager_data.state_count);
         self.set.contains(&state)
     }
 
@@ -94,8 +99,13 @@ impl StateSet {
         self.set.len() == self.manager_data.state_count
     }
 
-    /// Computes a set that 
+    /// Computes a set that contains this set plus the given `state`.
+    /// 
+    /// # Preconditions
+    /// `state` must be within the range of the `StateSetManager` that this set
+    /// was created by.
     pub fn insert(&self, state: usize) -> StateSet {
+        assert!(state < self.manager_data.state_count);
         let mut copy = (*self.set).clone();
         copy.insert(state);
         StateSet {

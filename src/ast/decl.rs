@@ -73,7 +73,7 @@ pub enum DeclEnum {
     /// the complicated data representation of the parameters.
     ProcessDecl {
         id: Identifier,
-        params: Vec<(Vec<Identifier>, Rc<Sort>)>,
+        params: Vec<VariableDecl>,
         process: Rc<Proc>,
     },
     SortDecl {

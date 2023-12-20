@@ -5,5 +5,5 @@
 //! # See also
 //! The [mCRL2 "fundamentals" on LTSs](https://mcrl2.org/web/user_manual/fundamentals/labelled_transition_systems.html).
 
-pub mod formulachecker;
 pub mod lts;
+pub mod verification;

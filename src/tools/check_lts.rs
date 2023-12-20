@@ -2,7 +2,7 @@
 use crate::core::state_set::StateSetManager;
 use crate::try_into;
 use crate::core::error::Mcrl2Error;
-use crate::lts::formulachecker::calculate_set;
+use crate::lts::verification::calculate_set;
 use crate::lts::lts::read_aldebaran_file;
 use crate::parser::lexer::tokenize;
 use crate::parser::parser::Parser;

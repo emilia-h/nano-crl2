@@ -34,12 +34,12 @@ impl Into<Mcrl2Error> for FormulaError {
 /// 
 /// It does this by recursively calculating the set of states for each subformula
 /// of `formula`.
-pub fn check_formula(lts: &Lts, formula: &StateFormula) -> Result<bool, FormulaError> {
+pub fn verify_lts(lts: &Lts, formula: &StateFormula) -> Result<bool, FormulaError> {
     let mut state_set_manager = StateSetManager::new(lts.nodes.len());
-    check_formula_impl(lts, formula, &mut state_set_manager)
+    verify_lts_impl(lts, formula, &mut state_set_manager)
 }
 
-fn check_formula_impl(
+fn verify_lts_impl(
     lts: &Lts,
     formula: &StateFormula,
     state_set_manager: &mut StateSetManager,
@@ -55,28 +55,28 @@ fn check_formula_impl(
             });
         },
         Implies { lhs, rhs } => {
-            !(check_formula_impl(lts, &*lhs, state_set_manager)?) ||
-            check_formula_impl(lts, &*rhs, state_set_manager)?
+            !(verify_lts_impl(lts, &*lhs, state_set_manager)?) ||
+            verify_lts_impl(lts, &*rhs, state_set_manager)?
         },
         Or { lhs, rhs } => {
-            check_formula_impl(lts, &*lhs, state_set_manager)? ||
-            check_formula_impl(lts, &*rhs, state_set_manager)?
+            verify_lts_impl(lts, &*lhs, state_set_manager)? ||
+            verify_lts_impl(lts, &*rhs, state_set_manager)?
         },
         And { lhs, rhs } => {
-            check_formula_impl(lts, &*lhs, state_set_manager)? &&
-            check_formula_impl(lts, &*rhs, state_set_manager)?
+            verify_lts_impl(lts, &*lhs, state_set_manager)? &&
+            verify_lts_impl(lts, &*rhs, state_set_manager)?
         },
         Not { value } => {
-            !check_formula_impl(lts, &*value, state_set_manager)?
+            !verify_lts_impl(lts, &*value, state_set_manager)?
         },
-        // TODO Box and Diamond
         _ => {
             calculate_set(lts, formula, state_set_manager)?.contains(lts.initial_state)
         },
     })
 }
 
-/// Calculates the set of states in an labelled transition system (LTS).
+/// Calculates the set of states in a labelled transition system (LTS) that
+/// satisfy a mu-calculus formula.
 /// 
 /// This implements the Emerson-Lei algorithm.
 /// 
@@ -444,11 +444,10 @@ fn test_calculate_set() {
 
     let set = calculate_set(&lts, &has_infinite_a_loop, &mut state_set_manager).unwrap();
     assert_eq!(set, state_set_manager.create_from_slice(&[0, 1, 2, 3]));
-    // TODO {0, 1, 2, 3}
 
     let set = calculate_set(&lts, &has_no_deadlock, &mut state_set_manager).unwrap();
     assert!(set.is_empty());
 
     let set = calculate_set(&lts, &can_do_action, &mut state_set_manager).unwrap();
-    // TODO {0, 1, 2, 3}
+    assert_eq!(set, state_set_manager.create_from_slice(&[0, 1, 2, 3]));
 }

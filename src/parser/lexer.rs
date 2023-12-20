@@ -78,7 +78,7 @@ pub enum LexicalElement {
     Slash, // /
     QuestionMark, // ?
 
-    LogicalOr, // ||
+    DoublePipe, // ||
     LogicalAnd, // &&
     DoubleEquals, // ==
     NotEquals, // !=
@@ -90,6 +90,7 @@ pub enum LexicalElement {
     ConsOperator, // |>
     SnocOperator, // <|
     Concat, // ++
+    DoublePipeUnderscore,
 
     Act,
     Allow,
@@ -179,7 +180,7 @@ impl Display for LexicalElement {
             GreaterThan => Some(">"),
             Slash => Some("/"),
             QuestionMark => Some("?"),
-            LogicalOr => Some("||"),
+            DoublePipe => Some("||"),
             LogicalAnd => Some("&&"),
             DoubleEquals => Some("=="),
             NotEquals => Some("!="),
@@ -191,6 +192,7 @@ impl Display for LexicalElement {
             ConsOperator => Some("|>"),
             SnocOperator => Some("<|"),
             Concat => Some("++"),
+            DoublePipeUnderscore => Some("||_"),
             Act => Some("act"),
             Allow => Some("allow"),
             Block => Some("block"),
@@ -362,14 +364,15 @@ impl<'a> Lexer<'a> {
         // token, which is why this is a `loop`
         loop {
             let option_next = self.iterator.clone().next();
-
             if let Some(next) = option_next {
-                if next == '\r' { // skip this cursed character
+                if next == '\r' {
+                    // skip this cursed character
                     self.advance_char(next);
                     continue;
                 }
 
-                if !in_comment && is_number_character(next) { // 0 - 9
+                if !in_comment && is_number_character(next) {
+                    // 0 - 9
                     if let Some(e) = symbol {
                         self.push_token(e);
                         symbol = None;
@@ -385,7 +388,8 @@ impl<'a> Lexer<'a> {
                     continue;
                 }
 
-                if !in_comment && is_word_character(next) { // a - z, A - Z, _, '
+                if !in_comment && symbol.is_none() && is_word_character(next) {
+                    // a - z, A - Z, _, ', 0-9
                     if let Some(e) = symbol {
                         self.push_token(e);
                         symbol = None;
@@ -409,9 +413,15 @@ impl<'a> Lexer<'a> {
                     continue;
                 }
 
-                // TODO exceptions: |, &, =, !, <, >, -, +
+                // TODO exceptions: |, &, =, !, <, >, -, +, ||
                 if !in_identifier && !in_integer && !in_comment {
-                    if let Some(e) = match next {
+                    if let Some(prev_symbol) = &symbol {
+                        if let Some(combined) = combine_symbols(prev_symbol, next) {
+                            symbol = Some(combined);
+                            self.advance_char(next);
+                            continue;
+                        }
+                    } else if let Some(e) = match next {
                         '(' => Some(LexicalElement::OpeningParen),
                         ')' => Some(LexicalElement::ClosingParen),
                         '[' => Some(LexicalElement::OpeningBracket),
@@ -443,39 +453,15 @@ impl<'a> Lexer<'a> {
                         '\r' => None,
                         _ => {
                             return Err(LexError {
-                                message: format!("Found unknown character {:?}", next),
+                                message: format!("Found unexpected character {:?}", next),
                                 character: 0,
                                 line: 0,
                             });
                         }
                     } {
-                        // try combining with a previous symbol
-                        if let Some(prev_symbol) = &symbol {
-                            if let Some(combined) = match (&prev_symbol, &e) {
-                                (LexicalElement::Pipe, LexicalElement::Pipe) => Some(LexicalElement::LogicalOr),
-                                (LexicalElement::Ampersand, LexicalElement::Ampersand) => Some(LexicalElement::LogicalAnd),
-                                (LexicalElement::Equals, LexicalElement::Equals) => Some(LexicalElement::DoubleEquals),
-                                (LexicalElement::ExclamationMark, LexicalElement::Equals) => Some(LexicalElement::NotEquals),
-                                (LexicalElement::LessThan, LexicalElement::Equals) => Some(LexicalElement::LessThanEquals),
-                                (LexicalElement::GreaterThan, LexicalElement::Equals) => Some(LexicalElement::GreaterThanEquals),
-                                (LexicalElement::LessThan, LexicalElement::GreaterThan) => Some(LexicalElement::Diamond),
-                                (LexicalElement::Dash, LexicalElement::GreaterThan) => Some(LexicalElement::Arrow),
-                                (LexicalElement::Equals, LexicalElement::GreaterThan) => Some(LexicalElement::ThickArrow),
-                                (LexicalElement::Pipe, LexicalElement::GreaterThan) => Some(LexicalElement::ConsOperator),
-                                (LexicalElement::LessThan, LexicalElement::Pipe) => Some(LexicalElement::SnocOperator),
-                                (LexicalElement::Plus, LexicalElement::Plus) => Some(LexicalElement::Concat),
-                                _ => None,
-                            } {
-                                symbol = Some(combined);
-                                self.advance_char(next);
-                                continue;
-                            } // else (if None), do not advance
-                        } else {
-                            // there was no previous symbol
-                            self.advance_char(next);
-                            symbol = Some(e);
-                            continue;
-                        }
+                        self.advance_char(next);
+                        symbol = Some(e);
+                        continue;
                     }
                 }
             }
@@ -621,19 +607,40 @@ fn is_word_character(c: char) -> bool {
     (ascii >= '0' as u8 && ascii <= '9' as u8)
 }
 
+fn combine_symbols(symbol: &LexicalElement, next: char) -> Option<LexicalElement> {
+    use LexicalElement::*;
+
+    match (symbol, next) {
+        (Pipe, '|') => Some(DoublePipe),
+        (Ampersand, '&') => Some(LogicalAnd),
+        (Equals, '=') => Some(DoubleEquals),
+        (ExclamationMark, '=') => Some(NotEquals),
+        (LessThan, '=') => Some(LessThanEquals),
+        (GreaterThan, '=') => Some(GreaterThanEquals),
+        (LessThan, '>') => Some(Diamond),
+        (Dash, '>') => Some(Arrow),
+        (Equals, '>') => Some(ThickArrow),
+        (Pipe, '>') => Some(ConsOperator),
+        (LessThan, '|') => Some(SnocOperator),
+        (Plus, '+') => Some(Concat),
+        (DoublePipe, '_') => Some(DoublePipeUnderscore),
+        _ => None,
+    }
+}
+
 #[test]
 fn test_tokenize_symbols() {
     use LexicalElement::*;
 
-    let string = "()[]{}~!@#$^&*-=+|;:,<.>/?||&&==!==<=>=<>->=>|><|++";
+    let string = "()[]{}~!@#$^&*-=+|;:,<.>/?||&&==!==<=>=<>->=>|><|++||_";
     let tokens = &[
         OpeningParen, ClosingParen, OpeningBracket, ClosingBracket,
         OpeningBrace, ClosingBrace, Tilde, ExclamationMark, AtSign, HashSign,
         DollarSign, Circonflex, Ampersand, Asterisk, Dash, Equals, Plus, Pipe,
         Semicolon, Colon, Comma, LessThan, Period, GreaterThan, Slash,
-        QuestionMark, LogicalOr, LogicalAnd, DoubleEquals, NotEquals, Equals,
+        QuestionMark, DoublePipe, LogicalAnd, DoubleEquals, NotEquals, Equals,
         LessThanEquals, GreaterThanEquals, Diamond, Arrow, ThickArrow,
-        ConsOperator, SnocOperator, Concat,
+        ConsOperator, SnocOperator, Concat, DoublePipeUnderscore,
     ];
     let result = tokenize(string).unwrap();
     for i in 0 .. tokens.len() {

@@ -3,8 +3,8 @@
 //! # See also
 //! The [mCRL2 spec on this](https://mcrl2.org/web/user_manual/language_reference/data.html).
 
+use crate::ast::decl::VariableDecl;
 use crate::ast::node::AstNode;
-use crate::ast::sort::Sort;
 use crate::core::syntax::{Identifier, SourceLocation};
 
 use std::fmt::{Debug, Formatter};
@@ -72,15 +72,15 @@ pub enum ExprEnum {
         value: Rc<Expr>,
     },
     Forall {
-        ids: Vec<(Identifier, Rc<Sort>)>,
+        variables: Vec<VariableDecl>,
         expr: Rc<Expr>,
     },
     Exists {
-        ids: Vec<(Identifier, Rc<Sort>)>,
+        variables: Vec<VariableDecl>,
         expr: Rc<Expr>,
     },
     Lambda {
-        ids: Vec<(Identifier, Rc<Sort>)>,
+        variables: Vec<VariableDecl>,
         expr: Rc<Expr>,
     },
     Implies {

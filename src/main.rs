@@ -67,6 +67,6 @@ fn main() {
         eprintln!("{}", HELP_STRING);
     } else {
         eprintln!("Unknown tool '{}'", tool);
-        eprintln!("Use mcrl22lps --help to get a list of available tools.");
+        eprintln!("Use nanocrl2 --help to get a list of available tools.");
     }
 }

@@ -29,7 +29,7 @@ impl<'a> Parser<'a> {
         let loc = self.get_loc();
         let lhs = self.parse_and_state_formula()?;
 
-        if self.skip_if_equal(&LexicalElement::LogicalOr) {
+        if self.skip_if_equal(&LexicalElement::DoublePipe) {
             let rhs = Rc::new(self.parse_state_formula()?);
             Ok(StateFormula::new(StateFormulaEnum::Or { lhs: Rc::new(lhs), rhs }, loc))
         } else {
@@ -53,6 +53,11 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_basic_state_formula(&mut self) -> Result<StateFormula, ParseError> {
+        if !self.has_token() {
+            let loc = self.get_last_loc();
+            return Err(ParseError::end_of_input("a state formula", loc));
+        }
+
         let token = self.get_token();
         let loc = token.loc;
 

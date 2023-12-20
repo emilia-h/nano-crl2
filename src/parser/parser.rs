@@ -36,6 +36,14 @@ pub struct ParseError {
 }
 
 impl ParseError {
+    pub fn new(message: String, loc: SourceLocation) -> Self {
+        ParseError {
+            message,
+            line: loc.get_line(),
+            character: loc.get_char(),
+        }
+    }
+
     /// Creates a parse error with a message of the form "expected A but found
     /// B".
     pub fn expected(expectation: &str, token: &Token) -> Self {
@@ -46,6 +54,19 @@ impl ParseError {
             message,
             line: token.loc.get_line(),
             character: token.loc.get_char(),
+        }
+    }
+
+    /// Creates a parse error with a message of the form "expected A but the
+    /// end of the input was reached".
+    pub fn end_of_input(expectation: &str, loc: SourceLocation) -> Self {
+        let mut message = String::from("expected ");
+        message.push_str(expectation);
+        message.push_str(" but the end of the input was reached");
+        ParseError {
+            message,
+            line: loc.get_line(),
+            character: loc.get_char(),
         }
     }
 }
@@ -65,6 +86,7 @@ impl Into<Mcrl2Error> for ParseError {
 /// These tokens can be parsed from a string using the [tokenize()] function.
 /// 
 /// [tokenize()]: ../lexer/fn.tokenize.html
+#[derive(Clone)]
 pub struct Parser<'a> {
     tokens: &'a [Token],
     index: usize,
@@ -102,6 +124,10 @@ impl<'a> Parser<'a> {
 
     /// Parses a single identifier.
     pub fn parse_identifier(&mut self) -> Result<Identifier, ParseError> {
+        if !self.has_token() {
+            return Err(ParseError::end_of_input("an identifier", self.get_last_loc()));
+        }
+
         let token = self.get_token();
         let result = if let LexicalElement::Identifier(value) = &token.value {
             Ok(Identifier::new(value))
@@ -137,6 +163,14 @@ impl<'a> Parser<'a> {
     pub fn get_next_token(&self) -> Option<&Token> {
         assert!(self.has_token());
         self.tokens.get(self.index + 1)
+    }
+
+    pub fn get_last_loc(&self) -> SourceLocation {
+        if self.tokens.len() >= 1 {
+            self.tokens[self.tokens.len() - 1].loc
+        } else {
+            SourceLocation::new(0, 0)
+        }
     }
 
     pub fn is_token(&self, e: &LexicalElement) -> bool {

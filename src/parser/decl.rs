@@ -5,15 +5,16 @@
 //! [here]: ../parser/struct.Parser.html#method.parse_decl
 
 use crate::ast::decl::{Decl, DeclEnum, VariableDecl, EquationDecl};
-use crate::ast::sort::Sort;
-use crate::core::syntax::Identifier;
 use crate::parser::lexer::LexicalElement;
 use crate::parser::parser::{ParseError, Parser};
 
 use std::rc::Rc;
 
 impl<'a> Parser<'a> {
-    /// Parses a declaration.
+    /// Parses a single block of declarations.
+    /// 
+    /// A block is for instance `map a: Nat; b: Nat;` i.e. a group of
+    /// declarations preceded by the same declaration keyword.
     pub fn parse_decl(&mut self) -> Result<Vec<Decl>, ParseError> {
         use LexicalElement::*;
 
@@ -125,8 +126,8 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_global_variable_decl(&mut self) -> Result<Decl, ParseError> {
-        self.skip_if_equal(&LexicalElement::Glob);
         let loc = self.get_loc();
+        self.skip_if_equal(&LexicalElement::Glob);
 
         let ids = self.parse_identifier_list()?;
         self.expect_token(&LexicalElement::Colon)?;
@@ -141,6 +142,7 @@ impl<'a> Parser<'a> {
         self.expect_token(&LexicalElement::Init).unwrap();
 
         let value = Rc::new(self.parse_proc()?);
+        self.expect_token(&LexicalElement::Semicolon)?;
 
         Ok(Decl::new(DeclEnum::InitialDecl { value }, loc))
     }
@@ -172,7 +174,7 @@ impl<'a> Parser<'a> {
                 let ids = self.parse_identifier_list()?;
                 self.expect_token(&LexicalElement::Colon)?;
                 let sort = Rc::new(self.parse_sort()?);
-                params.push((ids, sort));
+                params.push(VariableDecl { ids, sort });
 
                 self.skip_if_equal(&LexicalElement::Comma)
             } {}
@@ -181,6 +183,7 @@ impl<'a> Parser<'a> {
         self.expect_token(&LexicalElement::Equals)?;
 
         let process = Rc::new(self.parse_proc()?);
+        self.expect_token(&LexicalElement::Semicolon)?;
 
         Ok(Decl::new(DeclEnum::ProcessDecl { id, params, process }, loc))
     }
@@ -194,31 +197,34 @@ impl<'a> Parser<'a> {
             let id = self.parse_identifier()?;
             self.expect_token(&LexicalElement::Equals).unwrap();
             let value = Some(Rc::new(self.parse_sort()?));
+            self.expect_token(&LexicalElement::Semicolon)?;
 
             Ok(Decl::new(DeclEnum::SortDecl { ids: vec![id], value }, loc))
         } else {
             // sort A;
             let ids = self.parse_identifier_list()?;
+            self.expect_token(&LexicalElement::Semicolon)?;
 
             Ok(Decl::new(DeclEnum::SortDecl { ids, value: None }, loc))
         }
     }
 
-    /// Parses a list of variables with types of the form `name1: Sort1, ...,
-    /// nameN: SortN`.
-    pub fn parse_var_decl_list(&mut self) -> Result<Vec<(Identifier, Rc<Sort>)>, ParseError> {
+    /// Parses a list of variables with types of the form `(id11, ..., id1M:
+    /// Sort1, ..., idN1, ..., idNM: SortN)` i.e. parameters can be grouped
+    /// together.
+    pub fn parse_var_decl_list(&mut self) -> Result<Vec<VariableDecl>, ParseError> {
         let mut result = Vec::new();
 
-        let id = self.parse_identifier()?;
+        let ids = self.parse_identifier_list()?;
         self.expect_token(&LexicalElement::Colon)?;
         let sort = Rc::new(self.parse_sort()?);
-        result.push((id, sort));
+        result.push(VariableDecl { ids, sort });
 
         while self.skip_if_equal(&LexicalElement::Comma) {
-            let id = self.parse_identifier()?;
+            let ids = self.parse_identifier_list()?;
             self.expect_token(&LexicalElement::Colon)?;
             let sort = Rc::new(self.parse_sort()?);
-            result.push((id, sort));
+            result.push(VariableDecl { ids, sort });
         }
 
         Ok(result)
@@ -240,6 +246,7 @@ use crate::unwrap_pattern;
 
 #[test]
 fn test_parse_decl_eqn() {
+    use crate::core::syntax::Identifier;
     use crate::ast::expr::ExprEnum;
     use crate::ast::sort::SortEnum;
 
