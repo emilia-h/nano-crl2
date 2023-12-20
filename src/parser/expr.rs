@@ -117,9 +117,9 @@ impl<'a> Parser<'a> {
         let loc = self.get_loc();
         let lhs = self.parse_equals_expr()?;
 
-        if self.skip_if_equal(&LexicalElement::DoublePipe) {
+        if self.skip_if_equal(&LexicalElement::DoubleAmpersand) {
             let rhs = Rc::new(self.parse_and_expr()?);
-            Ok(Expr::new(ExprEnum::LogicalOr { lhs: Rc::new(lhs), rhs }, loc))
+            Ok(Expr::new(ExprEnum::LogicalAnd { lhs: Rc::new(lhs), rhs }, loc))
         } else {
             Ok(lhs)
         }
@@ -345,81 +345,102 @@ impl<'a> Parser<'a> {
 }
 
 #[cfg(test)]
-use crate::unwrap_pattern;
-#[cfg(test)]
-use crate::util::unwrap_result;
-#[cfg(test)]
-use crate::parser::lexer::tokenize;
+mod tests {
+    use super::*;
+    use crate::unwrap_pattern;
+    use crate::parser::lexer::tokenize;
 
-#[test]
-fn test_parse_expr_binary() {
-    let tokens = tokenize("a + b + c").unwrap();
-    let expr = unwrap_result(Parser::new(&tokens).parse_expr());
+    #[test]
+    fn test_parse_expr_binary() {
+        let tokens = tokenize("a + b + c").unwrap();
+        let expr = Parser::new(&tokens).parse_expr().unwrap();
 
-    let (lhs, rhs) = unwrap_pattern!(expr.value, ExprEnum::Add { lhs, rhs } => (lhs, rhs));
+        let (lhs, rhs) = unwrap_pattern!(expr.value, ExprEnum::Add { lhs, rhs } => (lhs, rhs));
 
-    let rhs_id = unwrap_pattern!(&rhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(rhs_id.get_value(), "c");
+        let rhs_id = unwrap_pattern!(&rhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(rhs_id.get_value(), "c");
 
-    let (llhs, rlhs) = unwrap_pattern!(&lhs.value, ExprEnum::Add { lhs, rhs } => (lhs, rhs));
-    let llhs_id = unwrap_pattern!(&llhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(llhs_id.get_value(), "a");
-    let rlhs_id = unwrap_pattern!(&rlhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(rlhs_id.get_value(), "b");
+        let (llhs, rlhs) = unwrap_pattern!(&lhs.value, ExprEnum::Add { lhs, rhs } => (lhs, rhs));
+        let llhs_id = unwrap_pattern!(&llhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(llhs_id.get_value(), "a");
+        let rlhs_id = unwrap_pattern!(&rlhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(rlhs_id.get_value(), "b");
 
-    // ((((((af321 + fa123) mod de) / a) + (b * c)) |> [1]) ++ [3, 5]) <| 4
-    let tokens = tokenize("(af321 + fa123) mod de / a + b * c |> [1] ++ [3, 5] <| 4").unwrap();
-    let expr = unwrap_result(Parser::new(&tokens).parse_expr());
+        // ((((((af321 + fa123) mod de) / a) + (b * c)) |> [1]) ++ [3, 5]) <| 4
+        let tokens = tokenize("(af321 + fa123) mod de / a + b * c |> [1] ++ [3, 5] <| 4").unwrap();
+        let expr = Parser::new(&tokens).parse_expr().unwrap();
 
-    let (expr, snoc_rhs) = unwrap_pattern!(expr.value, ExprEnum::Snoc { lhs, rhs } => (lhs, rhs));
+        let (expr, snoc_rhs) = unwrap_pattern!(expr.value, ExprEnum::Snoc { lhs, rhs } => (lhs, rhs));
 
-    let number = unwrap_pattern!(snoc_rhs.value, ExprEnum::Number { value } => value);
-    assert_eq!(number, 4);
+        let number = unwrap_pattern!(snoc_rhs.value, ExprEnum::Number { value } => value);
+        assert_eq!(number, 4);
 
-    let (expr, concat_rhs) = unwrap_pattern!(&expr.value, ExprEnum::Concat { lhs, rhs } => (lhs, rhs));
+        let (expr, concat_rhs) = unwrap_pattern!(&expr.value, ExprEnum::Concat { lhs, rhs } => (lhs, rhs));
 
-    let values = unwrap_pattern!(&concat_rhs.value, ExprEnum::List { values } => values);
-    assert_eq!(values.len(), 2);
-    let value1 = unwrap_pattern!(&values[0].value, ExprEnum::Number { value } => value);
-    assert_eq!(value1, &3);
-    let value2 = unwrap_pattern!(&values[1].value, ExprEnum::Number { value } => value);
-    assert_eq!(value2, &5);
+        let values = unwrap_pattern!(&concat_rhs.value, ExprEnum::List { values } => values);
+        assert_eq!(values.len(), 2);
+        let value1 = unwrap_pattern!(&values[0].value, ExprEnum::Number { value } => value);
+        assert_eq!(value1, &3);
+        let value2 = unwrap_pattern!(&values[1].value, ExprEnum::Number { value } => value);
+        assert_eq!(value2, &5);
 
-    let (expr, cons_rhs) = unwrap_pattern!(&expr.value, ExprEnum::Cons { lhs, rhs } => (lhs, rhs));
+        let (expr, cons_rhs) = unwrap_pattern!(&expr.value, ExprEnum::Cons { lhs, rhs } => (lhs, rhs));
 
-    let values = unwrap_pattern!(&cons_rhs.value, ExprEnum::List { values } => values);
-    assert_eq!(values.len(), 1);
-    let value1 = unwrap_pattern!(&values[0].value, ExprEnum::Number { value } => value);
-    assert_eq!(value1, &1);
+        let values = unwrap_pattern!(&cons_rhs.value, ExprEnum::List { values } => values);
+        assert_eq!(values.len(), 1);
+        let value1 = unwrap_pattern!(&values[0].value, ExprEnum::Number { value } => value);
+        assert_eq!(value1, &1);
 
-    let (add_lhs, add_rhs) = unwrap_pattern!(&expr.value, ExprEnum::Add { lhs, rhs } => (lhs, rhs));
+        let (add_lhs, add_rhs) = unwrap_pattern!(&expr.value, ExprEnum::Add { lhs, rhs } => (lhs, rhs));
 
-    let (bc_lhs, bc_rhs) = unwrap_pattern!(&add_rhs.value, ExprEnum::Multiply { lhs, rhs } => (lhs, rhs));
-    let b = unwrap_pattern!(&bc_lhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(b.get_value(), "b");
-    let c = unwrap_pattern!(&bc_rhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(c.get_value(), "c");
+        let (bc_lhs, bc_rhs) = unwrap_pattern!(&add_rhs.value, ExprEnum::Multiply { lhs, rhs } => (lhs, rhs));
+        let b = unwrap_pattern!(&bc_lhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(b.get_value(), "b");
+        let c = unwrap_pattern!(&bc_rhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(c.get_value(), "c");
 
-    let (div_lhs, div_rhs) = unwrap_pattern!(&add_lhs.value, ExprEnum::Divide { lhs, rhs } => (lhs, rhs));
+        let (div_lhs, div_rhs) = unwrap_pattern!(&add_lhs.value, ExprEnum::Divide { lhs, rhs } => (lhs, rhs));
 
-    let a = unwrap_pattern!(&div_rhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(a.get_value(), "a");
+        let a = unwrap_pattern!(&div_rhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(a.get_value(), "a");
 
-    let (mod_lhs, mod_rhs) = unwrap_pattern!(&div_lhs.value, ExprEnum::Mod { lhs, rhs } => (lhs, rhs));
+        let (mod_lhs, mod_rhs) = unwrap_pattern!(&div_lhs.value, ExprEnum::Mod { lhs, rhs } => (lhs, rhs));
 
-    let de = unwrap_pattern!(&mod_rhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(de.get_value(), "de");
+        let de = unwrap_pattern!(&mod_rhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(de.get_value(), "de");
 
-    let (add_lhs, add_rhs) = unwrap_pattern!(&mod_lhs.value, ExprEnum::Add { lhs, rhs } => (lhs, rhs));
-    let af321 = unwrap_pattern!(&add_lhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(af321.get_value(), "af321");
-    let fa123 = unwrap_pattern!(&add_rhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(fa123.get_value(), "fa123");
-}
+        let (add_lhs, add_rhs) = unwrap_pattern!(&mod_lhs.value, ExprEnum::Add { lhs, rhs } => (lhs, rhs));
+        let af321 = unwrap_pattern!(&add_lhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(af321.get_value(), "af321");
+        let fa123 = unwrap_pattern!(&add_rhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(fa123.get_value(), "fa123");
+    }
 
-#[test]
-fn test_parse_expr_logical() {
-    let tokens = tokenize("a < b == c || d == e && f").unwrap();
-    let expr = unwrap_result(Parser::new(&tokens).parse_expr());
-    eprintln!("{:?}", expr);
+    #[test]
+    fn test_parse_expr_logical() {
+        // ((a < b) == c) || ((d == e) && f)
+        let tokens = tokenize("a < b == c || d == e && f").unwrap();
+        let expr = Parser::new(&tokens).parse_expr().unwrap();
+
+        eprintln!("{:#?}", expr);
+        let (or_lhs, or_rhs) = unwrap_pattern!(&expr.value, ExprEnum::LogicalOr { lhs, rhs } => (lhs, rhs));
+        let (and_lhs, and_rhs) = unwrap_pattern!(&or_rhs.value, ExprEnum::LogicalAnd { lhs, rhs } => (lhs, rhs));
+
+        let (equals_lhs, equals_rhs) = unwrap_pattern!(&or_lhs.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));
+        let (lt_lhs, lt_rhs) = unwrap_pattern!(&equals_lhs.value, ExprEnum::LessThan { lhs, rhs } => (lhs, rhs));
+        let a = unwrap_pattern!(&lt_lhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(a.get_value(), "a");
+        let b = unwrap_pattern!(&lt_rhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(b.get_value(), "b");
+        let c = unwrap_pattern!(&equals_rhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(c.get_value(), "c");
+
+        let (equals_lhs, equals_rhs) = unwrap_pattern!(&and_lhs.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));
+        let d = unwrap_pattern!(&equals_lhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(d.get_value(), "d");
+        let e = unwrap_pattern!(&equals_rhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(e.get_value(), "e");
+        let f = unwrap_pattern!(&and_rhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(f.get_value(), "f");
+    }
 }

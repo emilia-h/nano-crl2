@@ -212,18 +212,3 @@ impl<'a> Parser<'a> {
         }
     }
 }
-
-#[test]
-fn test_parse_decl_sort_too_much() {
-    // let tokens = tokenize("sort A = struct a b;").unwrap();
-    // let result = Parser::new(&tokens).parse_decl();
-    // assert!(result.is_err());
-
-    // let tokens = tokenize("sort B = struct a ? b c;").unwrap();
-    // let result = Parser::new(&tokens).parse_decl();
-    // assert!(result.is_err());
-
-    // let tokens = tokenize("sort C = struct a(id) b;").unwrap();
-    // let result = Parser::new(&tokens).parse_decl();
-    // assert!(result.is_err());
-}

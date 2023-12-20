@@ -156,8 +156,10 @@ fn calculate_set_impl(
         Exists { ids: _, formula: _ } => {
             unimplemented!()
         },
-        Implies { lhs: _, rhs: _ } => {
-            unimplemented!()
+        Implies { lhs, rhs } => {
+            let l = calculate_set_impl(lts, lhs, enclosing_parity, state_set_manager, variable_map);
+            let r = calculate_set_impl(lts, rhs, enclosing_parity, state_set_manager, variable_map);
+            l.not().or(r)
         },
         Or { lhs, rhs } => {
             let l = calculate_set_impl(lts, lhs, enclosing_parity, state_set_manager, variable_map);
@@ -393,61 +395,61 @@ fn reset_variable_sets(
 }
 
 #[cfg(test)]
-use crate::parser::lexer::tokenize;
-#[cfg(test)]
-use crate::parser::parser::Parser;
-#[cfg(test)]
-use crate::util::unwrap_result;
+mod tests {
+    use super::*;
+    use crate::parser::lexer::tokenize;
+    use crate::parser::parser::Parser;
 
-#[test]
-fn test_create_variable_map() {
-    let mut state_set_manager = StateSetManager::new(124);
+    #[test]
+    fn test_create_variable_map() {
+        let mut state_set_manager = StateSetManager::new(124);
 
-    let tokens = tokenize("mu X123_456 . ([a] X123_456 && nu Y . (<b> Y || <a> true))").unwrap();
-    let formula = Parser::new(&tokens).parse_state_formula().unwrap();
-    let variables = unwrap_result(create_variable_map(&formula, &mut state_set_manager));
-    assert_eq!(variables.len(), 2);
-    assert_eq!(variables.get(&Identifier::new("X123_456")).unwrap(), &state_set_manager.get_empty());
-    assert_eq!(variables.get(&Identifier::new("Y")).unwrap(), &state_set_manager.get_full());
+        let tokens = tokenize("mu X123_456 . ([a] X123_456 && nu Y . (<b> Y || <a> true))").unwrap();
+        let formula = Parser::new(&tokens).parse_state_formula().unwrap();
+        let variables = create_variable_map(&formula, &mut state_set_manager).unwrap();
+        assert_eq!(variables.len(), 2);
+        assert_eq!(variables.get(&Identifier::new("X123_456")).unwrap(), &state_set_manager.get_empty());
+        assert_eq!(variables.get(&Identifier::new("Y")).unwrap(), &state_set_manager.get_full());
 
-    let tokens = tokenize("mu X . ([a] X2 && <a> true)").unwrap();
-    let formula = Parser::new(&tokens).parse_state_formula().unwrap();
-    assert!(create_variable_map(&formula, &mut state_set_manager).is_err());
+        let tokens = tokenize("mu X . ([a] X2 && <a> true)").unwrap();
+        let formula = Parser::new(&tokens).parse_state_formula().unwrap();
+        assert!(create_variable_map(&formula, &mut state_set_manager).is_err());
 
-    let tokens = tokenize("X").unwrap();
-    let formula = Parser::new(&tokens).parse_state_formula().unwrap();
-    assert!(create_variable_map(&formula, &mut state_set_manager).is_err());
-}
+        let tokens = tokenize("X").unwrap();
+        let formula = Parser::new(&tokens).parse_state_formula().unwrap();
+        assert!(create_variable_map(&formula, &mut state_set_manager).is_err());
+    }
 
-#[test]
-fn test_calculate_set() {
-    use crate::ast::proc::Action;
+    #[test]
+    fn test_calculate_set() {
+        use crate::ast::proc::Action;
 
-    let tokens = tokenize("nu X . <a> X").unwrap();
-    let has_infinite_a_loop = unwrap_result(Parser::new(&tokens).parse_state_formula());
+        let tokens = tokenize("nu X . <a> X").unwrap();
+        let has_infinite_a_loop = Parser::new(&tokens).parse_state_formula().unwrap();
 
-    let tokens = tokenize("nu X . ([a] X && <a> true)").unwrap();
-    let has_no_deadlock = unwrap_result(Parser::new(&tokens).parse_state_formula());
+        let tokens = tokenize("nu X . ([a] X && <a> true)").unwrap();
+        let has_no_deadlock = Parser::new(&tokens).parse_state_formula().unwrap();
 
-    let tokens = tokenize("<a> true").unwrap();
-    let can_do_action = unwrap_result(Parser::new(&tokens).parse_state_formula());
+        let tokens = tokenize("<a> true").unwrap();
+        let can_do_action = Parser::new(&tokens).parse_state_formula().unwrap();
 
-    let lts = Lts::from_edge_list(0, 5, vec![
-        (0, Action { id: Identifier::new("a") }, 1),
-        (1, Action { id: Identifier::new("a") }, 2),
-        (2, Action { id: Identifier::new("a") }, 3),
-        (3, Action { id: Identifier::new("a") }, 0),
-        (0, Action { id: Identifier::new("a") }, 4),
-    ]);
+        let lts = Lts::from_edge_list(0, 5, vec![
+            (0, Action { id: Identifier::new("a") }, 1),
+            (1, Action { id: Identifier::new("a") }, 2),
+            (2, Action { id: Identifier::new("a") }, 3),
+            (3, Action { id: Identifier::new("a") }, 0),
+            (0, Action { id: Identifier::new("a") }, 4),
+        ]);
 
-    let mut state_set_manager = StateSetManager::new(lts.nodes.len());
+        let mut state_set_manager = StateSetManager::new(lts.nodes.len());
 
-    let set = calculate_set(&lts, &has_infinite_a_loop, &mut state_set_manager).unwrap();
-    assert_eq!(set, state_set_manager.create_from_slice(&[0, 1, 2, 3]));
+        let set = calculate_set(&lts, &has_infinite_a_loop, &mut state_set_manager).unwrap();
+        assert_eq!(set, state_set_manager.create_from_slice(&[0, 1, 2, 3]));
 
-    let set = calculate_set(&lts, &has_no_deadlock, &mut state_set_manager).unwrap();
-    assert!(set.is_empty());
+        let set = calculate_set(&lts, &has_no_deadlock, &mut state_set_manager).unwrap();
+        assert!(set.is_empty());
 
-    let set = calculate_set(&lts, &can_do_action, &mut state_set_manager).unwrap();
-    assert_eq!(set, state_set_manager.create_from_slice(&[0, 1, 2, 3]));
+        let set = calculate_set(&lts, &can_do_action, &mut state_set_manager).unwrap();
+        assert_eq!(set, state_set_manager.create_from_slice(&[0, 1, 2, 3]));
+    }
 }

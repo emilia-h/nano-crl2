@@ -3,8 +3,6 @@ use crate::ast::proc::Action;
 use crate::core::error::Mcrl2Error;
 use crate::core::syntax::Identifier;
 
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use std::str::Chars;
 
 /// Represents an error while parsing the LTS, which happens when the given
@@ -81,18 +79,17 @@ impl Lts {
     }
 }
 
-/// Reads an LTS file in [Aldebaran format].
+/// Reads an LTS from a string in [Aldebaran format].
 /// 
 /// These files usually have a `.aut` extension.
 /// 
 /// [Aldebaran format]: https://mcrl2.org/web/user_manual/tools/lts.html#the-aut-format
-pub fn read_aldebaran_file(file: &mut File) -> Result<Lts, LtsParseError> {
-    let reader = BufReader::new(file);
-    let mut lines = reader.lines();
+pub fn parse_aldebaran_lts(input: &str) -> Result<Lts, LtsParseError> {
+    let mut lines = input.lines();
 
     // read header
     let header_line = match lines.next() {
-        Some(Ok(l)) if l.starts_with("des") => l,
+        Some(l) if l.starts_with("des") => l,
         _ => return Err(LtsParseError {
             message: String::from("AUT file does not contain a header line"),
             line: 0,
@@ -114,23 +111,16 @@ pub fn read_aldebaran_file(file: &mut File) -> Result<Lts, LtsParseError> {
 
     let mut i = 0;
     for line in lines {
-        let line = match line {
-            Ok(l) => l,
-            Err(err) => return Err(LtsParseError {
-                message: err.to_string(),
-                line: i,
-            }),
-        };
-
-        let (start_state, edge) = read_aldebaran_line(&line, i)?;
-        if start_state >= node_count || edge.target >= node_count {
+        let (start_state, label, end_state) = parse_aldebaran_line(&line, i)?;
+        if start_state >= node_count || end_state >= node_count {
             return Err(LtsParseError {
                 message: String::from("label start/end out of bounds"),
                 line: i,
             });
         }
-        nodes[start_state].adj.push(edge.clone());
-        // nodes[edge.target].trans_adj.push(LtsEdge { target: start_state, label: edge.label });
+        let label = Action { id: Identifier::new(&label) };
+        nodes[start_state].adj.push(LtsEdge { target: end_state, label });
+        // nodes[edge.target].trans_adj.push(LtsEdge { target: start_state, label });
 
         i += 1;
     }
@@ -145,7 +135,10 @@ pub fn read_aldebaran_file(file: &mut File) -> Result<Lts, LtsParseError> {
     Ok(Lts { initial_state, nodes })
 }
 
-fn read_aldebaran_line(line: &str, i: usize) -> Result<(usize, LtsEdge), LtsParseError> {
+fn parse_aldebaran_line(
+    line: &str,
+    i: usize,
+) -> Result<(usize, String, usize), LtsParseError> {
     let mut chars = line.chars();
 
     skip_chars(&mut chars, "(", i + 1)?;
@@ -167,13 +160,7 @@ fn read_aldebaran_line(line: &str, i: usize) -> Result<(usize, LtsEdge), LtsPars
 
     skip_chars(&mut chars, ")", i + 1)?;
 
-    Ok((
-        start_state as usize,
-        LtsEdge {
-            target: end_state as usize,
-            label: Action { id: Identifier::new(&label) },
-        }
-    ))
+    Ok((start_state as usize, label, end_state as usize))
 }
 
 fn read_number(chars: &mut Chars, i: usize) -> Result<u64, LtsParseError> {
@@ -232,12 +219,27 @@ fn skip_spaces(chars: &mut Chars) {
     }
 }
 
-// #[test]
-// fn test_parse_aldeberan() {
-    // let mut file = File::open("./test.aut").unwrap();
-    // let _lts = read_aldebaran_file(&mut file).unwrap();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    // TODO test contents
-    // eprintln!("{:#?}", lts);
-    // panic!();
-// }
+    #[test]
+    fn test_parse_aldeberan_basic() {
+        let lts = parse_aldebaran_lts(
+            "des (0, 4, 4)
+            (0, \"a\", 1)
+            (1, \"a\", 2)
+            (2, \"a\", 3)
+            (3, \"b\", 0)"
+        ).unwrap();
+
+        eprintln!("{:#?}", lts);
+    }
+
+    #[test]
+    fn test_parse_aldeberan_empty() {
+        let lts = parse_aldebaran_lts("des (0, 0, 1)").unwrap();
+        assert_eq!(lts.nodes.len(), 1);
+        assert_eq!(lts.nodes[0].adj.len(), 0);
+    }
+}

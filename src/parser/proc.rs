@@ -255,6 +255,8 @@ mod tests {
     #[test]
     fn test_parse_proc_basic() {
         let tokens = tokenize("a(123) . b").unwrap();
-        let proc = Parser::new(&tokens).parse_proc();
+        let _proc = Parser::new(&tokens).parse_proc().unwrap();
+
+        // TODO
     }
 }

@@ -25,12 +25,25 @@ impl<'a> Parser<'a> {
     /// [parse error]: ../parser/struct.ParseError.html
     /// [state formula]: ../ast/formula/struct.StateFormula.html
     pub fn parse_state_formula(&mut self) -> Result<StateFormula, ParseError> {
+        // => (associates to the right)
+        let loc = self.get_loc();
+        let lhs = self.parse_or_state_formula()?;
+
+        if self.skip_if_equal(&LexicalElement::ThickArrow) {
+            let rhs = Rc::new(self.parse_state_formula()?);
+            Ok(StateFormula::new(StateFormulaEnum::Implies { lhs: Rc::new(lhs), rhs }, loc))
+        } else {
+            Ok(lhs)
+        }
+    }
+
+    pub fn parse_or_state_formula(&mut self) -> Result<StateFormula, ParseError> {
         // || (associative, treat as if it associates to the right)
         let loc = self.get_loc();
         let lhs = self.parse_and_state_formula()?;
 
         if self.skip_if_equal(&LexicalElement::DoublePipe) {
-            let rhs = Rc::new(self.parse_state_formula()?);
+            let rhs = Rc::new(self.parse_or_state_formula()?);
             Ok(StateFormula::new(StateFormulaEnum::Or { lhs: Rc::new(lhs), rhs }, loc))
         } else {
             Ok(lhs)
@@ -39,12 +52,12 @@ impl<'a> Parser<'a> {
 
     // TODO forall, exists, implies, not
 
-    // || (associative, treat as if it associates to the right)
+    // && (associative, treat as if it associates to the right)
     fn parse_and_state_formula(&mut self) -> Result<StateFormula, ParseError> {
         let loc = self.get_loc();
         let lhs = self.parse_basic_state_formula()?;
 
-        if self.skip_if_equal(&LexicalElement::LogicalAnd) {
+        if self.skip_if_equal(&LexicalElement::DoubleAmpersand) {
             let rhs = Rc::new(self.parse_and_state_formula()?);
             Ok(StateFormula::new(StateFormulaEnum::And { lhs: Rc::new(lhs), rhs }, loc))
         } else {
@@ -141,42 +154,42 @@ impl<'a> Parser<'a> {
 }
 
 #[cfg(test)]
-use crate::unwrap_pattern;
-#[cfg(test)]
-use crate::parser::lexer::tokenize;
-#[cfg(test)]
-use crate::util::unwrap_result;
+mod tests {
+    use super::*;
+    use crate::unwrap_pattern;
+    use crate::parser::lexer::tokenize;
 
-#[test]
-fn test_state_formula_basic() {
-    let tokens = tokenize("(([aa] false && mu X . <a>X) || nu Y . <a>Y)").unwrap();
-    let formula = unwrap_result(Parser::new(&tokens).parse_state_formula());
+    #[test]
+    fn test_state_formula_basic() {
+        let tokens = tokenize("(([aa] false && mu X . <a>X) || nu Y . <a>Y)").unwrap();
+        let formula = Parser::new(&tokens).parse_state_formula().unwrap();
 
-    let (or_lhs, or_rhs) = unwrap_pattern!(&formula.value, StateFormulaEnum::Or { lhs, rhs } => (lhs, rhs));
+        let (or_lhs, or_rhs) = unwrap_pattern!(&formula.value, StateFormulaEnum::Or { lhs, rhs } => (lhs, rhs));
 
-    let (and_lhs, and_rhs) = unwrap_pattern!(&or_lhs.value, StateFormulaEnum::And { lhs, rhs } => (lhs, rhs));
+        let (and_lhs, and_rhs) = unwrap_pattern!(&or_lhs.value, StateFormulaEnum::And { lhs, rhs } => (lhs, rhs));
 
-    let (box_action, box_formula) =
-        unwrap_pattern!(&and_lhs.value, StateFormulaEnum::Box { action, formula } => (action, formula));
-    assert_eq!(box_action.id.get_value(), "aa");
-    unwrap_pattern!(&box_formula.value, StateFormulaEnum::False => ());
+        let (box_action, box_formula) =
+            unwrap_pattern!(&and_lhs.value, StateFormulaEnum::Box { action, formula } => (action, formula));
+        assert_eq!(box_action.id.get_value(), "aa");
+        unwrap_pattern!(&box_formula.value, StateFormulaEnum::False => ());
 
-    let (mu_id, mu_formula) = unwrap_pattern!(&and_rhs.value, StateFormulaEnum::Mu { id, formula } => (id, formula));
-    assert_eq!(mu_id.get_value(), "X");
+        let (mu_id, mu_formula) = unwrap_pattern!(&and_rhs.value, StateFormulaEnum::Mu { id, formula } => (id, formula));
+        assert_eq!(mu_id.get_value(), "X");
 
-    let (diamond_action, diamond_formula) =
-        unwrap_pattern!(&mu_formula.value, StateFormulaEnum::Diamond { action, formula } => (action, formula));
-    assert_eq!(diamond_action.id.get_value(), "a");
-    
-    let x = unwrap_pattern!(&diamond_formula.value, StateFormulaEnum::Id { id } => id);
-    assert_eq!(x.get_value(), "X");
+        let (diamond_action, diamond_formula) =
+            unwrap_pattern!(&mu_formula.value, StateFormulaEnum::Diamond { action, formula } => (action, formula));
+        assert_eq!(diamond_action.id.get_value(), "a");
+        
+        let x = unwrap_pattern!(&diamond_formula.value, StateFormulaEnum::Id { id } => id);
+        assert_eq!(x.get_value(), "X");
 
-    let (nu_id, nu_formula) = unwrap_pattern!(&or_rhs.value, StateFormulaEnum::Nu { id, formula } => (id, formula));
-    assert_eq!(nu_id.get_value(), "Y");
-    let (diamond_action, diamond_formula) =
-        unwrap_pattern!(&nu_formula.value, StateFormulaEnum::Diamond { action, formula } => (action, formula));
-    assert_eq!(diamond_action.id.get_value(), "a");
-    
-    let y = unwrap_pattern!(&diamond_formula.value, StateFormulaEnum::Id { id } => id);
-    assert_eq!(y.get_value(), "Y");
+        let (nu_id, nu_formula) = unwrap_pattern!(&or_rhs.value, StateFormulaEnum::Nu { id, formula } => (id, formula));
+        assert_eq!(nu_id.get_value(), "Y");
+        let (diamond_action, diamond_formula) =
+            unwrap_pattern!(&nu_formula.value, StateFormulaEnum::Diamond { action, formula } => (action, formula));
+        assert_eq!(diamond_action.id.get_value(), "a");
+        
+        let y = unwrap_pattern!(&diamond_formula.value, StateFormulaEnum::Id { id } => id);
+        assert_eq!(y.get_value(), "Y");
+    }
 }

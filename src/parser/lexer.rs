@@ -79,7 +79,7 @@ pub enum LexicalElement {
     QuestionMark, // ?
 
     DoublePipe, // ||
-    LogicalAnd, // &&
+    DoubleAmpersand, // &&
     DoubleEquals, // ==
     NotEquals, // !=
     LessThanEquals, // <=
@@ -143,7 +143,7 @@ pub enum LexicalElement {
 
     Identifier(String),
 
-    Comment(String),
+    DocComment(String),
 
     // TODO: should be arbitrarily large
     Integer(u64),
@@ -181,7 +181,7 @@ impl Display for LexicalElement {
             Slash => Some("/"),
             QuestionMark => Some("?"),
             DoublePipe => Some("||"),
-            LogicalAnd => Some("&&"),
+            DoubleAmpersand => Some("&&"),
             DoubleEquals => Some("=="),
             NotEquals => Some("!="),
             LessThanEquals => Some("<="),
@@ -240,7 +240,7 @@ impl Display for LexicalElement {
             Tau => Some("tau"),
             True => Some("true"),
             Identifier(string) => Some(string.as_str()),
-            Comment(string) => {
+            DocComment(string) => {
                 write!(f, "%{}", string)?;
                 None
             },
@@ -355,9 +355,6 @@ impl<'a> Lexer<'a> {
         let mut in_integer = false;
         let mut integer: u64 = 0;
 
-        let mut in_comment = false;
-        let mut comment = String::new();
-
         let mut symbol = None;
 
         // when we are out of characters, we shouldn't forget to add the last
@@ -371,13 +368,9 @@ impl<'a> Lexer<'a> {
                     continue;
                 }
 
-                if !in_comment && is_number_character(next) {
+                if symbol.is_none() && is_number_character(next) {
                     // 0 - 9
-                    if let Some(e) = symbol {
-                        self.push_token(e);
-                        symbol = None;
-                        continue; // do not advance
-                    } else if in_identifier {
+                    if in_identifier {
                         identifier.push(next);
                     } else {
                         in_integer = true;
@@ -388,13 +381,9 @@ impl<'a> Lexer<'a> {
                     continue;
                 }
 
-                if !in_comment && symbol.is_none() && is_word_character(next) {
+                if symbol.is_none() && is_word_character(next) {
                     // a - z, A - Z, _, ', 0-9
-                    if let Some(e) = symbol {
-                        self.push_token(e);
-                        symbol = None;
-                        continue; // do not advance
-                    } else if in_integer {
+                    if in_integer {
                         return Err(LexError {
                             message: String::from("found word character right after integer"),
                             line: 0,
@@ -407,14 +396,38 @@ impl<'a> Lexer<'a> {
                     continue;
                 }
 
-                if !in_comment && next == '%' {
-                    in_comment = true;
+                if !in_integer && !in_identifier && symbol.is_none() && next == '%' {
                     self.advance_char(next);
+                    let mut is_doc_comment = false;
+                    let mut comment = String::new();
+                    if let Some(ch) = self.iterator.clone().next() {
+                        if ch == '%' {
+                            self.advance_char(ch);
+                            is_doc_comment = true;
+                        }
+                    }
+
+                    while let Some(ch) = self.iterator.clone().next() {
+                        self.advance_char(ch);
+                        if ch == '\r' || ch == '\n' {
+                            break;
+                        }
+
+                        if is_doc_comment {
+                            comment.push(ch);
+                        }
+                    }
+
+                    if is_doc_comment {
+                        self.push_token(LexicalElement::DocComment(comment));
+                    } else {
+                        self.skip_whitespace();
+                    }
+
                     continue;
                 }
 
-                // TODO exceptions: |, &, =, !, <, >, -, +, ||
-                if !in_identifier && !in_integer && !in_comment {
+                if !in_identifier && !in_integer {
                     if let Some(prev_symbol) = &symbol {
                         if let Some(combined) = combine_symbols(prev_symbol, next) {
                             symbol = Some(combined);
@@ -468,16 +481,6 @@ impl<'a> Lexer<'a> {
 
             // if while building integer/identifier/comment/symbol, another
             // character is found, then finish the token
-            /*if in_comment { // TODO fix
-                self.advance_char(next);
-                if next == '\n' {
-                    self.push_token(LexicalElement::Comment(comment));
-                    comment = String::new();
-                    in_comment = false;
-                } else {
-                    comment.push(next);
-                }
-            }*/
 
             if in_identifier {
                 let e = match identifier.as_str() {
@@ -612,7 +615,7 @@ fn combine_symbols(symbol: &LexicalElement, next: char) -> Option<LexicalElement
 
     match (symbol, next) {
         (Pipe, '|') => Some(DoublePipe),
-        (Ampersand, '&') => Some(LogicalAnd),
+        (Ampersand, '&') => Some(DoubleAmpersand),
         (Equals, '=') => Some(DoubleEquals),
         (ExclamationMark, '=') => Some(NotEquals),
         (LessThan, '=') => Some(LessThanEquals),
@@ -628,22 +631,86 @@ fn combine_symbols(symbol: &LexicalElement, next: char) -> Option<LexicalElement
     }
 }
 
-#[test]
-fn test_tokenize_symbols() {
+#[cfg(test)]
+mod tests {
+    use super::*;
     use LexicalElement::*;
 
-    let string = "()[]{}~!@#$^&*-=+|;:,<.>/?||&&==!==<=>=<>->=>|><|++||_";
-    let tokens = &[
-        OpeningParen, ClosingParen, OpeningBracket, ClosingBracket,
-        OpeningBrace, ClosingBrace, Tilde, ExclamationMark, AtSign, HashSign,
-        DollarSign, Circonflex, Ampersand, Asterisk, Dash, Equals, Plus, Pipe,
-        Semicolon, Colon, Comma, LessThan, Period, GreaterThan, Slash,
-        QuestionMark, DoublePipe, LogicalAnd, DoubleEquals, NotEquals, Equals,
-        LessThanEquals, GreaterThanEquals, Diamond, Arrow, ThickArrow,
-        ConsOperator, SnocOperator, Concat, DoublePipeUnderscore,
-    ];
-    let result = tokenize(string).unwrap();
-    for i in 0 .. tokens.len() {
-        assert_eq!(result[i].value, tokens[i]);
+    #[test]
+    fn test_tokenize_basic() {
+        let string = "
+            a(      whitespace (
+            );
+            ; b||_
+            1==%abc
+            proc== %bc \n%%docs\tmore
+            \r\n\r\n\r\r\r
+            % % not docs\t\t\t
+            cons a:b
+            %\t\r\t
+            % not docs\r
+            0= =0
+            a1= =_b_2'=
+            %\t% not docs
+        ";
+        let tokens = &[
+            Identifier(String::from("a")), OpeningParen,
+            Identifier(String::from("whitespace")), OpeningParen, ClosingParen,
+            Semicolon, Semicolon, Identifier(String::from("b")),
+            DoublePipeUnderscore, Integer(1), DoubleEquals, Proc, DoubleEquals,
+            DocComment(String::from("docs\tmore")), Cons,
+            Identifier(String::from("a")), Colon,
+            Identifier(String::from("b")),
+            Integer(0), Equals, Equals, Integer(0),
+            Identifier(String::from("a1")), Equals, Equals,
+            Identifier(String::from("_b_2'")), Equals,
+        ];
+        let result = tokenize(string).unwrap();
+        assert_eq!(result.len(), tokens.len());
+        for i in 0 .. tokens.len() {
+            assert_eq!(result[i].value, tokens[i]);
+        }
+    }
+
+    #[test]
+    fn test_tokenize_symbols() {
+        let string = "()[]{}~!@#$^&*-=+|;:,<.>/?||&&==!==<=>=<>->=>|><|++||_";
+        let tokens = &[
+            OpeningParen, ClosingParen, OpeningBracket, ClosingBracket,
+            OpeningBrace, ClosingBrace, Tilde, ExclamationMark, AtSign, HashSign,
+            DollarSign, Circonflex, Ampersand, Asterisk, Dash, Equals, Plus, Pipe,
+            Semicolon, Colon, Comma, LessThan, Period, GreaterThan, Slash,
+            QuestionMark, DoublePipe, DoubleAmpersand, DoubleEquals, NotEquals, Equals,
+            LessThanEquals, GreaterThanEquals, Diamond, Arrow, ThickArrow,
+            ConsOperator, SnocOperator, Concat, DoublePipeUnderscore,
+        ];
+        let result = tokenize(string).unwrap();
+        assert_eq!(result.len(), tokens.len());
+        for i in 0 .. tokens.len() {
+            assert_eq!(result[i].value, tokens[i]);
+        }
+    }
+
+    #[test]
+    fn test_tokenize_comments() {
+        let string = "
+            test % abc
+            a%bc
+            123 %% docu
+
+                 % whitespace      
+            % fiasdjfais\n% fasojdo
+            % % % % %
+            =
+            %";
+        let tokens = &[
+            Identifier(String::from("test")), Identifier(String::from("a")),
+            Integer(123), DocComment(String::from(" docu")), Equals,
+        ];
+        let result = tokenize(string).unwrap();
+        assert_eq!(result.len(), tokens.len());
+        for i in 0 .. tokens.len() {
+            assert_eq!(result[i].value, tokens[i]);
+        }
     }
 }

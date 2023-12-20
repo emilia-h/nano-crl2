@@ -3,12 +3,12 @@ use crate::core::state_set::StateSetManager;
 use crate::try_into;
 use crate::core::error::Mcrl2Error;
 use crate::lts::verification::calculate_set;
-use crate::lts::lts::read_aldebaran_file;
+use crate::lts::lts::parse_aldebaran_lts;
 use crate::parser::lexer::tokenize;
 use crate::parser::parser::Parser;
 use crate::tools::cli::CliOptions;
 
-use std::fs::File;
+use std::fs::read_to_string;
 
 /// Reads an LTS and a mu-calculus formula and calculates if the LTS satisfies
 /// this formula, and optionally which states satisfy it.
@@ -17,10 +17,10 @@ pub fn check_lts(options: &CliOptions) -> Result<bool, Mcrl2Error> {
     let formula_file = try_into!(options.get_named_string("formula"));
     let output_file = try_into!(options.get_named_string("output"));
 
-    let mut file = File::open(input_file)?;
-    let lts = try_into!(read_aldebaran_file(&mut file));
+    let lts_string = read_to_string(input_file)?;
+    let lts = try_into!(parse_aldebaran_lts(&lts_string));
 
-    let formula_string = std::fs::read_to_string(formula_file)?;
+    let formula_string = read_to_string(formula_file)?;
     let formula_tokens = try_into!(tokenize(&formula_string));
     let mut formula_parser = Parser::new(&formula_tokens);
     let formula = try_into!(formula_parser.parse_state_formula());

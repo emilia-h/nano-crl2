@@ -205,62 +205,67 @@ impl CliOptions {
     }
 }
 
-#[test]
-fn test_parse_cli_basic() {
-    let config = CliConfig::new(&[
-        ("inp", "input", 'i'),
-        ("out", "output", 'o'),
-    ]);
-    let args = [
-        "--input=x",
-        "--input", "x",
-        "-i", "hello",
-        "-opath",
-        "test",
-    ].map(|s| String::from(s)).into_iter().collect::<Vec<_>>();
-    let options = CliOptions::parse(&config, &args).unwrap();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    assert_eq!(options.get_named_list("inp"), &vec![String::from("x"), String::from("x"), String::from("hello")]);
-    assert_eq!(options.get_named_list("out"), &vec![String::from("path")]);
-    assert_eq!(options.get_named_list("fake"), &Vec::<String>::new());
-    assert_eq!(options.get_named_list("output"), &Vec::<String>::new());
-    assert_eq!(options.get_named_list("input"), &Vec::<String>::new());
-    assert_eq!(options.get_named_string("out"), Ok(&String::from("path")));
-    assert!(options.get_named_string("inp").is_err());
-    assert!(options.get_named_string("fake").is_err());
+    #[test]
+    fn test_parse_cli_basic() {
+        let config = CliConfig::new(&[
+            ("inp", "input", 'i'),
+            ("out", "output", 'o'),
+        ]);
+        let args = [
+            "--input=x",
+            "--input", "x",
+            "-i", "hello",
+            "-opath",
+            "test",
+        ].map(|s| String::from(s)).into_iter().collect::<Vec<_>>();
+        let options = CliOptions::parse(&config, &args).unwrap();
 
-    assert_eq!(options.get_unnamed_len(), 1);
-    assert_eq!(options.get_unnamed_value(0), Some(&String::from("test")));
-    assert!(options.get_unnamed_value(1).is_none());
-}
+        assert_eq!(options.get_named_list("inp"), &vec![String::from("x"), String::from("x"), String::from("hello")]);
+        assert_eq!(options.get_named_list("out"), &vec![String::from("path")]);
+        assert_eq!(options.get_named_list("fake"), &Vec::<String>::new());
+        assert_eq!(options.get_named_list("output"), &Vec::<String>::new());
+        assert_eq!(options.get_named_list("input"), &Vec::<String>::new());
+        assert_eq!(options.get_named_string("out"), Ok(&String::from("path")));
+        assert!(options.get_named_string("inp").is_err());
+        assert!(options.get_named_string("fake").is_err());
 
-#[test]
-fn test_parse_cli_bool() {
-    let config = CliConfig::new(&[
-        ("b", "bb", 'a'), // note b and a are swapped
-        ("a", "aa", 'b'),
-        ("c", "cc", 'c'),
-        ("d", "dd", 'd'),
-        ("e", "ee", 'e'),
-    ]);
-    let args = [
-        "--bb=true",
-        "--aa",
-        "-c",
-        "-e", "true",
-        "-a0",
-        "remainder",
-    ].map(|s| String::from(s)).into_iter().collect::<Vec<_>>();
-    let options = CliOptions::parse(&config, &args).unwrap();
+        assert_eq!(options.get_unnamed_len(), 1);
+        assert_eq!(options.get_unnamed_value(0), Some(&String::from("test")));
+        assert!(options.get_unnamed_value(1).is_none());
+    }
 
-    eprintln!("{:?}", options);
+    #[test]
+    fn test_parse_cli_bool() {
+        let config = CliConfig::new(&[
+            ("b", "bb", 'a'), // note b and a are swapped
+            ("a", "aa", 'b'),
+            ("c", "cc", 'c'),
+            ("d", "dd", 'd'),
+            ("e", "ee", 'e'),
+        ]);
+        let args = [
+            "--bb=true",
+            "--aa",
+            "-c",
+            "-e", "true",
+            "-a0",
+            "remainder",
+        ].map(|s| String::from(s)).into_iter().collect::<Vec<_>>();
+        let options = CliOptions::parse(&config, &args).unwrap();
 
-    assert_eq!(options.get_named_bool("a", false), Ok(true));
-    assert!(options.get_named_bool("b", false).is_err()); // multiple values
-    assert_eq!(options.get_named_bool("d", true), Ok(true));
-    assert_eq!(options.get_named_bool("d", false), Ok(false));
-    assert_eq!(options.get_named_bool("c", false), Ok(true));
+        eprintln!("{:?}", options);
 
-    assert_eq!(options.get_unnamed_len(), 1);
-    assert_eq!(options.get_unnamed_value(0), Some(&String::from("remainder")));
+        assert_eq!(options.get_named_bool("a", false), Ok(true));
+        assert!(options.get_named_bool("b", false).is_err()); // multiple values
+        assert_eq!(options.get_named_bool("d", true), Ok(true));
+        assert_eq!(options.get_named_bool("d", false), Ok(false));
+        assert_eq!(options.get_named_bool("c", false), Ok(true));
+
+        assert_eq!(options.get_unnamed_len(), 1);
+        assert_eq!(options.get_unnamed_value(0), Some(&String::from("remainder")));
+    }
 }

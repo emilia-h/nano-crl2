@@ -238,69 +238,86 @@ fn is_decl_keyword(element: &LexicalElement) -> bool {
 }
 
 #[cfg(test)]
-use crate::parser::lexer::tokenize;
-#[cfg(test)]
-use crate::util::unwrap_result;
-#[cfg(test)]
-use crate::unwrap_pattern;
+mod tests {
+    use super::*;
 
-#[test]
-fn test_parse_decl_eqn() {
-    use crate::core::syntax::Identifier;
-    use crate::ast::expr::ExprEnum;
-    use crate::ast::sort::SortEnum;
+    use crate::parser::lexer::tokenize;
+    use crate::util::unwrap_result;
+    use crate::unwrap_pattern;
 
-    let tokens = tokenize("
-        var y, z, a: Nat;
-            b: Set(Int);
-        eqn y == z = a in b;
-            y == z -> y == z = true;
-    ").unwrap();
-    let decl = unwrap_result(Parser::new(&tokens).parse_decl());
-    assert_eq!(decl.len(), 1);
+    #[test]
+    fn test_parse_decl_eqn() {
+        use crate::core::syntax::Identifier;
+        use crate::ast::expr::ExprEnum;
+        use crate::ast::sort::SortEnum;
 
-    let (variables, equations) = unwrap_pattern!(&decl[0].value,
-        DeclEnum::EquationSetDecl { variables, equations } => (variables, equations)
-    );
+        let tokens = tokenize("
+            var y, z, a: Nat;
+                b: Set(Int);
+            eqn y == z = a in b;
+                y == z -> y == z = true;
+        ").unwrap();
+        let decl = unwrap_result(Parser::new(&tokens).parse_decl());
+        assert_eq!(decl.len(), 1);
 
-    assert_eq!(variables.len(), 2);
-    assert_eq!(equations.len(), 2);
+        let (variables, equations) = unwrap_pattern!(&decl[0].value,
+            DeclEnum::EquationSetDecl { variables, equations } => (variables, equations)
+        );
 
-    assert_eq!(&variables[0].ids, &vec![Identifier::new("y"), Identifier::new("z"), Identifier::new("a")]);
-    unwrap_pattern!(&variables[0].sort.value, &SortEnum::Nat => ());
-    assert_eq!(&variables[1].ids, &vec![Identifier::new("b")]);
+        assert_eq!(variables.len(), 2);
+        assert_eq!(equations.len(), 2);
 
-    // first equation
-    let EquationDecl { condition, lhs, rhs } = &equations[0];
-    assert!(condition.is_none());
+        assert_eq!(&variables[0].ids, &vec![Identifier::new("y"), Identifier::new("z"), Identifier::new("a")]);
+        unwrap_pattern!(&variables[0].sort.value, &SortEnum::Nat => ());
+        assert_eq!(&variables[1].ids, &vec![Identifier::new("b")]);
+
+        // first equation
+        let EquationDecl { condition, lhs, rhs } = &equations[0];
+        assert!(condition.is_none());
+        
+        let (equals_lhs, equals_rhs) = unwrap_pattern!(&lhs.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));
+        let y = unwrap_pattern!(&equals_lhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(y.get_value(), "y");
+        let z = unwrap_pattern!(&equals_rhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(z.get_value(), "z");
+
+        let (in_lhs, in_rhs) = unwrap_pattern!(&rhs.value, ExprEnum::In { lhs, rhs } => (lhs, rhs));
+        let a = unwrap_pattern!(&in_lhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(a.get_value(), "a");
+        let b = unwrap_pattern!(&in_rhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(b.get_value(), "b");
+
+        // second equation
+        let EquationDecl { condition, lhs, rhs } = &equations[1];
+
+        let condition = condition.as_ref().unwrap();
+        let (equals_lhs, equals_rhs) = unwrap_pattern!(&condition.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));
+        let y = unwrap_pattern!(&equals_lhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(y.get_value(), "y");
+        let z = unwrap_pattern!(&equals_rhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(z.get_value(), "z");
+
+        let (equals_lhs, equals_rhs) = unwrap_pattern!(&lhs.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));
+        let y = unwrap_pattern!(&equals_lhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(y.get_value(), "y");
+        let z = unwrap_pattern!(&equals_rhs.value, ExprEnum::Id { id } => id);
+        assert_eq!(z.get_value(), "z");
+
+        unwrap_pattern!(&rhs.value, ExprEnum::Bool { value } => assert!(value));
+    }
+
+    #[test]
+    fn test_parse_decl_sort_too_much() {
+        // let tokens = tokenize("sort A = struct a b;").unwrap();
+        // let result = Parser::new(&tokens).parse_decl();
+        // assert!(result.is_err());
     
-    let (equals_lhs, equals_rhs) = unwrap_pattern!(&lhs.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));
-    let y = unwrap_pattern!(&equals_lhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(y.get_value(), "y");
-    let z = unwrap_pattern!(&equals_rhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(z.get_value(), "z");
-
-    let (in_lhs, in_rhs) = unwrap_pattern!(&rhs.value, ExprEnum::In { lhs, rhs } => (lhs, rhs));
-    let a = unwrap_pattern!(&in_lhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(a.get_value(), "a");
-    let b = unwrap_pattern!(&in_rhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(b.get_value(), "b");
-
-    // second equation
-    let EquationDecl { condition, lhs, rhs } = &equations[1];
-
-    let condition = condition.as_ref().unwrap();
-    let (equals_lhs, equals_rhs) = unwrap_pattern!(&condition.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));
-    let y = unwrap_pattern!(&equals_lhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(y.get_value(), "y");
-    let z = unwrap_pattern!(&equals_rhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(z.get_value(), "z");
-
-    let (equals_lhs, equals_rhs) = unwrap_pattern!(&lhs.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));
-    let y = unwrap_pattern!(&equals_lhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(y.get_value(), "y");
-    let z = unwrap_pattern!(&equals_rhs.value, ExprEnum::Id { id } => id);
-    assert_eq!(z.get_value(), "z");
-
-    unwrap_pattern!(&rhs.value, ExprEnum::Bool { value } => assert!(value));
+        // let tokens = tokenize("sort B = struct a ? b c;").unwrap();
+        // let result = Parser::new(&tokens).parse_decl();
+        // assert!(result.is_err());
+    
+        // let tokens = tokenize("sort C = struct a(id) b;").unwrap();
+        // let result = Parser::new(&tokens).parse_decl();
+        // assert!(result.is_err());
+    }
 }

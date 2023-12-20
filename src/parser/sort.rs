@@ -173,34 +173,34 @@ impl<'a> Parser<'a> {
 }
 
 #[cfg(test)]
-use crate::unwrap_pattern;
-#[cfg(test)]
-use crate::util::unwrap_result;
-#[cfg(test)]
-use crate::parser::lexer::tokenize;
+mod tests {
+    use super::*;
+    use crate::unwrap_pattern;
+    use crate::parser::lexer::tokenize;
 
-#[test]
-fn test_parse_sort_struct_basic() {
-    let tokens = tokenize("struct a | x(g: Int, h: Bag(FBag(Nat))) | y | z(Int) ? is_z").unwrap();
-    let sort = unwrap_result(Parser::new(&tokens).parse_sort());
+    #[test]
+    fn test_parse_sort_struct_basic() {
+        let tokens = tokenize("struct a | x(g: Int, h: Bag(FBag(Nat))) | y | z(Int) ? is_z").unwrap();
+        let sort = Parser::new(&tokens).parse_sort().unwrap();
 
-    let constructors = unwrap_pattern!(sort.value, SortEnum::Struct { constructors } => constructors);
-    assert_eq!(constructors.len(), 4);
-    assert_eq!(constructors[0].id.get_value(), "a");
-    assert_eq!(constructors[0].properties.len(), 0);
-    assert!(constructors[0].recognizer_function_id.is_none());
+        let constructors = unwrap_pattern!(sort.value, SortEnum::Struct { constructors } => constructors);
+        assert_eq!(constructors.len(), 4);
+        assert_eq!(constructors[0].id.get_value(), "a");
+        assert_eq!(constructors[0].properties.len(), 0);
+        assert!(constructors[0].recognizer_function_id.is_none());
 
-    assert_eq!(constructors[1].id.get_value(), "x");
-    assert_eq!(constructors[1].properties[0].0, Some(Identifier::new("g")));
-}
+        assert_eq!(constructors[1].id.get_value(), "x");
+        assert_eq!(constructors[1].properties[0].0, Some(Identifier::new("g")));
+    }
 
-#[test]
-fn test_parse_sort_struct_empty() {
-    // let tokens = tokenize("struct").unwrap();
-    // let result = Parser::new(&tokens).parse_sort();
-    // assert!(result.is_err());
+    #[test]
+    fn test_parse_sort_struct_empty() {
+        // let tokens = tokenize("struct").unwrap();
+        // let result = Parser::new(&tokens).parse_sort();
+        // assert!(result.is_err());
 
-    let tokens = tokenize("struct a()").unwrap();
-    let result = Parser::new(&tokens).parse_sort();
-    assert!(result.is_err());
+        let tokens = tokenize("struct a()").unwrap();
+        let result = Parser::new(&tokens).parse_sort();
+        assert!(result.is_err());
+    }
 }

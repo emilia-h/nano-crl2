@@ -15,7 +15,7 @@ macro_rules! unwrap_pattern {
 /// Extracts the success value of a `Result`, assuming it is [`Ok`].
 /// 
 /// # Panics
-/// Panics if `x` is [`Err`] instead.
+/// Panics if `x` is [`Err`] instead, and displays a formatted message for it.
 /// 
 /// [`Ok`]: https://doc.rust-lang.org/std/result/enum.Result.html#variant.Ok
 /// [`Err`]: https://doc.rust-lang.org/std/result/enum.Result.html#variant.Err
