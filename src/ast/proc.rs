@@ -108,10 +108,10 @@ pub enum ProcEnum {
     },
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Action {
     pub id: Identifier,
-    // TODO data
+    pub args: Vec<Rc<Expr>>,
 }
 
 #[derive(Debug)]

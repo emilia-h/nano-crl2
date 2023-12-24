@@ -66,7 +66,6 @@ struct StateSetManagerData {
 }
 
 /// Represents one set of states, managed by a `SharedStateManager`.
-#[derive(Clone)]
 pub struct StateSet {
     manager_data: Rc<StateSetManagerData>,
     set: Rc<HashSet<usize>>,
@@ -155,6 +154,15 @@ impl PartialEq for StateSet {
     }
 }
 impl Eq for StateSet {}
+
+impl Clone for StateSet {
+    fn clone(&self) -> Self {
+        StateSet {
+            manager_data: Rc::clone(&self.manager_data),
+            set: Rc::clone(&self.set),
+        }
+    }
+}
 
 impl Debug for StateSet {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {

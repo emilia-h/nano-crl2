@@ -1,4 +1,6 @@
 
+use std::fmt::{Display, Formatter};
+
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Identifier {
     value: String,
@@ -11,6 +13,13 @@ impl Identifier {
 
     pub fn get_value(&self) -> &str {
         &self.value
+    }
+}
+
+impl Display for Identifier {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{}", self.value)?;
+        Ok(())
     }
 }
 

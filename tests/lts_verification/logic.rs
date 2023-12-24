@@ -1,7 +1,8 @@
 
 use nano_crl2::core::state_set::{StateSet, StateSetManager};
-use nano_crl2::lts::lts::{Lts, parse_aldebaran_lts};
-use nano_crl2::lts::verification::calculate_set;
+use nano_crl2::lts::aldebaran::parse_aldebaran_lts;
+use nano_crl2::lts::lts::Lts;
+use nano_crl2::analysis::lts_verification::calculate_set;
 use nano_crl2::parser::lexer::tokenize;
 use nano_crl2::parser::parser::Parser;
 

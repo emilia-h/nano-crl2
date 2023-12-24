@@ -167,6 +167,10 @@ impl CliOptions {
         return self.values.get(index);
     }
 
+    pub fn has_named(&self, id: &str) -> bool {
+        self.named_values.contains_key(id)
+    }
+
     pub fn get_named_list(&self, id: &str) -> &Vec<String> {
         self.named_values.get(id).unwrap_or(&EMPTY_VECTOR)
     }

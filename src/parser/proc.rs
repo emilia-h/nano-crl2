@@ -31,6 +31,37 @@ impl<'a> Parser<'a> {
         )
     }
 
+    /// Parses a multi-action of the form `tau` or `a(...) | b | ... | c(...)`.
+    /// 
+    /// # See also
+    /// The [mCRL2 grammar on this].
+    /// 
+    /// [mCRL2 grammar on this]: https://www.mcrl2.org/web/user_manual/language_reference/mucalc.html#grammar-token-MultAct
+    pub fn parse_multi_action(&mut self) -> Result<Vec<Action>, ParseError> {
+        if self.skip_if_equal(&LexicalElement::Tau) {
+            // tau = empty multi-action
+            Ok(Vec::new())
+        } else {
+            let mut actions = Vec::new();
+            while {
+                let id = self.parse_identifier()?;
+
+                let args = if self.skip_if_equal(&LexicalElement::OpeningParen) {
+                    let a = self.parse_expr_list()?;
+                    self.expect_token(&LexicalElement::ClosingParen)?;
+                    a
+                } else {
+                    Vec::new()
+                };
+
+                actions.push(Action { id, args });
+
+                self.skip_if_equal(&LexicalElement::Pipe)
+            } {}
+            Ok(actions)
+        }
+    }
+
     fn parse_parallel_proc(&mut self) -> Result<Proc, ParseError> {
         // || (associative, so treat it as if it associates to the right)
         self.parse_right_associative_proc(
@@ -93,14 +124,14 @@ impl<'a> Parser<'a> {
             LexicalElement::Identifier(id) => {
                 let id = Identifier::new(id);
                 self.skip_token();
-                let _args = if self.skip_if_equal(&LexicalElement::OpeningParen) {
+                let args = if self.skip_if_equal(&LexicalElement::OpeningParen) {
                     let args = self.parse_expr_list()?;
                     self.expect_token(&LexicalElement::ClosingParen)?;
                     args
                 } else {
                     Vec::new()
                 };
-                Proc::new(ProcEnum::Action { value: Action { id /*, args*/ } }, loc)
+                Proc::new(ProcEnum::Action { value: Action { id, args } }, loc)
             },
             LexicalElement::Delta => {
                 self.skip_token();

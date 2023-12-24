@@ -1,5 +1,5 @@
 
-use nano_crl2::tools::check_lts::check_lts;
+use nano_crl2::tools::verify_lts::verify_lts;
 use nano_crl2::tools::cli::{CliConfig, CliOptions};
 use nano_crl2::tools::docgen::docgen;
 use std::env;
@@ -10,7 +10,7 @@ nanoCRL2: a simple toolset for mCRL2. Usage:
 $ nanocrl2 <tool> <options...>
 
 Where <tool> is one of:
-  check-lts             Parses an LTS file (.aut) and a formula file (.mcf) and
+  verify-lts            Parses an LTS file (.aut) and a formula file (.mcf) and
                         outputs for which states of the LTS file it holds.
   docgen                Parses .mcrl2 files and generates documentation for the
                         declarations in those files
@@ -27,7 +27,7 @@ fn main() {
     let tool = args[1].as_str();
     let options = &args[2..];
 
-    if tool == "check-lts" {
+    if tool == "verify-lts" {
         let cli_config = CliConfig::new(&[
             ("help", "help", 'h'),
             ("input", "input", 'i'),
@@ -36,7 +36,7 @@ fn main() {
         ]);
         match CliOptions::parse(&cli_config, options) {
             Ok(options) => {
-                match check_lts(&options) {
+                match verify_lts(&options) {
                     Ok(set) => println!("{}", set),
                     Err(error) => eprintln!("{:?}", error),
                 }

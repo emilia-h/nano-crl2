@@ -7,10 +7,10 @@
 //! # See also
 //! The [mCRL2 spec on this](https://mcrl2.org/web/user_manual/language_reference/mucalc.html#state-formulas).
 
+use crate::ast::decl::VariableDecl;
 use crate::ast::expr::Expr;
 use crate::ast::node::AstNode;
 use crate::ast::proc::Action;
-use crate::ast::sort::Sort;
 use crate::core::syntax::{Identifier, SourceLocation};
 
 use std::fmt::{Debug, Formatter};
@@ -83,13 +83,11 @@ pub enum StateFormulaEnum {
         value: Rc<StateFormula>,
     },
     Box {
-        action: Action,
-        // TODO regular_formula: Rc<RegularFormula>,
+        regular_formula: Rc<RegularFormula>,
         formula: Rc<StateFormula>,
     },
     Diamond {
-        action: Action,
-        // TODO regular_formula: Rc<RegularFormula>,
+        regular_formula: Rc<RegularFormula>,
         formula: Rc<StateFormula>,
     },
 }
@@ -166,11 +164,11 @@ pub enum ActionFormulaEnum {
     True,
     False,
     Forall {
-        ids: Vec<(Identifier, Rc<Sort>)>,
+        ids: Vec<VariableDecl>,
         action_formula: Rc<ActionFormula>,
     },
     Exists {
-        ids: Vec<(Identifier, Rc<Sort>)>,
+        ids: Vec<VariableDecl>,
         action_formula: Rc<ActionFormula>,
     },
     Implies {
