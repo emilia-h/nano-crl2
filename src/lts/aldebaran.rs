@@ -1,9 +1,14 @@
+//! Defines functions for the Aldebaran format.
+//! 
+//! # See also
+//! The [mCRL2 user manual on this].
+//! 
+//! [Aldebaran format]: https://mcrl2.org/web/user_manual/tools/lts.html#the-aut-format
 
 use crate::lts::lts::{Lts, LtsEdge, LtsNode, LtsParseError};
 use crate::parser::lexer::tokenize;
 use crate::parser::parser::Parser;
-
-use std::str::Chars;
+use crate::util::CharParser;
 
 /// Reads an LTS from a string in [Aldebaran format].
 /// 
@@ -11,152 +16,77 @@ use std::str::Chars;
 /// 
 /// [Aldebaran format]: https://mcrl2.org/web/user_manual/tools/lts.html#the-aut-format
 pub fn parse_aldebaran_lts(input: &str) -> Result<Lts, LtsParseError> {
-    let mut lines = input.lines();
+    let mut parser = CharParser::new(input, &|message, line, character| {
+        LtsParseError { message, line, character }
+    });
 
     // read header
-    let header_line = match lines.next() {
-        Some(l) if l.starts_with("des") => l,
-        _ => return Err(LtsParseError {
-            message: String::from("AUT file does not contain a header line"),
-            line: 0,
-        }),
-    };
+    parser.expect_chars("des")?;
+    parser.expect_chars("(")?;
 
-    let mut chars = header_line.chars();
-    skip_chars(&mut chars, "des", 0)?;
-    skip_chars(&mut chars, "(", 0)?;
-    let initial_state = read_number(&mut chars, 0)? as usize;
-    skip_chars(&mut chars, ",", 0)?;
-    let edge_count = read_number(&mut chars, 0)? as usize;
-    skip_chars(&mut chars, ",", 0)?;
-    let node_count = read_number(&mut chars, 0)? as usize;
-    skip_chars(&mut chars, ")", 0)?;
+    let initial_state = parser.parse_number()? as usize;
+    parser.expect_chars(",")?;
+    let edge_count = parser.parse_number()? as usize;
+    parser.expect_chars(",")?;
+    let node_count = parser.parse_number()? as usize;
+    parser.expect_chars(")")?;
+
+    if initial_state >= node_count {
+        return Err(parser.error(
+            format!("The initial state {} is not a valid index", initial_state),
+        ));
+    }
 
     // read edges
-    let mut nodes = vec![LtsNode { adj: vec![] }; node_count];
+    let mut nodes = vec![LtsNode { adj: Vec::new() }; node_count];
 
-    let mut i = 0;
-    for line in lines {
-        let (start_state, string, end_state) = parse_aldebaran_line(&line, i)?;
+    for _ in 0 .. edge_count {
+        let (start_state, string, end_state) = parse_aldebaran_line(&mut parser)?;
+
         if start_state >= node_count || end_state >= node_count {
-            return Err(LtsParseError {
-                message: String::from("label start/end out of bounds"),
-                line: i,
-            });
+            let message = "label start/end out of bounds";
+            return Err(parser.error(String::from(message)));
         }
 
         let tokens = match tokenize(&string) {
             Ok(tokens) => tokens,
-            Err(error) => return Err(LtsParseError {
-                message: error.message,
-                line: i,
-            }),
+            Err(error) => return Err(parser.error(error.message)),
         };
         let multi_action = match Parser::new(&tokens).parse_multi_action() {
             Ok(multi_action) => multi_action,
-            Err(error) => return Err(LtsParseError {
-                message: error.message,
-                line: i,
-            }),
+            Err(error) => return Err(parser.error(error.message)),
         };
         nodes[start_state].adj.push(LtsEdge { target: end_state, label: multi_action });
         // nodes[edge.target].trans_adj.push(LtsEdge { target: start_state, label });
-
-        i += 1;
     }
 
-    if i != edge_count {
-        return Err(LtsParseError {
-            message: String::from(format!("expected {} lines but got {}", edge_count, i)),
-            line: i as usize,
-        });
+    parser.skip_whitespace();
+    if parser.get_char().is_some() {
+        return Err(parser.error(
+            format!("expected {} lines but got more", edge_count),
+        ));
     }
 
     Ok(Lts { initial_state, nodes })
 }
 
-fn parse_aldebaran_line(
-    line: &str,
-    i: usize,
-) -> Result<(usize, String, usize), LtsParseError> {
-    let mut chars = line.chars();
+fn parse_aldebaran_line<F>(
+    parser: &mut CharParser<'_, LtsParseError, F>,
+) -> Result<(usize, String, usize), LtsParseError>
+where
+    F: Fn(String, usize, usize) -> LtsParseError {
+    parser.expect_chars("(")?;
 
-    skip_chars(&mut chars, "(", i + 1)?;
+    let start_state = parser.parse_number()?;
+    parser.expect_chars(",")?;
+    let string = parser.parse_string()?;
+    parser.expect_chars(",")?;
 
-    let start_state = read_number(&mut chars, i + 1)?;
-    skip_chars(&mut chars, ",", i + 1)?;
+    let end_state = parser.parse_number()?;
 
-    skip_chars(&mut chars, "\"", i + 1)?;
-    let mut string = String::new();
-    while let Some(c) = chars.next() {
-        if c == '"' {
-            break;
-        }
-        string.push(c);
-    }
-    skip_chars(&mut chars, ",", i + 1)?;
-
-    let end_state = read_number(&mut chars, i + 1)?;
-
-    skip_chars(&mut chars, ")", i + 1)?;
+    parser.expect_chars(")")?;
 
     Ok((start_state as usize, string, end_state as usize))
-}
-
-fn read_number(chars: &mut Chars, i: usize) -> Result<u64, LtsParseError> {
-    skip_spaces(chars);
-
-    let mut result = 0u64;
-    let mut found = false;
-    while let Some(c) = chars.clone().next() {
-        if c as u8 >= '0' as u8 && c as u8 <= '9' as u8 {
-            found = true;
-            chars.next();
-            result *= 10;
-            result += c as u64 - '0' as u64;
-        } else {
-            break;
-        }
-    }
-    if found {
-        Ok(result)
-    } else {
-        Err(LtsParseError {
-            message: String::from("expected a number"),
-            line: i,
-        })
-    }
-}
-
-fn skip_chars(chars: &mut Chars, string: &str, line: usize) -> Result<(), LtsParseError> {
-    skip_spaces(chars);
-
-    let mut chars2 = string.chars();
-    loop {
-        if let Some(c2) = chars2.next() {
-            if let Some(c1) = chars.next() {
-                if c1 != c2 {
-                    break Err(LtsParseError {
-                        message: String::from(format!("expected {}", c1)),
-                        line,
-                    });
-                } // else we are happy
-            } else {
-                break Err(LtsParseError {
-                    message: String::from(format!("line not long enough, expected {}", string)),
-                    line,
-                });
-            }
-        } else {
-            break Ok(())
-        }
-    }
-}
-
-fn skip_spaces(chars: &mut Chars) {
-    while let Some(' ') = chars.clone().next() {
-        chars.next();
-    }
 }
 
 #[cfg(test)]
@@ -178,8 +108,22 @@ mod tests {
 
     #[test]
     fn test_parse_aldeberan_empty() {
-        let lts = parse_aldebaran_lts("des (0, 0, 1)").unwrap();
+        let lts = parse_aldebaran_lts("des   (0,    0,1)").unwrap();
         assert_eq!(lts.nodes.len(), 1);
         assert_eq!(lts.nodes[0].adj.len(), 0);
+    }
+    
+    #[test]
+    fn test_parse_aldeberan_too_little() {
+        assert!(parse_aldebaran_lts("des (0, 5, 1)\n(0, \"a\", 0)\n").is_err());
+        assert!(parse_aldebaran_lts("des(0, 1, 1)\n").is_err());
+        assert!(parse_aldebaran_lts("des (0, 0, 0)\n").is_err());
+    }
+
+    #[test]
+    fn test_parse_aldeberan_too_much() {
+        assert!(parse_aldebaran_lts("des (0, 1, 2)\n(0, \"a\", 1)\n(1, \"a\", 0)").is_err());
+        assert!(parse_aldebaran_lts("des (0, 2, 2)\n(0, \"a\", 2)\n(1, \"a\", 0)").is_err());
+        assert!(parse_aldebaran_lts("des (2, 2, 2)\n(0, \"a\", 1)\n(1, \"a\", 0)").is_err());
     }
 }

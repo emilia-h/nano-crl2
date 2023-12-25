@@ -57,7 +57,6 @@ pub fn calculate_set(
     state_set_manager: &mut StateSetManager,
 ) -> Result<StateSet, FormulaError> {
     let formula_system = rewrite_state_formula(formula)?;
-    eprintln!("{:#?}", formula_system);
 
     let mut state_set_map = vec![None; formula_system.equations.len()];
     let result = calculate_set_impl(

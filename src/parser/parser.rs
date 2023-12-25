@@ -1,5 +1,5 @@
-//! This module defines a parser that can used for both parsing mCRL2 models
-//! and mu-calculus formulas.
+//! Defines a parser that can used for both parsing mCRL2 models and
+//! mu-calculus formulas.
 //! 
 //! # Examples
 //! ```

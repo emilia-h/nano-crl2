@@ -8,6 +8,7 @@ use crate::core::error::Mcrl2Error;
 pub struct LtsParseError {
     pub message: String,
     pub line: usize,
+    pub character: usize,
 }
 
 impl Into<Mcrl2Error> for LtsParseError {
@@ -17,25 +18,6 @@ impl Into<Mcrl2Error> for LtsParseError {
             line: self.line,
         }
     }
-}
-
-/// A directed edge from one LTS node to another.
-/// 
-/// An edge in an LTS has a "label", which is an [`Action`] that can have data
-/// attached to it.
-/// 
-/// [`Action`]: ../ast/proc/struct.Proc.html
-#[derive(Clone, Debug)]
-pub struct LtsEdge {
-    pub target: usize,
-    pub label: Vec<Action>,
-}
-
-/// 
-#[derive(Clone, Debug)]
-pub struct LtsNode {
-    pub adj: Vec<LtsEdge>,
-    // pub trans_adj: Vec<LtsEdge>,
 }
 
 /// Represents an LTS (labelled transition system), which is in essence a
@@ -51,6 +33,25 @@ pub struct LtsNode {
 pub struct Lts {
     pub initial_state: usize,
     pub nodes: Vec<LtsNode>,
+}
+
+/// 
+#[derive(Clone, Debug)]
+pub struct LtsNode {
+    pub adj: Vec<LtsEdge>,
+    // pub trans_adj: Vec<LtsEdge>,
+}
+
+/// A directed edge from one LTS node to another.
+/// 
+/// An edge in an LTS has a "label", which is an [`Action`] that can have data
+/// attached to it.
+/// 
+/// [`Action`]: ../ast/proc/struct.Proc.html
+#[derive(Clone, Debug)]
+pub struct LtsEdge {
+    pub target: usize,
+    pub label: Vec<Action>,
 }
 
 impl Lts {
