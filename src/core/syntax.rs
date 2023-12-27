@@ -1,6 +1,8 @@
 
 use std::fmt::{Display, Formatter};
 
+/// An identifier, which is usually a short string that uniquely refers to a
+/// declaration somewhere else.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Identifier {
     value: String,

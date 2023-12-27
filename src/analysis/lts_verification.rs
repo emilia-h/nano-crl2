@@ -1,3 +1,5 @@
+//! Implements the Emerson-Lei algorithm for testing labelled transition
+//! systems (LTS) for properties, which are specified in mu-calculus formulas.
 
 use crate::analysis::action_formula::matches_action_formula;
 use crate::ast::formula::{ActionFormula, RegularFormulaEnum, StateFormula, StateFormulaEnum};

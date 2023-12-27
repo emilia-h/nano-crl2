@@ -4,6 +4,7 @@ use crate::core::error::Mcrl2Error;
 use std::collections::hash_map::HashMap;
 use std::fmt::{Display, Formatter};
 
+/// An error in the CLI input format.
 #[derive(Debug, Eq, PartialEq)]
 pub enum CliError {
     IncorrectFormat(&'static str),
@@ -42,6 +43,8 @@ impl Into<Mcrl2Error> for CliError {
     }
 }
 
+/// The configuration of a CLI tool, specifiying what options (`--option`) and
+/// shorthands (`-o`) are available.
 pub struct CliConfig<'a, 'b> {
     pub names: HashMap<&'b str, &'a str>,
     pub shorthands: HashMap<char, &'a str>,
@@ -83,6 +86,26 @@ pub struct CliOptions {
 static EMPTY_VECTOR: Vec<String> = Vec::new();
 
 impl CliOptions {
+    /// Parses a list of arguments and maps named arguments to the options
+    /// given in `config`.
+    /// 
+    /// # Example
+    /// ```rust
+    /// # use nano_crl2::tools::cli::{CliConfig, CliOptions};
+    /// 
+    /// let config = CliConfig::new(&[
+    ///     ("message", "message", 'm'),
+    ///     ("help", "help", 'h'),
+    /// ]);
+    /// let args = [
+    ///     String::from("git"), String::from("commit"),
+    ///     String::from("-m"), String::from("example"),
+    /// ];
+    /// let options = CliOptions::parse(&config, &args).unwrap();
+    /// assert_eq!(options.get_unnamed_string(1), Some(&String::from("commit")));
+    /// assert_eq!(options.get_named_string("message"), Ok(&String::from("example")));
+    /// assert!(!options.has_named("help"));
+    /// ```
     pub fn parse(config: &CliConfig, args: &[String]) -> Result<CliOptions, CliError> {
         let mut values = Vec::new();
         let mut named_values = HashMap::new();
@@ -159,14 +182,28 @@ impl CliOptions {
         Ok(CliOptions { values, named_values })
     }
 
+    /// Returns the number of unnamed values.
+    /// 
+    /// # Example
+    /// ```rust
+    /// # use nano_crl2::tools::cli::{CliConfig, CliOptions};
+    /// let config = CliConfig::new(&[("message", "message", 'm')]);
+    /// let args = [
+    ///     String::from("git"), String::from("commit"),
+    ///     String::from("-m"), String::from("example"),
+    /// ];
+    /// let options = CliOptions::parse(&config, &args).unwrap();
+    /// assert_eq!(options.get_unnamed_len(), 2);
+    /// ```
     pub fn get_unnamed_len(&self) -> usize {
         self.values.len()
     }
 
-    pub fn get_unnamed_value(&self, index: usize) -> Option<&String> {
+    pub fn get_unnamed_string(&self, index: usize) -> Option<&String> {
         return self.values.get(index);
     }
 
+    /// Returns whether a specific named option was given in the input.
     pub fn has_named(&self, id: &str) -> bool {
         self.named_values.contains_key(id)
     }
@@ -187,6 +224,10 @@ impl CliOptions {
         }
     }
 
+    /// Returns the value of a named option and converts it to a bool.
+    /// 
+    /// This maps an empty string (""), "1" and "true" to `true` and maps "0"
+    /// or "false" to `false`.
     pub fn get_named_bool(&self, id: &str, default_value: bool) -> Result<bool, CliError> {
         if let Some(values) = self.named_values.get(id) {
             assert!(values.len() >= 1);
@@ -238,8 +279,8 @@ mod tests {
         assert!(options.get_named_string("fake").is_err());
 
         assert_eq!(options.get_unnamed_len(), 1);
-        assert_eq!(options.get_unnamed_value(0), Some(&String::from("test")));
-        assert!(options.get_unnamed_value(1).is_none());
+        assert_eq!(options.get_unnamed_string(0), Some(&String::from("test")));
+        assert!(options.get_unnamed_string(1).is_none());
     }
 
     #[test]
@@ -270,6 +311,6 @@ mod tests {
         assert_eq!(options.get_named_bool("c", false), Ok(true));
 
         assert_eq!(options.get_unnamed_len(), 1);
-        assert_eq!(options.get_unnamed_value(0), Some(&String::from("remainder")));
+        assert_eq!(options.get_unnamed_string(0), Some(&String::from("remainder")));
     }
 }

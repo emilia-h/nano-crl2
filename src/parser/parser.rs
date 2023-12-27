@@ -26,8 +26,8 @@ use crate::parser::lexer::Token;
 
 use std::rc::Rc;
 
-/// Indicates that there was a syntax error while parsing, which happens when
-/// the input is not in a correct format.
+/// A syntax error while parsing, which happens when the input is not in a
+/// correct format.
 #[derive(Debug)]
 pub struct ParseError {
     pub message: String,
@@ -36,6 +36,7 @@ pub struct ParseError {
 }
 
 impl ParseError {
+    /// Creates a parse error with a given message and source location.
     pub fn new(message: String, loc: SourceLocation) -> Self {
         ParseError {
             message,
@@ -81,7 +82,7 @@ impl Into<Mcrl2Error> for ParseError {
     }
 }
 
-/// Represents the state of a parser that iterates over a list of tokens.
+/// The state of a parser that iterates over a list of tokens.
 /// 
 /// These tokens can be parsed from a string using the [tokenize()] function.
 /// 
@@ -150,16 +151,32 @@ impl<'a> Parser<'a> {
 
     // helper functions //
 
+    /// Returns the token that the parser is currently at.
+    /// 
+    /// # Preconditions
+    /// The parser must still have tokens left, i.e. `has_token()` must be
+    /// true.
     pub fn get_token(&self) -> &Token {
         assert!(self.has_token());
         &self.tokens[self.index]
     }
 
+    /// Returns the location of the token that the parser is currently at.
+    /// 
+    /// # Preconditions
+    /// The parser must still have tokens left, i.e. `has_token()` must be
+    /// true.
     pub fn get_loc(&mut self) -> SourceLocation {
         assert!(self.has_token());
         self.tokens[self.index].loc
     }
 
+    /// Looks ahead one token, returning it if it exists or `None` if the next
+    /// token does not exist.
+    /// 
+    /// # Preconditions
+    /// The parser must still have tokens left, i.e. `has_token()` must be
+    /// true.
     pub fn get_next_token(&self) -> Option<&Token> {
         assert!(self.has_token());
         self.tokens.get(self.index + 1)
@@ -173,10 +190,14 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Returns whether the current token equals a given token type, or false
+    /// if there are no tokens left.
     pub fn is_token(&self, e: &LexicalElement) -> bool {
         self.has_token() && &self.get_token().value == e
     }
 
+    /// Returns whether the next token equals a given token type, or false if
+    /// there is no next token.
     pub fn is_next_token(&self, e: &LexicalElement) -> bool {
         if let Some(x) = self.tokens.get(self.index + 1) {
             &x.value == e
@@ -185,15 +206,24 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Returns whether the parser still has tokens left.
     pub fn has_token(&self) -> bool {
         self.index < self.tokens.len()
     }
 
+    /// Advances the parser by one token.
     pub fn skip_token(&mut self) {
         self.index += 1;
     }
 
+    /// Advances the parser by a token if the current token equals the given
+    /// lexical element, or returns an error if there is no token or the
+    /// current token is different.
     pub fn expect_token(&mut self, value: &LexicalElement) -> Result<(), ParseError> {
+        if !self.has_token() {
+            let loc = self.get_last_loc();
+            return Err(ParseError::end_of_input(&format!("{}", value), loc));
+        }
         let token = self.get_token();
         if &token.value == value {
             self.skip_token();
@@ -203,6 +233,9 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Returns true and advances the parser if the current token equals the
+    /// given lexical element, or returns false and does nothing if it is
+    /// different.
     pub fn skip_if_equal(&mut self, value: &LexicalElement) -> bool {
         if self.has_token() && &self.get_token().value == value {
             self.skip_token();

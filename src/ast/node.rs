@@ -1,4 +1,4 @@
-//! This module contains definitions for a generic "node" trait.
+//! Defines a generic "node" trait.
 //! 
 //! This is sometimes necessary when a node has a pointer to a different node,
 //! but does not know ahead of time if this is a `Decl`, an `Expr` etc.

@@ -1,4 +1,4 @@
-//! This module defines macros, functions and data structures that are useful to the rest
+//! Defines macros, functions and data structures that are useful to the rest
 //! of the crate, but not part of the functionality of the tool/library.
 
 use std::str::Chars;
@@ -31,6 +31,11 @@ where
     }
 }
 
+/// A generic parser that iterates over individual characters.
+/// 
+/// It uses the [`Chars`] iterator to iterate over the given input.
+/// 
+/// [`Chars`]: https://doc.rust-lang.org/std/str/struct.Chars.html
 pub struct CharParser<'a, E, F> where F: Fn(String, usize, usize) -> E {
     chars: Chars<'a>,
     curr_line: usize,
@@ -39,6 +44,11 @@ pub struct CharParser<'a, E, F> where F: Fn(String, usize, usize) -> E {
 }
 
 impl<'a, E, F> CharParser<'a, E, F> where F: Fn(String, usize, usize) -> E {
+    /// Creates a new parser from a string input, with a custom erroring
+    /// function.
+    /// 
+    /// The `to_err` function should take a message, a line number and
+    /// character number and construct an error from this.
     pub fn new(input: &'a str, to_err: F) -> Self {
         CharParser {
             chars: input.chars(),

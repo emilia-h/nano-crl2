@@ -1,4 +1,4 @@
-//! This module contains definitions for mu-calculus formulas.
+//! Defines AST structures for mu-calculus formulas.
 //! 
 //! This includes both the "top-level" state formulas and also the regular
 //! formulas and action formulas that can be used inside of a box or diamond
@@ -16,6 +16,7 @@ use crate::core::syntax::{Identifier, SourceLocation};
 use std::fmt::{Debug, Formatter};
 use std::rc::{Rc, Weak};
 
+/// A mu-calculus formula that describes a property of an LTS or mCRL2 model.
 pub struct StateFormula {
     pub value: StateFormulaEnum,
     pub loc: SourceLocation,
@@ -92,6 +93,8 @@ pub enum StateFormulaEnum {
     },
 }
 
+/// A regular formula (essentially a path formula) that can be used within the
+/// box (`[...]`) or diamond (`<...>`) operator.
 pub struct RegularFormula {
     pub value: RegularFormulaEnum,
     pub loc: SourceLocation,
@@ -133,6 +136,12 @@ pub enum RegularFormulaEnum {
     },
 }
 
+/// A formula that tests a single action, that can be used within a regular
+/// formula and thus inside a box (`[...]`) or diamond (`<...>`) operator.
+/// 
+/// This is different from a regular formula in the sense that an action
+/// formula is true or false for a single action, while a regular formula is
+/// about 0 or more consecutive actions.
 pub struct ActionFormula {
     pub value: ActionFormulaEnum,
     pub loc: SourceLocation,

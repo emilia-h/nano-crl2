@@ -1,9 +1,10 @@
+//! Defines structures for labelled transition systems (LTSs).
 
 use crate::ast::proc::Action;
 use crate::core::error::Mcrl2Error;
 
-/// Represents an error while parsing the LTS, which happens when the given
-/// string is not in the correct format.
+/// An error while parsing the LTS, which happens when the given string is not
+/// in the correct format.
 #[derive(Debug)]
 pub struct LtsParseError {
     pub message: String,
@@ -20,9 +21,8 @@ impl Into<Mcrl2Error> for LtsParseError {
     }
 }
 
-/// Represents an LTS (labelled transition system), which is in essence a
-/// directed graph with unlabelled nodes and with edges that are labelled with
-/// an action.
+/// An LTS (labelled transition system), which is in essence a directed graph
+/// with unlabelled nodes and with edges that are labelled with an action.
 /// 
 /// An LTS usually represents a state space, where the labels represent steps
 /// in the program from one state to another.
@@ -35,7 +35,7 @@ pub struct Lts {
     pub nodes: Vec<LtsNode>,
 }
 
-/// 
+/// A node (vertex) in the LTS, which represents a single state.
 #[derive(Clone, Debug)]
 pub struct LtsNode {
     pub adj: Vec<LtsEdge>,
@@ -55,9 +55,9 @@ pub struct LtsEdge {
 }
 
 impl Lts {
-    /// # Panics
-    /// Panics if the input is not well-formed, for instance there are edges
-    /// that start or end at non-existent nodes.
+    /// # Preconditions
+    /// The input must be well-formed, for instance there cannot be edges that
+    /// start or end at non-existent nodes.
     pub fn from_edge_list(
         initial_state: usize,
         node_count: usize,

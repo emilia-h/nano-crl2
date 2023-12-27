@@ -16,8 +16,8 @@ use crate::core::syntax::SourceLocation;
 use std::fmt::{Display, Formatter};
 use std::str::Chars;
 
-/// Represents an error during the tokenization process, which happens when the
-/// input is invalid.
+/// An error during the tokenization process, which happens when the input is
+/// invalid.
 /// 
 /// # Examples
 /// ```

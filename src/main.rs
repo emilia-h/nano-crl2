@@ -1,7 +1,7 @@
 
 use nano_crl2::tools::verify_lts::verify_lts;
 use nano_crl2::tools::cli::{CliConfig, CliOptions};
-use nano_crl2::tools::docgen::docgen;
+use nano_crl2::tools::gen_docs::gen_docs;
 use std::env;
 
 const HELP_STRING: &'static str = "
@@ -12,7 +12,7 @@ $ nanocrl2 <tool> <options...>
 Where <tool> is one of:
   verify-lts            Parses an LTS file (.aut) and a formula file (.mcf) and
                         outputs for which states of the LTS file it holds.
-  docgen                Parses .mcrl2 files and generates documentation for the
+  gen-docs              Parses .mcrl2 files and generates documentation for the
                         declarations in those files
 ";
 
@@ -45,7 +45,7 @@ fn main() {
                 eprintln!("{:?}", error);
             }
         }
-    } else if tool == "docgen" {
+    } else if tool == "gen-docs" {
         let cli_config = CliConfig::new(&[
             ("help", "help", 'h'),
             ("input", "input", 'i'),
@@ -54,7 +54,7 @@ fn main() {
         ]);
         match CliOptions::parse(&cli_config, options) {
             Ok(options) => {
-                match docgen(&options) {
+                match gen_docs(&options) {
                     Ok(docs) => println!("{}", docs),
                     Err(error) => eprintln!("{:?}", error),
                 }

@@ -1,4 +1,4 @@
-//! ...
+//! Defines AST types for data expressions.
 //! 
 //! # See also
 //! The [mCRL2 spec on this](https://mcrl2.org/web/user_manual/language_reference/data.html).
@@ -10,6 +10,7 @@ use crate::core::syntax::{Identifier, SourceLocation};
 use std::fmt::{Debug, Formatter};
 use std::rc::{Rc, Weak};
 
+/// A data expression in the mCRL2 model.
 pub struct Expr {
     pub value: ExprEnum,
     pub loc: SourceLocation,
@@ -30,6 +31,7 @@ impl Debug for Expr {
     }
 }
 
+/// The options for an expression.
 #[derive(Debug)]
 pub enum ExprEnum {
     Id {

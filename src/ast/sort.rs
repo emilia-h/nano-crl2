@@ -1,4 +1,4 @@
-//! A sort is a type of an [`Expr`].
+//! Defines AST types for sorts, which is the type of an [`Expr`].
 //! 
 //! There are basic sorts such as `Bool` and `Int`, user-defined sorts (defined
 //! using a [`SortDecl`]) and composed sorts such as `Set(T)` or `List(T)`.
@@ -12,6 +12,7 @@ use crate::core::syntax::{Identifier, SourceLocation};
 use std::fmt::{Debug, Formatter};
 use std::rc::{Rc, Weak};
 
+/// A sort in an mCRL2 model, AKA a type.
 pub struct Sort {
     pub value: SortEnum,
     pub loc: SourceLocation,

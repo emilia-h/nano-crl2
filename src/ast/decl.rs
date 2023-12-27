@@ -1,5 +1,6 @@
-//! A declaration (also called spec/specification in the mCRL2 spec) defines
-//! somethiing in a model, often with a name (an identifier).
+//! Defines AST types for declarations (also called spec/specification in the
+//! mCRL2 spec), which defines something in a model, often with a name (an
+//! identifier).
 //! 
 //! Examples are action declarations written as `act name: Sort;` or process
 //! declarations written as "proc Name(param: Sort) = process;"
@@ -17,8 +18,7 @@ use crate::core::syntax::{Identifier, SourceLocation};
 use std::fmt::{Debug, Formatter};
 use std::rc::{Rc, Weak};
 
-
-/// Describes a declaration in an mCRL2 model.
+/// A declaration in an mCRL2 model.
 pub struct Decl {
     pub value: DeclEnum,
     pub loc: SourceLocation,
@@ -39,7 +39,7 @@ impl Debug for Decl {
     }
 }
 
-/// Contains the options for a declaration.
+/// The options for a declaration.
 #[derive(Debug)]
 pub enum DeclEnum {
     ActionDecl {
@@ -83,7 +83,7 @@ pub enum DeclEnum {
     },
 }
 
-/// Describes a variable declaration.
+/// A variable declaration.
 /// 
 /// Note that a variable declaration is not a top-level declaration like
 /// [`Decl`](./struct.Decl). It is instead used to specify parameters for
@@ -94,8 +94,7 @@ pub struct VariableDecl {
     pub sort: Rc<Sort>,
 }
 
-/// Describes a single equation declaration of the form `(condition) -> lhs =
-/// rhs`.
+/// A single equation declaration of the form `[condition ->] lhs = rhs`.
 #[derive(Debug)]
 pub struct EquationDecl {
     pub condition: Option<Rc<Expr>>,

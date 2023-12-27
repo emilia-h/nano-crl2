@@ -1,5 +1,5 @@
 
-/// 
+/// A generic error type caused by user input when using this tool.
 #[derive(Debug)]
 pub enum Mcrl2Error {
     /// A tool usage error, for instance when the user incorrectly passes CLI

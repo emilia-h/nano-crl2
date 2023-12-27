@@ -3,12 +3,12 @@ use std::collections::hash_set::HashSet;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
-/// Represents a structure that can efficiently create and store sets of
-/// states ([`StateSet`]s).
+/// A structure that can efficiently create and store sets of states
+/// (`StateSet`s).
 /// 
 /// It allows for efficient set operations like union, intersection and
 /// complement. It also allows for constant-time equivalence checks, assuming
-/// that the two `StateSet`s that are compared come from the same
+/// that the two [`StateSet`]s that are compared come from the same
 /// `StateSetManager`.
 /// 
 /// It is currently implemented using hash sets, but this will be changed to
@@ -37,6 +37,7 @@ impl StateSetManager {
         }))
     }
 
+    /// Returns a set object that contains all states, managed by this manager.
     pub fn get_full(&self) -> StateSet {
         StateSet {
             manager_data: Rc::clone(&self.0),
@@ -44,6 +45,7 @@ impl StateSetManager {
         }
     }
 
+    /// Returns an empty set object, managed by this manager.
     pub fn get_empty(&self) -> StateSet {
         StateSet {
             manager_data: Rc::clone(&self.0),
@@ -65,7 +67,7 @@ struct StateSetManagerData {
     empty_set: Rc<HashSet<usize>>,
 }
 
-/// Represents one set of states, managed by a `SharedStateManager`.
+/// One set of states, managed by a `SharedStateManager`.
 pub struct StateSet {
     manager_data: Rc<StateSetManagerData>,
     set: Rc<HashSet<usize>>,

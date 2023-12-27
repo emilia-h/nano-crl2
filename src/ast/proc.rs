@@ -1,6 +1,7 @@
-//! A process is essentially a program that is defined in terms of a state
-//! (which is a tuple of data elements such as numbers, lists and sets) and
-//! steps (actions) that move from one state to another.
+//! Defines AST types for processes, which are essentially programs that are
+//! defined in terms of states (which is a tuple of data elements such as
+//! numbers, lists and sets) and steps (actions) that move from one state to
+//! another.
 //! 
 //! These steps can be either deterministic or non-deterministic.
 //! 
@@ -15,6 +16,7 @@ use crate::core::syntax::{Identifier, SourceLocation};
 use std::fmt::{Debug, Formatter};
 use std::rc::{Rc, Weak};
 
+/// A process expression in a model.
 pub struct Proc {
     pub value: ProcEnum,
     pub loc: SourceLocation,

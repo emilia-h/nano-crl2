@@ -3,7 +3,7 @@
 //! # See also
 //! The [mCRL2 user manual on this].
 //! 
-//! [Aldebaran format]: https://mcrl2.org/web/user_manual/tools/lts.html#the-aut-format
+//! [mCRL2 user manual on this]: https://mcrl2.org/web/user_manual/tools/lts.html
 
 use crate::lts::lts::{Lts, LtsEdge, LtsNode, LtsParseError};
 use crate::parser::lexer::tokenize;

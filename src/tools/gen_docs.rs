@@ -19,7 +19,7 @@ impl Display for Docs {
     }
 }
 
-pub fn docgen(options: &CliOptions) -> Result<Docs, Mcrl2Error> {
+pub fn gen_docs(options: &CliOptions) -> Result<Docs, Mcrl2Error> {
     let input_files = options.get_named_list("input");
     let output_file = try_into!(options.get_named_string("output"));
 

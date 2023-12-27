@@ -1,4 +1,4 @@
-//! This module contains definitions for mCRL2 models.
+//! Defines AST types for mCRL2 models.
 //! 
 //! # See also
 //! The [mCRL2 spec on this](https://mcrl2.org/web/user_manual/language_reference/mcrl2.html).
