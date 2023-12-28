@@ -13,8 +13,10 @@ use crate::ast::expr::Expr;
 use crate::ast::node::AstNode;
 use crate::core::syntax::{Identifier, SourceLocation};
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::rc::{Rc, Weak};
+
+use super::display::display_pretty_default;
 
 /// A process expression in a model.
 pub struct Proc {
@@ -34,6 +36,12 @@ impl Debug for Proc {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "{:?}", self.value)?;
         Ok(())
+    }
+}
+
+impl Display for Proc {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        display_pretty_default(self, f)
     }
 }
 

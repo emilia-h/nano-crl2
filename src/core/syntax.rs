@@ -1,9 +1,10 @@
 
-use std::fmt::{Display, Formatter};
+use std::cmp::Ordering;
+use std::fmt::{Debug, Display, Formatter};
 
 /// An identifier, which is usually a short string that uniquely refers to a
 /// declaration somewhere else.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Eq, Hash, PartialEq)]
 pub struct Identifier {
     value: String,
 }
@@ -15,6 +16,12 @@ impl Identifier {
 
     pub fn get_value(&self) -> &str {
         &self.value
+    }
+}
+
+impl Debug for Identifier {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        Display::fmt(self, f)
     }
 }
 
@@ -42,5 +49,18 @@ impl SourceLocation {
 
     pub fn get_char(&self) -> usize {
         self.character
+    }
+}
+
+impl Ord for SourceLocation {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.get_line().cmp(&other.get_line())
+        .then(self.get_char().cmp(&other.get_char()))
+    }
+}
+
+impl PartialOrd for SourceLocation {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }

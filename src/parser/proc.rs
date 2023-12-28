@@ -179,7 +179,7 @@ impl<'a> Parser<'a> {
                         parser.skip_if_equal(&LexicalElement::Comma)
                     } {}
                     // a|b|c, d|e, f, ..., g|h
-                    todo!()
+                    Ok(multi_ids)
                 })?;
                 Proc::new(ProcEnum::Allow { multi_ids, proc }, loc)
             },
@@ -242,7 +242,7 @@ impl<'a> Parser<'a> {
                 let variables = self.parse_var_decl_list()?;
                 self.expect_token(&LexicalElement::Period)?;
                 // NOTE: `sum` has lower precedence than . but higher than +
-                let proc = Rc::new(self.parse_concat_proc()?);
+                let proc = Rc::new(self.parse_conditional_proc()?);
                 Proc::new(ProcEnum::Sum { variables, proc }, loc)
             },
             _ => {

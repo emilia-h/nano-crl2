@@ -9,13 +9,14 @@
 //! 
 //! The [mCRL2 spec on this](https://mcrl2.org/web/user_manual/language_reference/mcrl2.html#specification-syntax).
 
+use crate::ast::display::display_pretty_default;
 use crate::ast::expr::Expr;
 use crate::ast::node::AstNode;
 use crate::ast::proc::Proc;
 use crate::ast::sort::Sort;
 use crate::core::syntax::{Identifier, SourceLocation};
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::rc::{Rc, Weak};
 
 /// A declaration in an mCRL2 model.
@@ -33,9 +34,15 @@ impl Decl {
 }
 
 impl Debug for Decl {
-    fn fmt(&self, formatter: &mut Formatter) -> Result<(), std::fmt::Error> {
-        write!(formatter, "{:?}", self.value)?;
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}", self.value)?;
         Ok(())
+    }
+}
+
+impl Display for Decl {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        display_pretty_default(self, f)
     }
 }
 
@@ -44,7 +51,7 @@ impl Debug for Decl {
 pub enum DeclEnum {
     ActionDecl {
         ids: Vec<Identifier>,
-        sort: Rc<Sort>,
+        sort: Option<Rc<Sort>>,
     },
     ConstructorDecl {
         ids: Vec<Identifier>,
@@ -55,8 +62,7 @@ pub enum DeclEnum {
         equations: Vec<EquationDecl>,
     },
     GlobalVariableDecl {
-        ids: Vec<Identifier>,
-        sort: Rc<Sort>,
+        variables: Vec<VariableDecl>,
     },
     InitialDecl {
         value: Rc<Proc>,

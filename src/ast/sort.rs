@@ -9,8 +9,10 @@
 use crate::ast::node::AstNode;
 use crate::core::syntax::{Identifier, SourceLocation};
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::rc::{Rc, Weak};
+
+use super::display::display_pretty_default;
 
 /// A sort in an mCRL2 model, AKA a type.
 pub struct Sort {
@@ -27,9 +29,15 @@ impl Sort {
 }
 
 impl Debug for Sort {
-    fn fmt(&self, formatter: &mut Formatter) -> Result<(), std::fmt::Error> {
-        write!(formatter, "{:?}", self.value)?;
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}", self.value)?;
         Ok(())
+    }
+}
+
+impl Display for Sort {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        display_pretty_default(self, f)
     }
 }
 

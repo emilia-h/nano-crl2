@@ -17,16 +17,18 @@ impl<'a> Parser<'a> {
         // the grammar is unclear but precedence seems to be (low to high):
         // whr
         // forall, exists, lambda
-        // =>
-        // ||
-        // &&
+        // => (associative)
+        // || (associative)
+        // && (associative)
         // ==, != (left associative (?))
         // <, <=, >, >= (left associative (?))
         // in
-        // |>, <|, ++ (left associative)
-        // +, -
+        // |> (right associative)
+        // <| (left associative)
+        // ++ (associative)
+        // +, - (left associative)
         // /, *, div, mod (left associative)
-        // .
+        // . (left associative)
         // - (negation), !, #
         let loc = self.get_loc();
         let expr = self.parse_binder_expr()?;
@@ -152,20 +154,37 @@ impl<'a> Parser<'a> {
     // in (associates to the left)
     fn parse_in_expr(&mut self) -> Result<Expr, ParseError> {
         self.parse_left_associative_expr(
-            &|parser| parser.parse_concat_expr(),
+            &|parser| parser.parse_cons_expr(),
             &[(&LexicalElement::In, &|lhs, rhs| ExprEnum::In { lhs, rhs })],
         )
     }
 
-    // |>, <|, ++ (associate to the left)
+    // |> (associates to the right)
+    fn parse_cons_expr(&mut self) -> Result<Expr, ParseError> {
+        let loc = self.get_loc();
+        let lhs = self.parse_snoc_expr()?;
+
+        if self.skip_if_equal(&LexicalElement::ConsOperator) {
+            let rhs = Rc::new(self.parse_cons_expr()?);
+            Ok(Expr::new(ExprEnum::Cons { lhs: Rc::new(lhs), rhs }, loc))
+        } else {
+            Ok(lhs)
+        }
+    }
+
+    // <| (associates to the left)
+    fn parse_snoc_expr(&mut self) -> Result<Expr, ParseError> {
+        self.parse_left_associative_expr(
+            &|parser| parser.parse_concat_expr(),
+            &[(&LexicalElement::SnocOperator, &|lhs, rhs| ExprEnum::Snoc { lhs, rhs })],
+        )
+    }
+
+    // ++ (associative, treat as if it associates to the left)
     fn parse_concat_expr(&mut self) -> Result<Expr, ParseError> {
         self.parse_left_associative_expr(
             &|parser| parser.parse_add_expr(),
-            &[
-                (&LexicalElement::ConsOperator, &|lhs, rhs| ExprEnum::Cons { lhs, rhs }),
-                (&LexicalElement::SnocOperator, &|lhs, rhs| ExprEnum::Snoc { lhs, rhs }),
-                (&LexicalElement::Concat, &|lhs, rhs| ExprEnum::Concat { lhs, rhs }),
-            ],
+            &[(&LexicalElement::Concat, &|lhs, rhs| ExprEnum::Concat { lhs, rhs })],
         )
     }
 
@@ -263,10 +282,35 @@ impl<'a> Parser<'a> {
             LexicalElement::OpeningBrace => { // set or bag
                 self.skip_token();
 
-                if self.skip_if_equal(&LexicalElement::ClosingBrace) {
-                    Expr::new(ExprEnum::Bag {}, loc)
-                } else {
+                if self.skip_if_equal(&LexicalElement::Colon) {
+                    // {:}
+                    Expr::new(ExprEnum::Bag { values: vec![] }, loc)
+                } else if self.skip_if_equal(&LexicalElement::ClosingBrace) {
+                    // {}
+                    Expr::new(ExprEnum::Set { values: vec![] }, loc)
+                } else if self.is_next_token(&LexicalElement::Colon) {
+                    // { a: B | ... } (set comprehension) or
+                    // { a: 1, b: 2, ... } (bag)
                     todo!()
+                    // let id = self.parse_identifier()?;
+                    // self.expect_token(&LexicalElement::Colon).unwrap();
+                    // let sort = Rc::new(self.parse_sort()?);
+                    // self.expect_token(&LexicalElement::Pipe)?;
+                    // let expr = Rc::new(self.parse_expr()?);
+                    // Expr::new(ExprEnum::SetComprehension { id, sort, expr }, loc)
+                } else {
+                    // { a, ... } (set) or { a + b : 1, ... } (bag)
+                    let expr = Rc::new(self.parse_expr()?);
+                    if self.skip_if_equal(&LexicalElement::Colon) { // bag
+                        todo!()
+                    } else { // set
+                        let mut values = vec![expr];
+                        while self.skip_if_equal(&LexicalElement::Comma) {
+                            values.push(Rc::new(self.parse_expr()?));
+                        }
+                        self.expect_token(&LexicalElement::ClosingBrace)?;
+                        Expr::new(ExprEnum::Set { values }, loc)
+                    }
                 }
             },
             LexicalElement::OpeningParen => {
@@ -366,32 +410,13 @@ mod tests {
         let rlhs_id = unwrap_pattern!(&rlhs.value, ExprEnum::Id { id } => id);
         assert_eq!(rlhs_id.get_value(), "b");
 
-        // ((((((af321 + fa123) mod de) / a) + (b * c)) |> [1]) ++ [3, 5]) <| 4
+        // ((((((af321 + fa123) mod de) / a) + (b * c)) |> (([1] ++ [3, 5]) <| 4)
         let tokens = tokenize("(af321 + fa123) mod de / a + b * c |> [1] ++ [3, 5] <| 4").unwrap();
         let expr = Parser::new(&tokens).parse_expr().unwrap();
 
-        let (expr, snoc_rhs) = unwrap_pattern!(expr.value, ExprEnum::Snoc { lhs, rhs } => (lhs, rhs));
+        let (cons_lhs, cons_rhs) = unwrap_pattern!(expr.value, ExprEnum::Cons { lhs, rhs } => (lhs, rhs));
 
-        let number = unwrap_pattern!(snoc_rhs.value, ExprEnum::Number { value } => value);
-        assert_eq!(number, 4);
-
-        let (expr, concat_rhs) = unwrap_pattern!(&expr.value, ExprEnum::Concat { lhs, rhs } => (lhs, rhs));
-
-        let values = unwrap_pattern!(&concat_rhs.value, ExprEnum::List { values } => values);
-        assert_eq!(values.len(), 2);
-        let value1 = unwrap_pattern!(&values[0].value, ExprEnum::Number { value } => value);
-        assert_eq!(value1, &3);
-        let value2 = unwrap_pattern!(&values[1].value, ExprEnum::Number { value } => value);
-        assert_eq!(value2, &5);
-
-        let (expr, cons_rhs) = unwrap_pattern!(&expr.value, ExprEnum::Cons { lhs, rhs } => (lhs, rhs));
-
-        let values = unwrap_pattern!(&cons_rhs.value, ExprEnum::List { values } => values);
-        assert_eq!(values.len(), 1);
-        let value1 = unwrap_pattern!(&values[0].value, ExprEnum::Number { value } => value);
-        assert_eq!(value1, &1);
-
-        let (add_lhs, add_rhs) = unwrap_pattern!(&expr.value, ExprEnum::Add { lhs, rhs } => (lhs, rhs));
+        let (add_lhs, add_rhs) = unwrap_pattern!(&cons_lhs.value, ExprEnum::Add { lhs, rhs } => (lhs, rhs));
 
         let (bc_lhs, bc_rhs) = unwrap_pattern!(&add_rhs.value, ExprEnum::Multiply { lhs, rhs } => (lhs, rhs));
         let b = unwrap_pattern!(&bc_lhs.value, ExprEnum::Id { id } => id);
@@ -414,6 +439,24 @@ mod tests {
         assert_eq!(af321.get_value(), "af321");
         let fa123 = unwrap_pattern!(&add_rhs.value, ExprEnum::Id { id } => id);
         assert_eq!(fa123.get_value(), "fa123");
+
+        let (snoc_lhs, snoc_rhs) = unwrap_pattern!(&cons_rhs.value, ExprEnum::Snoc { lhs, rhs } => (lhs, rhs));
+
+        let number = unwrap_pattern!(snoc_rhs.value, ExprEnum::Number { value } => value);
+        assert_eq!(number, 4);
+
+        let (concat_lhs, concat_rhs) = unwrap_pattern!(&snoc_lhs.value, ExprEnum::Concat { lhs, rhs } => (lhs, rhs));
+
+        let values = unwrap_pattern!(&concat_lhs.value, ExprEnum::List { values } => values);
+        assert_eq!(values.len(), 1);
+        let value1 = unwrap_pattern!(&values[0].value, ExprEnum::Number { value } => value);
+        assert_eq!(value1, &1);
+        let values = unwrap_pattern!(&concat_rhs.value, ExprEnum::List { values } => values);
+        assert_eq!(values.len(), 2);
+        let value1 = unwrap_pattern!(&values[0].value, ExprEnum::Number { value } => value);
+        assert_eq!(value1, &3);
+        let value2 = unwrap_pattern!(&values[1].value, ExprEnum::Number { value } => value);
+        assert_eq!(value2, &5);
     }
 
     #[test]

@@ -241,7 +241,7 @@ impl Display for LexicalElement {
             True => Some("true"),
             Identifier(string) => Some(string.as_str()),
             DocComment(string) => {
-                write!(f, "%{}", string)?;
+                write!(f, "%%{}", string)?;
                 None
             },
             LexicalElement::Integer(value) => {
@@ -572,6 +572,8 @@ impl<'a> Lexer<'a> {
             }
             self.advance_char(next);
         }
+        self.token_line = self.curr_line;
+        self.token_char = self.curr_char;
     }
 
     fn advance_char(&mut self, ch: char) {
@@ -590,8 +592,6 @@ impl<'a> Lexer<'a> {
             loc: SourceLocation::new(self.token_line, self.token_char),
         });
         self.skip_whitespace();
-        self.token_line = self.curr_line;
-        self.token_char = self.curr_char;
     }
 }
 
@@ -640,7 +640,7 @@ mod tests {
     fn test_tokenize_basic() {
         let string = "
             a(      whitespace (
-            );
+            ); test_fun(
             ; b||_
             1==%abc
             proc== %bc \n%%docs\tmore
@@ -656,8 +656,9 @@ mod tests {
         let tokens = &[
             Identifier(String::from("a")), OpeningParen,
             Identifier(String::from("whitespace")), OpeningParen, ClosingParen,
-            Semicolon, Semicolon, Identifier(String::from("b")),
-            DoublePipeUnderscore, Integer(1), DoubleEquals, Proc, DoubleEquals,
+            Semicolon, Identifier(String::from("test_fun")), OpeningParen,
+            Semicolon, Identifier(String::from("b")), DoublePipeUnderscore,
+            Integer(1), DoubleEquals, Proc, DoubleEquals,
             DocComment(String::from("docs\tmore")), Cons,
             Identifier(String::from("a")), Colon,
             Identifier(String::from("b")),

@@ -6,6 +6,7 @@
 //! and the [mCRL2 specification on mu-calculus formulas](https://mcrl2.org/web/user_manual/language_reference/mucalc.html).
 
 pub mod decl;
+pub mod display;
 pub mod expr;
 pub mod formula;
 pub mod model;

@@ -4,10 +4,12 @@
 //! The [mCRL2 spec on this](https://mcrl2.org/web/user_manual/language_reference/data.html).
 
 use crate::ast::decl::VariableDecl;
+use crate::ast::display::display_pretty_default;
 use crate::ast::node::AstNode;
+use crate::ast::sort::Sort;
 use crate::core::syntax::{Identifier, SourceLocation};
 
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::rc::{Rc, Weak};
 
 /// A data expression in the mCRL2 model.
@@ -25,9 +27,14 @@ impl Expr {
 }
 
 impl Debug for Expr {
-    fn fmt(&self, formatter: &mut Formatter) -> Result<(), std::fmt::Error> {
-        write!(formatter, "{:?}", self.value)?;
-        Ok(())
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}", self.value)
+    }
+}
+
+impl Display for Expr {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        display_pretty_default(self, f)
     }
 }
 
@@ -50,10 +57,12 @@ pub enum ExprEnum {
         values: Vec<Rc<Expr>>,
     },
     Bag {
-        // TODO
+        values: Vec<(Rc<Expr>, Rc<Expr>)>,
     },
     SetComprehension {
-        // TODO
+        id: Identifier,
+        sort: Rc<Sort>,
+        expr: Rc<Expr>,
     },
     FunctionUpdate {
         function: Rc<Expr>,

@@ -110,6 +110,10 @@ impl<'a> Parser<'a> {
         while self.has_token() {
             for decl in self.parse_decl()? {
                 if let DeclEnum::InitialDecl { value } = decl.value {
+                    if initial.is_some() {
+                        let message = "Cannot have more than one `init` declaration in the same model";
+                        return Err(ParseError::new(String::from(message), value.loc));
+                    }
                     initial = Some(value);
                 } else {
                     decls.push(Rc::new(decl));
@@ -179,9 +183,17 @@ impl<'a> Parser<'a> {
     /// true.
     pub fn get_next_token(&self) -> Option<&Token> {
         assert!(self.has_token());
-        self.tokens.get(self.index + 1)
+        let mut i = self.index + 1;
+        while i < self.tokens.len() &&
+            matches!(&self.tokens[i].value, LexicalElement::DocComment(_))
+        {
+            i += 1;
+        }
+        self.tokens.get(i)
     }
 
+    /// Returns the location of the last token, or `(0, 0)` if there are no
+    /// tokens.
     pub fn get_last_loc(&self) -> SourceLocation {
         if self.tokens.len() >= 1 {
             self.tokens[self.tokens.len() - 1].loc
@@ -199,7 +211,9 @@ impl<'a> Parser<'a> {
     /// Returns whether the next token equals a given token type, or false if
     /// there is no next token.
     pub fn is_next_token(&self, e: &LexicalElement) -> bool {
-        if let Some(x) = self.tokens.get(self.index + 1) {
+        if !self.has_token() {
+            false
+        } else if let Some(x) = self.get_next_token() {
             &x.value == e
         } else {
             false
@@ -213,7 +227,13 @@ impl<'a> Parser<'a> {
 
     /// Advances the parser by one token.
     pub fn skip_token(&mut self) {
-        self.index += 1;
+        let mut i = self.index + 1;
+        while i < self.tokens.len() &&
+            matches!(&self.tokens[i].value, LexicalElement::DocComment(_))
+        {
+            i += 1;
+        }
+        self.index = i;
     }
 
     /// Advances the parser by a token if the current token equals the given

@@ -62,8 +62,11 @@ impl<'a> Parser<'a> {
         // [act] a1, ..., an: Sort;
         let ids = self.parse_identifier_list()?;
 
-        self.expect_token(&LexicalElement::Colon)?;
-        let sort = Rc::new(self.parse_sort()?);
+        let sort = if self.skip_if_equal(&LexicalElement::Colon) {
+            Some(Rc::new(self.parse_sort()?))
+        } else {
+            None
+        };
 
         self.expect_token(&LexicalElement::Semicolon)?;
 
@@ -92,11 +95,12 @@ impl<'a> Parser<'a> {
         let mut variables = Vec::new();
         if self.skip_if_equal(&LexicalElement::Var) {
             while !self.is_token(&LexicalElement::Eqn) {
-                let ids = self.parse_identifier_list()?;
-                self.expect_token(&LexicalElement::Colon)?;
-                let sort = Rc::new(self.parse_sort()?);
+                variables.extend(self.parse_var_decl_list()?);
                 self.expect_token(&LexicalElement::Semicolon)?;
-                variables.push(VariableDecl { ids, sort });
+            }
+            if variables.len() == 0 {
+                let message = "a `var` declaration must have at least one variable";
+                return Err(ParseError::new(String::from(message), loc));
             }
         }
 
@@ -129,12 +133,10 @@ impl<'a> Parser<'a> {
         let loc = self.get_loc();
         self.skip_if_equal(&LexicalElement::Glob);
 
-        let ids = self.parse_identifier_list()?;
-        self.expect_token(&LexicalElement::Colon)?;
-        let sort = Rc::new(self.parse_sort()?);
+        let variables = self.parse_var_decl_list()?;
         self.expect_token(&LexicalElement::Semicolon)?;
 
-        Ok(Decl::new(DeclEnum::GlobalVariableDecl { ids, sort }, loc))
+        Ok(Decl::new(DeclEnum::GlobalVariableDecl { variables }, loc))
     }
 
     fn parse_initial_decl(&mut self) -> Result<Decl, ParseError> {
