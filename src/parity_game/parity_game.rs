@@ -1,11 +1,23 @@
 //! Defines structures for parity games (PGs).
 
+use crate::core::error::Mcrl2Error;
+
 /// An error while parsing a parity game in some format.
 #[derive(Debug)]
 pub struct PgParseError {
     pub message: String,
     pub line: usize,
     pub character: usize,
+}
+
+impl Into<Mcrl2Error> for PgParseError {
+    fn into(self) -> Mcrl2Error {
+        Mcrl2Error::PgSyntaxError {
+            message: self.message,
+            line: self.line,
+            character: self.character,
+        }
+    }
 }
 
 /// A parity game with two players, "even" and "odd".

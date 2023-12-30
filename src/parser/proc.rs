@@ -336,7 +336,12 @@ fn advance_nested_parentheses(parser: &mut Parser) -> u32 {
         }
         parser.skip_token();
     }
-    parentheses
+
+    if parser.is_token(&LexicalElement::OpeningParen) {
+        advance_nested_parentheses(parser)
+    } else {
+        parentheses
+    }
 }
 
 #[cfg(test)]
@@ -388,6 +393,8 @@ mod tests {
 
         let tokens = tokenize("-a").unwrap();
         assert!(Parser::new(&tokens).parse_proc().is_err());
+
+        // TODO: test a(0)(1) -> b
     }
 
     #[test]

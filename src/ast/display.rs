@@ -371,6 +371,7 @@ impl DisplayPretty for Expr {
                 expr.fmt(&options.with_precedence(Precedence::Where), f)?;
                 write!(f, " whr\n")?;
                 for assignment in assignments {
+                    // TODO fix: comma-separated
                     write!(f, "{} = ", assignment.0)?;
                     assignment.1.fmt(&options.with_precedence(Precedence::Where), f)?;
                 }
@@ -412,7 +413,19 @@ impl DisplayPretty for Proc {
 
         match &self.value {
             Action { value } => {
-                write!(f, "{:?}", self)?;
+                if value.args.len() == 0 {
+                    write!(f, "{}(", value.id)?;
+                    display_separated(
+                        &value.args, ", ",
+                        &|arg, f| {
+                            arg.fmt(&options.indent(1), f)
+                        },
+                        f,
+                    )?;
+                    write!(f, ")")?;
+                } else {
+                    write!(f, "{}", value.id)?;
+                }
             },
             Delta => {
                 write!(f, "delta")?;

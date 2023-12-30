@@ -17,29 +17,45 @@ pub enum CliError {
 
 impl Display for CliError {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), std::fmt::Error> {
+        use CliError::*;
+
         match self {
-            CliError::IncorrectFormat(string) =>
-                write!(fmt, "{}", string)?,
-            CliError::UnrecognizedOption(key) =>
-                write!(fmt, "Unrecognized argument '{}'", key)?,
-            CliError::NotSupplied(key) =>
-                write!(fmt, "Missing argument '{}'", key)?,
-            CliError::TooManySupplied(key) =>
-                write!(fmt, "Too many values given for argument '{}'", key)?,
-            CliError::NotBool(key) =>
-                write!(fmt, "Expected a boolean for argument '{}'", key)?,
-            CliError::NotInteger(key) =>
-                write!(fmt, "Expected an integer for argument '{}'", key)?,
+            IncorrectFormat(string) => {
+                write!(fmt, "{}", string)
+            },
+            UnrecognizedOption(option) => {
+                write!(fmt, "Unrecognized argument '{}'", option)
+            },
+            NotSupplied(option) => {
+                write!(fmt, "Missing argument '{}'", option)
+            },
+            TooManySupplied(option) => {
+                write!(fmt, "Too many values given for argument '{}'", option)
+            },
+            NotBool(option) => {
+                write!(fmt, "Expected a boolean for argument '{}'", option)
+            },
+            NotInteger(option) => {
+                write!(fmt, "Expected an integer for argument '{}'", option)
+            },
         }
-        Ok(())
     }
 }
 
 impl Into<Mcrl2Error> for CliError {
     fn into(self) -> Mcrl2Error {
-        Mcrl2Error::ToolUsageError {
-            message: format!("{}", self),
-        }
+        use CliError::*;
+
+        let message = format!("{}", self);
+        let option = match self {
+            IncorrectFormat(_) => None,
+            UnrecognizedOption(option) => Some(option),
+            NotSupplied(option) => Some(option),
+            TooManySupplied(option) => Some(option),
+            NotBool(option) => Some(option),
+            NotInteger(option) => Some(option),
+        };
+        Mcrl2Error::ToolUsageError { message, option }
     }
 }
 

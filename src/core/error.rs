@@ -4,22 +4,49 @@
 pub enum Mcrl2Error {
     /// A tool usage error, for instance when the user incorrectly passes CLI
     /// arguments or passes a file that does not exist.
-    ToolUsageError { message: String },
+    ToolUsageError {
+        message: String,
+        option: Option<String>,
+    },
 
     /// A syntax or other compilation error in a mu-calculus formula.
-    FormulaError { message: String },
+    FormulaError {
+        message: String,
+    },
 
     /// A syntax or other compilation error in an mCRL2 model.
-    ModelError { message: String, line: usize, character: usize },
+    ModelError {
+        message: String,
+        line: usize,
+        character: usize,
+    },
+
+    /// An error in input or output, for instance when a given file does not
+    /// exist or the process does not have the correct permissions.
+    IoError {
+        message: String,
+        path: Option<String>,
+    },
 
     /// A syntax error in an LTS file.
-    LtsSyntaxError { message: String, line: usize },
+    LtsSyntaxError {
+        message: String,
+        line: usize,
+    },
+
+    /// A syntax error in a parity game file.
+    PgSyntaxError {
+        message: String,
+        line: usize,
+        character: usize,
+    },
 }
 
 impl From<std::io::Error> for Mcrl2Error {
     fn from(error: std::io::Error) -> Mcrl2Error {
-        Mcrl2Error::ToolUsageError {
-            message: format!("File error: {}", error)
+        Mcrl2Error::IoError {
+            message: format!("File error: {}", error),
+            path: None,
         }
     }
 }

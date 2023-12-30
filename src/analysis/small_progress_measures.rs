@@ -32,8 +32,14 @@ pub fn solve_parity_game(game: &Pg, player: Player) -> HashSet<usize> {
     let mut progress_measure = vec![PlayValue::zeroes(game.max_priority); game.nodes.len()];
 
     // TODO: implement different orderings
-    for v in 0 .. game.nodes.len() {
-        while lift(game, &mut progress_measure, &play_value_limit, v) {}
+    let mut found = true;
+    while found {
+        found = false;
+        for v in 0 .. game.nodes.len() {
+            while lift(game, &mut progress_measure, &play_value_limit, v) {
+                found = true;
+            }
+        }
     }
 
     let mut result = HashSet::new();
@@ -72,7 +78,7 @@ fn lift(
                     game.max_priority, play_value_limit,
                     v_priority, &progress_measure[edge.target],
                 );
-                if new_play_value < min_prog {
+                if new_play_value.partial_cmp(&min_prog).unwrap() == Ordering::Less {
                     min_prog = new_play_value;
                 }
             }
@@ -91,7 +97,7 @@ fn lift(
                     game.max_priority, play_value_limit,
                     v_priority, &progress_measure[edge.target],
                 );
-                if new_play_value > max_prog {
+                if new_play_value.partial_cmp(&max_prog).unwrap() == Ordering::Greater {
                     max_prog = new_play_value;
                 }
             }
@@ -112,7 +118,9 @@ fn prog(
     v_priority: u32,
     w_play_value: &PlayValue,
 ) -> PlayValue {
-    if v_priority % 2 == 0 {
+    if w_play_value.is_top() {
+        PlayValue::top()
+    } else if v_priority % 2 == 0 {
         // find least play value `m` such that `m >=_{v.priority} progress_measure[w]`
         let mut m = w_play_value.clone();
         let mut i = v_priority + 1;
@@ -122,8 +130,6 @@ fn prog(
         }
         assert_ne!(m.compare_up_to(w_play_value, v_priority), Ordering::Less);
         m
-    } else if w_play_value.is_top() {
-        PlayValue::top()
     } else {
         // find least play value `m` such that
         // `m >_{v.priority} progress_measure[w]`;
@@ -172,7 +178,7 @@ impl PlayValue {
     /// priority) is always going to be 0, internally this does not allocate
     /// unnecessary storage for those 0 values.
     pub fn zeroes(max_priority: u32) -> Self {
-        PlayValue { elements: Some(vec![0; max_priority as usize / 2]) }
+        PlayValue { elements: Some(vec![0; (max_priority + 1) as usize / 2]) }
     }
 
     /// Creates a play value from a slice.
@@ -282,20 +288,23 @@ impl Display for PlayValue {
 
 impl PartialOrd for PlayValue {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if let (Some(a), Some(b)) = (&self.elements, &other.elements) {
-            if a.len() != b.len() {
-                return None;
-            }
-            for i in 0 .. a.len() {
-                if a[i] < b[i] {
-                    return Some(Ordering::Less);
-                } else if a[i] > b[i] {
-                    return Some(Ordering::Greater);
+        match (&self.elements, &other.elements) {
+            (Some(a), Some(b)) => {
+                if a.len() != b.len() {
+                    return None;
                 }
-            }
-            Some(Ordering::Equal)
-        } else {
-            Some(self.elements.is_some().cmp(&other.elements.is_some()))
+                for i in 0 .. a.len() {
+                    if a[i] < b[i] {
+                        return Some(Ordering::Less);
+                    } else if a[i] > b[i] {
+                        return Some(Ordering::Greater);
+                    }
+                }
+                Some(Ordering::Equal)
+            },
+            (Some(_), None) => Some(Ordering::Less),
+            (None, Some(_)) => Some(Ordering::Greater),
+            (None, None) => Some(Ordering::Equal),
         }
     }
 }
@@ -303,6 +312,7 @@ impl PartialOrd for PlayValue {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parity_game::pgsolver::parse_pgsolver_game;
 
     #[test]
     fn test_prog_basic() {
@@ -373,5 +383,25 @@ mod tests {
             prog(7, &limit, 1, &PlayValue::from_slice(&[0, 1, 0, 1, 0, 1, 0, 1])),
             PlayValue::top(),
         );
+    }
+
+    #[test]
+    fn test_solve_parity_game_all_top() {
+        let game = parse_pgsolver_game(
+            "parity 6;
+            0 1 1 0,2;
+            1 2 0 0,3;
+            2 1 0 3,5;
+            3 2 1 1,6;
+            4 3 0 4;
+            5 3 0 4;
+            6 3 0 5,6;",
+        ).unwrap();
+
+        let limit = get_play_value_limit(&game);
+        assert_eq!(limit, PlayValue::from_slice(&[0, 2, 0, 3]));
+
+        let won_by_even = solve_parity_game(&game, Player::Even);
+        assert!(won_by_even.is_empty());
     }
 }

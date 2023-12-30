@@ -113,7 +113,8 @@ impl<'a, E, F> CharParser<'a, E, F> where F: Fn(String, usize, usize) -> E {
         }
     }
 
-    /// Advances a `Chars` iterator for as long as there are space characters.
+    /// Advances a `Chars` iterator for as long as there are whitespace
+    /// characters (spaces, line breaks or tabs).
     /// 
     /// This could also be seen as a "strip-left" or "trim-left" operation.
     pub fn skip_whitespace(&mut self) {
@@ -145,6 +146,6 @@ impl<'a, E, F> CharParser<'a, E, F> where F: Fn(String, usize, usize) -> E {
     }
 
     pub fn error(&self, message: String) -> E {
-        (self.to_err)(message, self.curr_line, self.curr_line)
+        (self.to_err)(message, self.curr_line, self.curr_char)
     }
 }

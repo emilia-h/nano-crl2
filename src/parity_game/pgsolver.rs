@@ -54,6 +54,7 @@ pub fn parse_pgsolver_game(input: &str) -> Result<Pg, PgParseError> {
         min_priority = u32::min(min_priority, priority);
         max_priority = u32::max(max_priority, priority);
 
+        parser.skip_whitespace();
         parser.get_char().is_some()
     } {}
 
@@ -62,7 +63,7 @@ pub fn parse_pgsolver_game(input: &str) -> Result<Pg, PgParseError> {
 
 fn parse_pgsolver_line<F>(
     parser: &mut CharParser<'_, PgParseError, F>,
-) -> Result<(usize, u32, Player, Vec<PgEdge>, String), PgParseError>
+) -> Result<(usize, u32, Player, Vec<PgEdge>, Option<String>), PgParseError>
 where
     F: Fn(String, usize, usize) -> PgParseError {
     let identifier = parser.parse_number()? as usize;
@@ -95,7 +96,13 @@ where
         }
     } {}
 
-    let name = parser.parse_string()?;
+    parser.skip_whitespace();
+    let name = if parser.get_char() == Some('"') {
+        Some(parser.parse_string()?)
+    } else {
+        None
+    };
+
     parser.expect_chars(";")?;
 
     Ok((identifier, priority, player, adj, name))
