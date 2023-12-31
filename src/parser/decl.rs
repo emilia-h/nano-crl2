@@ -70,7 +70,10 @@ impl<'a> Parser<'a> {
 
         self.expect_token(&LexicalElement::Semicolon)?;
 
-        Ok(Decl::new(DeclEnum::ActionDecl { ids, sort }, loc))
+        Ok(Decl::new(
+            DeclEnum::ActionDecl { ids, sort },
+            self.until_now(&loc),
+        ))
     }
 
     fn parse_constructor_decl(&mut self) -> Result<Decl, ParseError> {
@@ -85,7 +88,10 @@ impl<'a> Parser<'a> {
 
         self.expect_token(&LexicalElement::Semicolon)?;
 
-        Ok(Decl::new(DeclEnum::ConstructorDecl { ids, sort }, loc))
+        Ok(Decl::new(
+            DeclEnum::ConstructorDecl { ids, sort },
+            self.until_now(&loc),
+        ))
     }
 
     fn parse_equation_decl(&mut self) -> Result<Decl, ParseError> {
@@ -126,7 +132,10 @@ impl<'a> Parser<'a> {
             self.expect_token(&LexicalElement::Semicolon)?;
         }
 
-        Ok(Decl::new(DeclEnum::EquationSetDecl { variables, equations }, loc))
+        Ok(Decl::new(
+            DeclEnum::EquationSetDecl { variables, equations },
+            self.until_now(&loc),
+        ))
     }
 
     fn parse_global_variable_decl(&mut self) -> Result<Decl, ParseError> {
@@ -136,7 +145,10 @@ impl<'a> Parser<'a> {
         let variables = self.parse_var_decl_list()?;
         self.expect_token(&LexicalElement::Semicolon)?;
 
-        Ok(Decl::new(DeclEnum::GlobalVariableDecl { variables }, loc))
+        Ok(Decl::new(
+            DeclEnum::GlobalVariableDecl { variables },
+            self.until_now(&loc),
+        ))
     }
 
     fn parse_initial_decl(&mut self) -> Result<Decl, ParseError> {
@@ -146,7 +158,10 @@ impl<'a> Parser<'a> {
         let value = Rc::new(self.parse_proc()?);
         self.expect_token(&LexicalElement::Semicolon)?;
 
-        Ok(Decl::new(DeclEnum::InitialDecl { value }, loc))
+        Ok(Decl::new(
+            DeclEnum::InitialDecl { value },
+            self.until_now(&loc),
+        ))
     }
 
     fn parse_map_decl(&mut self) -> Result<Decl, ParseError> {
@@ -158,7 +173,10 @@ impl<'a> Parser<'a> {
         let sort = Rc::new(self.parse_sort()?);
         self.expect_token(&LexicalElement::Semicolon)?;
 
-        Ok(Decl::new(DeclEnum::MapDecl { id, sort }, loc))
+        Ok(Decl::new(
+            DeclEnum::MapDecl { id, sort },
+            self.until_now(&loc),
+        ))
     }
 
     fn parse_process_decl(&mut self) -> Result<Decl, ParseError> {
@@ -187,28 +205,33 @@ impl<'a> Parser<'a> {
         let process = Rc::new(self.parse_proc()?);
         self.expect_token(&LexicalElement::Semicolon)?;
 
-        Ok(Decl::new(DeclEnum::ProcessDecl { id, params, process }, loc))
+        Ok(Decl::new(
+            DeclEnum::ProcessDecl { id, params, process },
+            self.until_now(&loc),
+        ))
     }
 
     fn parse_sort_decl(&mut self) -> Result<Decl, ParseError> {
         let loc = self.get_loc();
         self.skip_if_equal(&LexicalElement::Sort);
 
-        if self.is_next_token(&LexicalElement::Equals) {
+        let (ids, value) = if self.is_next_token(&LexicalElement::Equals) {
             // sort A = B;
             let id = self.parse_identifier()?;
             self.expect_token(&LexicalElement::Equals).unwrap();
             let value = Some(Rc::new(self.parse_sort()?));
             self.expect_token(&LexicalElement::Semicolon)?;
 
-            Ok(Decl::new(DeclEnum::SortDecl { ids: vec![id], value }, loc))
+            (vec![id], value)
         } else {
             // sort A;
             let ids = self.parse_identifier_list()?;
             self.expect_token(&LexicalElement::Semicolon)?;
 
-            Ok(Decl::new(DeclEnum::SortDecl { ids, value: None }, loc))
-        }
+            (ids, None)
+        };
+
+        Ok(Decl::new(DeclEnum::SortDecl { ids, value }, self.until_now(&loc)))
     }
 
     /// Parses a list of variables with types of the form `(id11, ..., id1M:

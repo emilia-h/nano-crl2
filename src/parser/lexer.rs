@@ -270,7 +270,7 @@ impl std::fmt::Debug for Token {
 }
 impl Display for Token {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        write!(f, "{} ({}, {})", self.value, self.loc.get_line(), self.loc.get_char())?;
+        write!(f, "{} ({}, {})", self.value, self.loc.get_start_line(), self.loc.get_start_char())?;
         Ok(())
     }
 }
@@ -298,17 +298,17 @@ pub fn reconstruct_from_tokens(input: &[Token]) -> String {
     let mut curr_line = 0;
     let mut curr_char = 0;
     for token in input {
-        assert!(token.loc.get_line() >= curr_line);
-        if token.loc.get_line() == curr_line {
-            assert!(token.loc.get_char() >= curr_char);
+        assert!(token.loc.get_start_line() >= curr_line);
+        if token.loc.get_start_line() == curr_line {
+            assert!(token.loc.get_start_char() >= curr_char);
         }
 
-        while curr_line < token.loc.get_line() {
+        while curr_line < token.loc.get_start_line() {
             result.push('\n');
             curr_line += 1;
             curr_char = 0;
         }
-        while curr_char < token.loc.get_char() {
+        while curr_char < token.loc.get_start_char() {
             result.push(' ');
             curr_char += 1;
         }
@@ -362,11 +362,11 @@ impl<'a> Lexer<'a> {
         loop {
             let option_next = self.iterator.clone().next();
             if let Some(next) = option_next {
-                if next == '\r' {
-                    // skip this cursed character
-                    self.advance_char(next);
-                    continue;
-                }
+                // if next == '\r' {
+                //     // skip this cursed character
+                //     self.advance_char(next);
+                //     continue;
+                // }
 
                 if symbol.is_none() && is_number_character(next) {
                     // 0 - 9
@@ -386,8 +386,8 @@ impl<'a> Lexer<'a> {
                     if in_integer {
                         return Err(LexError {
                             message: String::from("found word character right after integer"),
-                            line: 0,
-                            character: 0,
+                            line: self.curr_line,
+                            character: self.curr_char,
                         });
                     }
                     in_identifier = true;
@@ -408,10 +408,10 @@ impl<'a> Lexer<'a> {
                     }
 
                     while let Some(ch) = self.iterator.clone().next() {
-                        self.advance_char(ch);
                         if ch == '\r' || ch == '\n' {
                             break;
                         }
+                        self.advance_char(ch);
 
                         if is_doc_comment {
                             comment.push(ch);
@@ -587,9 +587,16 @@ impl<'a> Lexer<'a> {
     }
 
     fn push_token(&mut self, element: LexicalElement) {
+        assert_eq!(self.curr_line, self.token_line);
+        assert!(self.curr_char >= self.token_char);
         self.tokens.push(Token {
             value: element,
-            loc: SourceLocation::new(self.token_line, self.token_char),
+            loc: SourceLocation::new(
+                self.token_line,
+                self.token_char,
+                self.curr_line,
+                self.curr_char,
+            ),
         });
         self.skip_whitespace();
     }

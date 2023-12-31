@@ -34,7 +34,10 @@ impl<'a> Parser<'a> {
 
         if self.skip_if_equal(&LexicalElement::ThickArrow) {
             let rhs = Rc::new(self.parse_state_formula()?);
-            Ok(StateFormula::new(StateFormulaEnum::Implies { lhs: Rc::new(lhs), rhs }, loc))
+            Ok(StateFormula::new(
+                StateFormulaEnum::Implies { lhs: Rc::new(lhs), rhs },
+                self.until_now(&loc),
+            ))
         } else {
             Ok(lhs)
         }
@@ -47,7 +50,10 @@ impl<'a> Parser<'a> {
 
         if self.skip_if_equal(&LexicalElement::DoublePipe) {
             let rhs = Rc::new(self.parse_or_state_formula()?);
-            Ok(StateFormula::new(StateFormulaEnum::Or { lhs: Rc::new(lhs), rhs }, loc))
+            Ok(StateFormula::new(
+                StateFormulaEnum::Or { lhs: Rc::new(lhs), rhs },
+                self.until_now(&loc),
+            ))
         } else {
             Ok(lhs)
         }
@@ -62,7 +68,10 @@ impl<'a> Parser<'a> {
 
         if self.skip_if_equal(&LexicalElement::DoubleAmpersand) {
             let rhs = Rc::new(self.parse_and_state_formula()?);
-            Ok(StateFormula::new(StateFormulaEnum::And { lhs: Rc::new(lhs), rhs }, loc))
+            Ok(StateFormula::new(
+                StateFormulaEnum::And { lhs: Rc::new(lhs), rhs },
+                self.until_now(&loc),
+            ))
         } else {
             Ok(lhs)
         }
@@ -80,49 +89,62 @@ impl<'a> Parser<'a> {
         match &token.value {
             LexicalElement::True => {
                 self.skip_token();
-                Ok(StateFormula::new(StateFormulaEnum::True, loc))
+                Ok(StateFormula::new(StateFormulaEnum::True, self.until_now(&loc)))
             },
             LexicalElement::False => {
                 self.skip_token();
-                Ok(StateFormula::new(StateFormulaEnum::False, loc))
+                Ok(StateFormula::new(StateFormulaEnum::False, self.until_now(&loc)))
             },
             LexicalElement::Identifier(id) => {
                 let id = Identifier::new(id);
                 self.skip_token();
-                Ok(StateFormula::new(StateFormulaEnum::Id { id }, loc))
+                Ok(StateFormula::new(StateFormulaEnum::Id { id }, self.until_now(&loc)))
             },
             LexicalElement::OpeningBracket => {
                 self.skip_token();
                 let regular_formula = Rc::new(self.parse_regular_formula()?);
                 self.expect_token(&LexicalElement::ClosingBracket)?;
                 let formula = Rc::new(self.parse_basic_state_formula()?);
-                Ok(StateFormula::new(StateFormulaEnum::Box { regular_formula, formula }, loc))
+                Ok(StateFormula::new(
+                    StateFormulaEnum::Box { regular_formula, formula },
+                    self.until_now(&loc),
+                ))
             },
             LexicalElement::LessThan => {
                 self.skip_token();
                 let regular_formula = Rc::new(self.parse_regular_formula()?);
                 self.expect_token(&LexicalElement::GreaterThan)?;
                 let formula = Rc::new(self.parse_basic_state_formula()?);
-                Ok(StateFormula::new(StateFormulaEnum::Diamond { regular_formula, formula }, loc))
+                Ok(StateFormula::new(
+                    StateFormulaEnum::Diamond { regular_formula, formula },
+                    self.until_now(&loc),
+                ))
             },
             LexicalElement::Mu => {
                 self.skip_token();
                 let id = self.parse_identifier()?;
                 self.expect_token(&LexicalElement::Period)?;
                 let formula = Rc::new(self.parse_basic_state_formula()?);
-                Ok(StateFormula::new(StateFormulaEnum::Mu { id, formula }, loc))
+                Ok(StateFormula::new(
+                    StateFormulaEnum::Mu { id, formula },
+                    self.until_now(&loc),
+                ))
             },
             LexicalElement::Nu => {
                 self.skip_token();
                 let id = self.parse_identifier()?;
                 self.expect_token(&LexicalElement::Period)?;
                 let formula = Rc::new(self.parse_basic_state_formula()?);
-                Ok(StateFormula::new(StateFormulaEnum::Nu { id, formula }, loc))
+                Ok(StateFormula::new(
+                    StateFormulaEnum::Nu { id, formula },
+                    self.until_now(&loc),
+                ))
             },
             LexicalElement::OpeningParen => {
                 self.skip_token();
-                let formula = self.parse_state_formula()?;
+                let mut formula = self.parse_state_formula()?;
                 self.expect_token(&LexicalElement::ClosingParen)?;
+                formula.loc = self.until_now(&loc);
                 Ok(formula)
             },
             _ => {
@@ -136,7 +158,10 @@ impl<'a> Parser<'a> {
 
         let value = Rc::new(self.parse_action_formula()?);
         // TODO other regular formulas
-        Ok(RegularFormula::new(RegularFormulaEnum::ActionFormula { value }, loc))
+        Ok(RegularFormula::new(
+            RegularFormulaEnum::ActionFormula { value },
+            self.until_now(&loc),
+        ))
     }
 
     pub fn parse_action_formula(&mut self) -> Result<ActionFormula, ParseError> {
@@ -147,12 +172,18 @@ impl<'a> Parser<'a> {
             let ids = self.parse_var_decl_list()?;
             self.expect_token(&LexicalElement::Period)?;
             let action_formula = Rc::new(self.parse_action_formula()?);
-            Ok(ActionFormula::new(ActionFormulaEnum::Forall { ids, action_formula }, loc))
+            Ok(ActionFormula::new(
+                ActionFormulaEnum::Forall { ids, action_formula },
+                self.until_now(&loc),
+            ))
         } else if self.skip_if_equal(&LexicalElement::Exists) {
             let ids = self.parse_var_decl_list()?;
             self.expect_token(&LexicalElement::Period)?;
             let action_formula = Rc::new(self.parse_action_formula()?);
-            Ok(ActionFormula::new(ActionFormulaEnum::Exists { ids, action_formula }, loc))
+            Ok(ActionFormula::new(
+                ActionFormulaEnum::Exists { ids, action_formula },
+                self.until_now(&loc),
+            ))
         } else {
             self.parse_implies_action_formula()
         }
@@ -165,7 +196,10 @@ impl<'a> Parser<'a> {
 
         if self.skip_if_equal(&LexicalElement::ThickArrow) {
             let rhs = Rc::new(self.parse_action_formula()?);
-            Ok(ActionFormula::new(ActionFormulaEnum::Implies { lhs: Rc::new(lhs), rhs }, loc))
+            Ok(ActionFormula::new(
+                ActionFormulaEnum::Implies { lhs: Rc::new(lhs), rhs },
+                self.until_now(&loc),
+            ))
         } else {
             Ok(lhs)
         }
@@ -178,7 +212,10 @@ impl<'a> Parser<'a> {
 
         if self.skip_if_equal(&LexicalElement::DoublePipe) {
             let rhs = Rc::new(self.parse_or_action_formula()?);
-            Ok(ActionFormula::new(ActionFormulaEnum::Or { lhs: Rc::new(lhs), rhs }, loc))
+            Ok(ActionFormula::new(
+                ActionFormulaEnum::Or { lhs: Rc::new(lhs), rhs },
+                self.until_now(&loc),
+            ))
         } else {
             Ok(lhs)
         }
@@ -191,7 +228,10 @@ impl<'a> Parser<'a> {
 
         if self.skip_if_equal(&LexicalElement::DoubleAmpersand) {
             let rhs = Rc::new(self.parse_and_action_formula()?);
-            Ok(ActionFormula::new(ActionFormulaEnum::And { lhs: Rc::new(lhs), rhs }, loc))
+            Ok(ActionFormula::new(
+                ActionFormulaEnum::And { lhs: Rc::new(lhs), rhs },
+                self.until_now(&loc),
+            ))
         } else {
             Ok(lhs)
         }
@@ -204,10 +244,13 @@ impl<'a> Parser<'a> {
 
         while self.skip_if_equal(&LexicalElement::AtSign) {
             let time = Rc::new(self.parse_expr()?);
-            result = ActionFormula::new(ActionFormulaEnum::Time {
-                action_formula: Rc::new(result),
-                time,
-            }, loc);
+            result = ActionFormula::new(
+                ActionFormulaEnum::Time {
+                    action_formula: Rc::new(result),
+                    time,
+                },
+                self.until_now(&loc),
+            );
         }
 
         Ok(result)
@@ -223,16 +266,20 @@ impl<'a> Parser<'a> {
                 self.expect_token(&LexicalElement::OpeningParen)?;
                 let value = Rc::new(self.parse_expr()?);
                 self.expect_token(&LexicalElement::ClosingParen)?;
-                ActionFormula::new(ActionFormulaEnum::Val { value }, loc)
+                ActionFormula::new(ActionFormulaEnum::Val { value }, self.until_now(&loc))
             },
             LexicalElement::Identifier(_) | LexicalElement::Tau => {
                 let values = self.parse_multi_action()?;
-                ActionFormula::new(ActionFormulaEnum::MultiAction { values }, loc)
+                ActionFormula::new(
+                    ActionFormulaEnum::MultiAction { values },
+                    self.until_now(&loc),
+                )
             },
             LexicalElement::OpeningParen => {
                 self.skip_token();
-                let action_formula = self.parse_action_formula()?;
+                let mut action_formula = self.parse_action_formula()?;
                 self.expect_token(&LexicalElement::ClosingParen)?;
+                action_formula.loc = self.until_now(&loc);
                 action_formula
             },
             LexicalElement::True => {
@@ -252,7 +299,10 @@ impl<'a> Parser<'a> {
             LexicalElement::ExclamationMark => {
                 self.skip_token();
                 let value = Rc::new(self.parse_basic_action_formula()?);
-                ActionFormula::new(ActionFormulaEnum::Not { value }, loc)
+                ActionFormula::new(
+                    ActionFormulaEnum::Not { value },
+                    self.until_now(&loc),
+                )
             },
             _ => {
                 return Err(ParseError::expected("an action formula", token));

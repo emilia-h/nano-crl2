@@ -104,7 +104,10 @@ impl<'a> Parser<'a> {
                 None
             };
 
-            Proc::new(ProcEnum::IfThenElse { condition, then_proc, else_proc }, loc)
+            Proc::new(
+                ProcEnum::IfThenElse { condition, then_proc, else_proc },
+                self.until_now(&loc),
+            )
         } else {
             self.parse_concat_proc()?
         })
@@ -125,7 +128,10 @@ impl<'a> Parser<'a> {
         let proc = self.parse_multi_proc()?;
         if self.skip_if_equal(&LexicalElement::AtSign) {
             let time = Rc::new(self.parse_unit_expr()?);
-            Ok(Proc::new(ProcEnum::Time { proc: Rc::new(proc), time }, loc))
+            Ok(Proc::new(
+                ProcEnum::Time { proc: Rc::new(proc), time },
+                self.until_now(&loc),
+            ))
         } else {
             Ok(proc)
         }
@@ -154,7 +160,10 @@ impl<'a> Parser<'a> {
                 } else {
                     Vec::new()
                 };
-                Proc::new(ProcEnum::Action { value: Action { id, args } }, loc)
+                Proc::new(
+                    ProcEnum::Action { value: Action { id, args } },
+                    self.until_now(&loc),
+                )
             },
             LexicalElement::Delta => {
                 self.skip_token();
@@ -168,7 +177,7 @@ impl<'a> Parser<'a> {
                 let (ids, proc) = self.parse_unary_process_operator(|parser| {
                     parser.parse_identifier_list()
                 })?;
-                Proc::new(ProcEnum::Block { ids, proc }, loc)
+                Proc::new(ProcEnum::Block { ids, proc }, self.until_now(&loc))
             },
             LexicalElement::Allow => {
                 let (multi_ids, proc) = self.parse_unary_process_operator(|parser| {
@@ -181,7 +190,7 @@ impl<'a> Parser<'a> {
                     // a|b|c, d|e, f, ..., g|h
                     Ok(multi_ids)
                 })?;
-                Proc::new(ProcEnum::Allow { multi_ids, proc }, loc)
+                Proc::new(ProcEnum::Allow { multi_ids, proc }, self.until_now(&loc))
             },
             LexicalElement::Hide => {
                 let (ids, proc) = self.parse_unary_process_operator(|parser| {
@@ -203,7 +212,7 @@ impl<'a> Parser<'a> {
                     } {}
                     Ok(mappings)
                 })?;
-                Proc::new(ProcEnum::Rename { mappings, proc }, loc)
+                Proc::new(ProcEnum::Rename { mappings, proc }, self.until_now(&loc))
             },
             LexicalElement::Comm => {
                 let (mappings, proc) = self.parse_unary_process_operator(|parser| {
@@ -229,12 +238,13 @@ impl<'a> Parser<'a> {
                     } {}
                     Ok(mappings)
                 })?;
-                Proc::new(ProcEnum::Comm { mappings, proc }, loc)
+                Proc::new(ProcEnum::Comm { mappings, proc }, self.until_now(&loc))
             },
             LexicalElement::OpeningParen => {
                 self.skip_token();
-                let proc = self.parse_proc()?;
+                let mut proc = self.parse_proc()?;
                 self.expect_token(&LexicalElement::ClosingParen)?;
+                proc.loc = self.until_now(&loc);
                 proc
             },
             LexicalElement::Sum => {
@@ -243,7 +253,7 @@ impl<'a> Parser<'a> {
                 self.expect_token(&LexicalElement::Period)?;
                 // NOTE: `sum` has lower precedence than . but higher than +
                 let proc = Rc::new(self.parse_conditional_proc()?);
-                Proc::new(ProcEnum::Sum { variables, proc }, loc)
+                Proc::new(ProcEnum::Sum { variables, proc }, self.until_now(&loc))
             },
             _ => {
                 return Err(ParseError::expected("a process", token));
@@ -277,7 +287,11 @@ impl<'a> Parser<'a> {
         let lhs = sub_parser(self)?;
         if self.skip_if_equal(operator) {
             let rhs = self.parse_right_associative_proc(sub_parser, operator, constructor)?;
-            Ok(Proc::new(constructor(Rc::new(lhs), Rc::new(rhs)), loc))
+
+            Ok(Proc::new(
+                constructor(Rc::new(lhs), Rc::new(rhs)),
+                self.until_now(&loc),
+            ))
         } else {
             Ok(lhs)
         }

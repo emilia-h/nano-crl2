@@ -21,7 +21,10 @@ impl<'a> Parser<'a> {
 
         if self.skip_if_equal(&LexicalElement::Arrow) {
             let rhs = self.parse_sort()?;
-            Ok(Sort::new(SortEnum::Function { lhs: Rc::new(lhs), rhs: Rc::new(rhs) }, loc))
+            Ok(Sort::new(
+                SortEnum::Function { lhs: Rc::new(lhs), rhs: Rc::new(rhs) },
+                self.until_now(&loc),
+            ))
         } else {
             Ok(lhs)
         }
@@ -34,10 +37,10 @@ impl<'a> Parser<'a> {
 
         if self.skip_if_equal(&LexicalElement::HashSign) {
             let rhs = self.parse_carthesian_sort()?;
-            Ok(Sort::new(SortEnum::Carthesian {
-                lhs: Rc::new(lhs), 
-                rhs: Rc::new(rhs),
-            }, loc))
+            Ok(Sort::new(
+                SortEnum::Carthesian { lhs: Rc::new(lhs), rhs: Rc::new(rhs) },
+                self.until_now(&loc),
+            ))
         } else {
             Ok(lhs)
         }
@@ -71,53 +74,60 @@ impl<'a> Parser<'a> {
             LexicalElement::List => {
                 self.skip_token();
                 self.expect_token(&LexicalElement::OpeningParen)?;
-                let subsort = self.parse_sort()?;
+                let subsort = Rc::new(self.parse_sort()?);
                 self.expect_token(&LexicalElement::ClosingParen)?;
-                Ok(Sort::new(SortEnum::List { subsort: Rc::new(subsort) }, loc))
+                Ok(Sort::new(SortEnum::List { subsort }, self.until_now(&loc)))
             },
             LexicalElement::Set => {
                 self.skip_token();
                 self.expect_token(&LexicalElement::OpeningParen)?;
-                let subsort = self.parse_sort()?;
+                let subsort = Rc::new(self.parse_sort()?);
                 self.expect_token(&LexicalElement::ClosingParen)?;
-                Ok(Sort::new(SortEnum::Set { subsort: Rc::new(subsort) }, loc))
+                Ok(Sort::new(SortEnum::Set { subsort }, self.until_now(&loc)))
             },
             LexicalElement::Bag => {
                 self.skip_token();
                 self.expect_token(&LexicalElement::OpeningParen)?;
-                let subsort = self.parse_sort()?;
+                let subsort = Rc::new(self.parse_sort()?);
                 self.expect_token(&LexicalElement::ClosingParen)?;
-                Ok(Sort::new(SortEnum::Bag { subsort: Rc::new(subsort) }, loc))
+                Ok(Sort::new(SortEnum::Bag { subsort }, self.until_now(&loc)))
             },
             LexicalElement::FSet => {
                 self.skip_token();
                 self.expect_token(&LexicalElement::OpeningParen)?;
-                let subsort = self.parse_sort()?;
+                let subsort = Rc::new(self.parse_sort()?);
                 self.expect_token(&LexicalElement::ClosingParen)?;
-                Ok(Sort::new(SortEnum::FSet { subsort: Rc::new(subsort) }, loc))
+                Ok(Sort::new(SortEnum::FSet { subsort }, self.until_now(&loc)))
             },
             LexicalElement::FBag => {
                 self.skip_token();
                 self.expect_token(&LexicalElement::OpeningParen)?;
-                let subsort = self.parse_sort()?;
+                let subsort = Rc::new(self.parse_sort()?);
                 self.expect_token(&LexicalElement::ClosingParen)?;
-                Ok(Sort::new(SortEnum::FBag { subsort: Rc::new(subsort) }, loc))
+                Ok(Sort::new(SortEnum::FBag { subsort }, self.until_now(&loc)))
             },
             LexicalElement::Identifier(id) => {
-                let s = Ok(Sort::new(SortEnum::Id { id: Identifier::new(id) }, loc));
+                let s = Ok(Sort::new(
+                    SortEnum::Id { id: Identifier::new(id) },
+                    self.until_now(&loc),
+                ));
                 self.skip_token();
                 s
             },
             LexicalElement::OpeningParen => {
                 self.skip_token();
-                let sort = self.parse_sort()?;
+                let mut sort = self.parse_sort()?;
                 self.expect_token(&LexicalElement::ClosingParen)?;
+                sort.loc = self.until_now(&loc);
                 Ok(sort)
             },
             LexicalElement::Struct => {
                 self.skip_token();
                 let constructors = self.parse_constructor_list()?;
-                Ok(Sort::new(SortEnum::Struct { constructors }, loc))
+                Ok(Sort::new(
+                    SortEnum::Struct { constructors },
+                    self.until_now(&loc),
+                ))
             },
             _ => {
                 let s = Err(ParseError::expected("a sort", token));

@@ -45,7 +45,10 @@ impl<'a> Parser<'a> {
                 let value = Rc::new(self.parse_expr()?);
                 assignments.push((id, value));
             }
-            Ok(Expr::new(ExprEnum::Where { expr: Rc::new(expr), assignments }, loc))
+            Ok(Expr::new(
+                ExprEnum::Where { expr: Rc::new(expr), assignments },
+                self.until_now(&loc),
+            ))
         } else {
             Ok(expr)
         }
@@ -66,21 +69,30 @@ impl<'a> Parser<'a> {
                 let variables = self.parse_var_decl_list()?;
                 self.expect_token(&LexicalElement::Period)?;
                 let expr = Rc::new(self.parse_implies_expr()?);
-                Ok(Expr::new(ExprEnum::Exists { variables, expr }, loc))
+                Ok(Expr::new(
+                    ExprEnum::Exists { variables, expr },
+                    self.until_now(&loc),
+                ))
             },
             LexicalElement::Forall => {
                 self.skip_token();
                 let variables = self.parse_var_decl_list()?;
                 self.expect_token(&LexicalElement::Period)?;
                 let expr = Rc::new(self.parse_implies_expr()?);
-                Ok(Expr::new(ExprEnum::Forall { variables, expr }, loc))
+                Ok(Expr::new(
+                    ExprEnum::Forall { variables, expr },
+                    self.until_now(&loc),
+                ))
             },
             LexicalElement::Lambda => {
                 self.skip_token();
                 let variables = self.parse_var_decl_list()?;
                 self.expect_token(&LexicalElement::Period)?;
                 let expr = Rc::new(self.parse_implies_expr()?);
-                Ok(Expr::new(ExprEnum::Lambda { variables, expr }, loc))
+                Ok(Expr::new(
+                    ExprEnum::Lambda { variables, expr },
+                    self.until_now(&loc),
+                ))
             },
             _ => {
                 self.parse_implies_expr()
@@ -90,41 +102,29 @@ impl<'a> Parser<'a> {
 
     // => (associative to the right, i.e. a => b => c is a => (b => c))
     fn parse_implies_expr(&mut self) -> Result<Expr, ParseError> {
-        let loc = self.get_loc();
-        let lhs = self.parse_or_expr()?;
-
-        if self.skip_if_equal(&LexicalElement::ThickArrow) {
-            let rhs = Rc::new(self.parse_implies_expr()?);
-            Ok(Expr::new(ExprEnum::Implies { lhs: Rc::new(lhs), rhs }, loc))
-        } else {
-            Ok(lhs)
-        }
+        self.parse_right_associative_expr(
+            &|parser| parser.parse_or_expr(),
+            &LexicalElement::ThickArrow, 
+            &|lhs, rhs| ExprEnum::Implies { lhs, rhs }
+        )
     }
 
     // || (associative, so we pretend it associates to the right)
     fn parse_or_expr(&mut self) -> Result<Expr, ParseError> {
-        let loc = self.get_loc();
-        let lhs = self.parse_and_expr()?;
-
-        if self.skip_if_equal(&LexicalElement::DoublePipe) {
-            let rhs = Rc::new(self.parse_or_expr()?);
-            Ok(Expr::new(ExprEnum::LogicalOr { lhs: Rc::new(lhs), rhs }, loc))
-        } else {
-            Ok(lhs)
-        }
+        self.parse_right_associative_expr(
+            &|parser| parser.parse_and_expr(),
+            &LexicalElement::DoublePipe,
+            &|lhs, rhs| ExprEnum::LogicalOr { lhs, rhs },
+        )
     }
 
     // && (associative, so we pretend it associates to the right)
     fn parse_and_expr(&mut self) -> Result<Expr, ParseError> {
-        let loc = self.get_loc();
-        let lhs = self.parse_equals_expr()?;
-
-        if self.skip_if_equal(&LexicalElement::DoubleAmpersand) {
-            let rhs = Rc::new(self.parse_and_expr()?);
-            Ok(Expr::new(ExprEnum::LogicalAnd { lhs: Rc::new(lhs), rhs }, loc))
-        } else {
-            Ok(lhs)
-        }
+        self.parse_right_associative_expr(
+            &|parser| parser.parse_equals_expr(),
+            &LexicalElement::DoubleAmpersand,
+            &|lhs, rhs| ExprEnum::LogicalAnd { lhs, rhs },
+        )
     }
 
     // ==, != (associates to the left! so a == b != c is (a == b) != c)
@@ -161,15 +161,11 @@ impl<'a> Parser<'a> {
 
     // |> (associates to the right)
     fn parse_cons_expr(&mut self) -> Result<Expr, ParseError> {
-        let loc = self.get_loc();
-        let lhs = self.parse_snoc_expr()?;
-
-        if self.skip_if_equal(&LexicalElement::ConsOperator) {
-            let rhs = Rc::new(self.parse_cons_expr()?);
-            Ok(Expr::new(ExprEnum::Cons { lhs: Rc::new(lhs), rhs }, loc))
-        } else {
-            Ok(lhs)
-        }
+        self.parse_right_associative_expr(
+            &|parser| parser.parse_snoc_expr(),
+            &LexicalElement::ConsOperator,
+            &|lhs, rhs| ExprEnum::Cons { lhs, rhs },
+        )
     }
 
     // <| (associates to the left)
@@ -239,17 +235,26 @@ impl<'a> Parser<'a> {
             LexicalElement::Dash => {
                 self.skip_token();
                 let expr = self.parse_unit_expr()?;
-                return Ok(Expr::new(ExprEnum::Negate { value: Rc::new(expr) }, loc));
+                return Ok(Expr::new(
+                    ExprEnum::Negate { value: Rc::new(expr) },
+                    self.until_now(&loc),
+                ));
             },
             LexicalElement::ExclamationMark => {
                 self.skip_token();
                 let expr = self.parse_unit_expr()?;
-                return Ok(Expr::new(ExprEnum::LogicalNot { value: Rc::new(expr) }, loc))
+                return Ok(Expr::new(
+                    ExprEnum::LogicalNot { value: Rc::new(expr) },
+                    self.until_now(&loc),
+                ))
             },
             LexicalElement::HashSign => {
                 self.skip_token();
                 let expr = self.parse_unit_expr()?;
-                return Ok(Expr::new(ExprEnum::Count { value: Rc::new(expr) }, loc))
+                return Ok(Expr::new(
+                    ExprEnum::Count { value: Rc::new(expr) },
+                    self.until_now(&loc),
+                ))
             },
             LexicalElement::True => {
                 self.skip_token();
@@ -272,11 +277,14 @@ impl<'a> Parser<'a> {
                 self.skip_token();
 
                 if self.skip_if_equal(&LexicalElement::ClosingBracket) {
-                    Expr::new(ExprEnum::List { values: Vec::new() }, loc)
+                    Expr::new(
+                        ExprEnum::List { values: Vec::new() },
+                        self.until_now(&loc),
+                    )
                 } else {
-                    let result = Expr::new(ExprEnum::List { values: self.parse_expr_list()? }, loc);
+                    let values = self.parse_expr_list()?;
                     self.expect_token(&LexicalElement::ClosingBracket)?;
-                    result
+                    Expr::new(ExprEnum::List { values }, self.until_now(&loc))
                 }
             },
             LexicalElement::OpeningBrace => { // set or bag
@@ -284,10 +292,17 @@ impl<'a> Parser<'a> {
 
                 if self.skip_if_equal(&LexicalElement::Colon) {
                     // {:}
-                    Expr::new(ExprEnum::Bag { values: vec![] }, loc)
+                    self.expect_token(&LexicalElement::ClosingBrace)?;
+                    Expr::new(
+                        ExprEnum::Bag { values: vec![] },
+                        self.until_now(&loc),
+                    )
                 } else if self.skip_if_equal(&LexicalElement::ClosingBrace) {
                     // {}
-                    Expr::new(ExprEnum::Set { values: vec![] }, loc)
+                    Expr::new(
+                        ExprEnum::Set { values: vec![] },
+                        self.until_now(&loc),
+                    )
                 } else if self.is_next_token(&LexicalElement::Colon) {
                     // { a: B | ... } (set comprehension) or
                     // { a: 1, b: 2, ... } (bag)
@@ -297,7 +312,10 @@ impl<'a> Parser<'a> {
                     // let sort = Rc::new(self.parse_sort()?);
                     // self.expect_token(&LexicalElement::Pipe)?;
                     // let expr = Rc::new(self.parse_expr()?);
-                    // Expr::new(ExprEnum::SetComprehension { id, sort, expr }, loc)
+                    // Expr::new(
+                    //     ExprEnum::SetComprehension { id, sort, expr },
+                    //     self.until_now(&loc),
+                    // )
                 } else {
                     // { a, ... } (set) or { a + b : 1, ... } (bag)
                     let expr = Rc::new(self.parse_expr()?);
@@ -309,14 +327,15 @@ impl<'a> Parser<'a> {
                             values.push(Rc::new(self.parse_expr()?));
                         }
                         self.expect_token(&LexicalElement::ClosingBrace)?;
-                        Expr::new(ExprEnum::Set { values }, loc)
+                        Expr::new(ExprEnum::Set { values }, self.until_now(&loc))
                     }
                 }
             },
             LexicalElement::OpeningParen => {
                 self.skip_token();
-                let expr = self.parse_expr()?;
+                let mut expr = self.parse_expr()?;
                 self.expect_token(&LexicalElement::ClosingParen)?;
+                expr.loc = self.until_now(&loc);
                 expr
             },
             LexicalElement::Exists | LexicalElement::Forall | LexicalElement::Lambda => {
@@ -333,7 +352,10 @@ impl<'a> Parser<'a> {
                 let args = self.parse_expr_list()?;
                 self.expect_token(&LexicalElement::ClosingParen)?;
 
-                result = Expr::new(ExprEnum::Apply { callee: Rc::new(result), args }, loc);
+                result = Expr::new(
+                    ExprEnum::Apply { callee: Rc::new(result), args },
+                    self.until_now(&loc),
+                );
             } else if self.skip_if_equal(&LexicalElement::OpeningBracket) {
                 let lhs = Rc::new(self.parse_expr()?);
                 self.expect_token(&LexicalElement::Arrow)?;
@@ -342,9 +364,8 @@ impl<'a> Parser<'a> {
 
                 result = Expr::new(ExprEnum::FunctionUpdate {
                     function: Rc::new(result),
-                    lhs,
-                    rhs
-                }, loc);
+                    lhs, rhs,
+                }, self.until_now(&loc));
             } else {
                 break Ok(result);
             }
@@ -362,7 +383,7 @@ impl<'a> Parser<'a> {
     }
 
     // generic function for parsing left-associative expressions such as for -,
-    // ++, |>, ., etc.
+    // ++, <|, ., etc.
     fn parse_left_associative_expr<F>(
         &mut self,
         sub_parser: &F,
@@ -378,12 +399,43 @@ impl<'a> Parser<'a> {
             for (lexical_element, constructor) in options {
                 if self.skip_if_equal(lexical_element) {
                     let rhs = Rc::new(sub_parser(self)?);
-                    result = Expr::new(constructor(Rc::new(result), rhs), loc);
+                    result = Expr::new(
+                        constructor(Rc::new(result), rhs),
+                        self.until_now(&loc),
+                    );
                     continue 'outer;
                 }
             }
 
             break Ok(result);
+        }
+    }
+
+    fn parse_right_associative_expr<F>(
+        &mut self,
+        sub_parser: &F,
+        lexical_element: &LexicalElement,
+        constructor: &dyn Fn(Rc<Expr>, Rc<Expr>) -> ExprEnum,
+    ) -> Result<Expr, ParseError>
+    where
+        F: Fn(&mut Parser<'a>) -> Result<Expr, ParseError>
+    {
+        let loc = self.get_loc();
+        let lhs = sub_parser(self)?;
+
+        if self.skip_if_equal(lexical_element) {
+            let rhs = Rc::new(self.parse_right_associative_expr(
+                sub_parser,
+                lexical_element,
+                constructor,
+            )?);
+
+            Ok(Expr::new(
+                constructor(Rc::new(lhs), rhs),
+                self.until_now(&loc),
+            ))
+        } else {
+            Ok(lhs)
         }
     }
 }

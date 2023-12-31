@@ -40,8 +40,8 @@ impl ParseError {
     pub fn new(message: String, loc: SourceLocation) -> Self {
         ParseError {
             message,
-            line: loc.get_line(),
-            character: loc.get_char(),
+            line: loc.get_start_line(),
+            character: loc.get_start_char(),
         }
     }
 
@@ -53,8 +53,8 @@ impl ParseError {
         message.push_str(&format!(" but found {}", token.value));
         ParseError {
             message,
-            line: token.loc.get_line(),
-            character: token.loc.get_char(),
+            line: token.loc.get_start_line(),
+            character: token.loc.get_start_char(),
         }
     }
 
@@ -66,8 +66,8 @@ impl ParseError {
         message.push_str(" but the end of the input was reached");
         ParseError {
             message,
-            line: loc.get_line(),
-            character: loc.get_char(),
+            line: loc.get_start_line(),
+            character: loc.get_start_char(),
         }
     }
 }
@@ -198,7 +198,7 @@ impl<'a> Parser<'a> {
         if self.tokens.len() >= 1 {
             self.tokens[self.tokens.len() - 1].loc
         } else {
-            SourceLocation::new(0, 0)
+            SourceLocation::new(0, 0, 0, 0)
         }
     }
 
@@ -262,6 +262,16 @@ impl<'a> Parser<'a> {
             true
         } else {
             false
+        }
+    }
+
+    /// Returns a new token that spans all tokens from `loc` up till (and
+    /// excluding) the current token.
+    pub fn until_now(&self, loc: &SourceLocation) -> SourceLocation {
+        if self.index == 0 {
+            SourceLocation::new(0, 0, 0, 0)
+        } else {
+            loc.span(&self.tokens[self.index - 1].loc)
         }
     }
 }
