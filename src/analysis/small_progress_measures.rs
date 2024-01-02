@@ -2,9 +2,23 @@
 
 use crate::parity_game::parity_game::{Pg, Player};
 
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+use rand::seq::SliceRandom;
+
 use std::cmp::Ordering;
 use std::collections::hash_set::HashSet;
 use std::fmt::{Debug, Display, Formatter};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum IterationPolicy {
+    InputOrder,
+    RandomOrder {
+        seed: u64,
+    },
+    AscendingDegreeOrder,
+    DescendingDegreeOrder,
+}
 
 /// Solves a parity game, treating it as a min-priority game.
 /// 
@@ -17,7 +31,11 @@ use std::fmt::{Debug, Display, Formatter};
 /// its `min_priority` field has to be 0 or 1 and that its nodes have
 /// priorities that are at most as high as `max_priority`. Additionally, each
 /// node must have at least one outgoing edge.
-pub fn solve_parity_game(game: &Pg, player: Player) -> HashSet<usize> {
+pub fn solve_parity_game(
+    game: &Pg,
+    player: Player,
+    policy: IterationPolicy,
+) -> HashSet<usize> {
     if player == Player::Odd {
         todo!();
     }
@@ -31,15 +49,28 @@ pub fn solve_parity_game(game: &Pg, player: Player) -> HashSet<usize> {
     let play_value_limit = get_play_value_limit(game);
     let mut progress_measure = vec![PlayValue::zeroes(game.max_priority); game.nodes.len()];
 
-    // TODO: implement different orderings
-    let mut found = true;
-    while found {
-        found = false;
-        for v in 0 .. game.nodes.len() {
-            while lift(game, &mut progress_measure, &play_value_limit, v) {
-                found = true;
-            }
-        }
+    match policy {
+        IterationPolicy::InputOrder => {
+            let order = 0 .. game.nodes.len();
+            lift_ordered(game, &mut progress_measure, &play_value_limit, &order);
+        },
+        IterationPolicy::RandomOrder { seed } => {
+            let mut rng = StdRng::seed_from_u64(seed);
+            let mut order = (0 .. game.nodes.len()).collect::<Vec<_>>();
+            order.shuffle(&mut rng);
+            lift_ordered(game, &mut progress_measure, &play_value_limit, &order.into_iter());
+        },
+        IterationPolicy::AscendingDegreeOrder => {
+            let mut order = (0 .. game.nodes.len()).collect::<Vec<_>>();
+            order.sort_by(|&i, &j| game.nodes[i].adj.len().cmp(&game.nodes[j].adj.len()));
+            lift_ordered(game, &mut progress_measure, &play_value_limit, &order.into_iter());
+        },
+        IterationPolicy::DescendingDegreeOrder => {
+            let mut order = (0 .. game.nodes.len()).collect::<Vec<_>>();
+            order.sort_by(|&i, &j| game.nodes[j].adj.len().cmp(&game.nodes[i].adj.len()));
+            lift_ordered(game, &mut progress_measure, &play_value_limit, &order.into_iter());
+        },
+        // TODO: implement different orderings
     }
 
     let mut result = HashSet::new();
@@ -49,6 +80,27 @@ pub fn solve_parity_game(game: &Pg, player: Player) -> HashSet<usize> {
         }
     }
     result
+}
+
+fn lift_ordered<T>(
+    game: &Pg,
+    progress_measure: &mut Vec<PlayValue>,
+    play_value_limit: &PlayValue,
+    iterator: &T,
+)
+where
+    T: Clone + Iterator<Item = usize>
+{
+    let mut found = true;
+    while found {
+        found = false;
+        for v in iterator.clone() {
+            // NOTE: could also be an `if`; investigate which works better
+            while lift(game, progress_measure, &play_value_limit, v) {
+                found = true;
+            }
+        }
+    }
 }
 
 fn get_play_value_limit(game: &Pg) -> PlayValue {
@@ -68,6 +120,10 @@ fn lift(
     play_value_limit: &PlayValue,
     v: usize,
 ) -> bool {
+    if progress_measure[v].is_top() {
+        return false;
+    }
+
     let node = &game.nodes[v];
     let v_priority = game.nodes[v].priority;
     match node.owner {
@@ -385,6 +441,21 @@ mod tests {
         );
     }
 
+    fn check_each_policy(game: &Pg, player: Player) -> HashSet<usize> {
+        use IterationPolicy::*;
+
+        let result = solve_parity_game(game, player, IterationPolicy::InputOrder);
+        let policies = [
+            RandomOrder { seed: rand::random::<u64>() },
+            AscendingDegreeOrder,
+            DescendingDegreeOrder,
+        ];
+        for policy in policies {
+            assert_eq!(solve_parity_game(game, player, policy), result);
+        }
+        result
+    }
+
     #[test]
     fn test_solve_parity_game_all_top() {
         let game = parse_pgsolver_game(
@@ -401,7 +472,7 @@ mod tests {
         let limit = get_play_value_limit(&game);
         assert_eq!(limit, PlayValue::from_slice(&[0, 2, 0, 3]));
 
-        let won_by_even = solve_parity_game(&game, Player::Even);
+        let won_by_even = check_each_policy(&game, Player::Even);
         assert!(won_by_even.is_empty());
     }
 }

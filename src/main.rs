@@ -5,6 +5,7 @@ use nano_crl2::tools::cli::{CliConfig, CliOptions};
 use nano_crl2::tools::gen_docs::gen_docs;
 use std::env;
 
+// character limit per line is 100
 const HELP_STRING: &'static str = "
 nanoCRL2: a simple toolset for mCRL2. Usage:
 
@@ -12,12 +13,12 @@ $ nanocrl2 <tool> <options...>
 
 Where <tool> is one of:
   help              Get extra help about a particular tool
-  gen-docs          Parses .mcrl2 files and generates documentation for the
-                    declarations in those files
-  solve-pg          Parses a parity game file (.gm) and outputs the winner
-                    for each vertex in the game.
-  verify-lts        Parses an LTS file (.aut) and a formula file (.mcf) and
-                    outputs for which states of the LTS file it holds.
+  gen-docs          Parses .mcrl2 files and generates documentation for the declarations in those
+                    files.
+  solve-pg          Parses a parity game file (.gm) and outputs the winner for each vertex in the
+                    game.
+  verify-lts        Parses an LTS file (.aut) and a formula file (.mcf) and outputs for which
+                    states of the LTS file it holds.
 ";
 
 const HELP_STRING_GEN_DOCS: &'static str = "
@@ -28,8 +29,7 @@ $ nanocrl2 gen-docs <options...>
 Where <options> is zero or more of the following:
   --help                    -h  Shows this message
   --input=<file>            -i  Gets input from the given .mcrl2 file(s)
-  --output=<path>           -o  Outputs the documentation to a given file or
-                                directory
+  --output=<path>           -o  Outputs the documentation to a given file or directory
 ";
 
 const HELP_STRING_SOLVE_PG: &'static str = "
@@ -40,9 +40,13 @@ $ nanocrl2 solve-pg <options...>
 Where <options> is zero or more of the following:
   --help                    -h  Shows this message
   --input=<file>            -i  Gets input from the given parity game file
-  --output=<file>           -o  Outputs the set of states won by the even
-                                player to a given file
-
+  --output=<file>           -o  Outputs the set of states won by the even player to a given file
+  --policy=<policy>         -p  [opt] Uses the given iteration policy, where <policy> is one of:
+                                input - iterates as given in the input
+                                random - generates a random order, then keeps iterating in that
+                                    order
+                                degree-ascending - goes from low-degree vertices to high
+                                degree-descending - goes from high-degree vertices to low
 ";
 
 const HELP_STRING_VERIFY_LTS: &'static str = "
@@ -54,8 +58,7 @@ Where <options> is zero or more of the following:
   --help                   -h  Shows this message
   --input=<file>           -i  Gets the LTS input from a given file  
   --property=<file>        -p  Gets the mu-calculus input from a given file
-  --output=<file>          -o  Outputs the full set of satisfying states to a
-                               given file.
+  --output=<file>          -o  [opt] Outputs the full set of satisfying states to a given file.
 ";
 
 fn main() {
@@ -71,10 +74,10 @@ fn main() {
 
     if tool == "gen-docs" {
         let cli_config = CliConfig::new(&[
-            ("help", "help", 'h'),
-            ("input", "input", 'i'),
-            ("output", "output", 'o'),
-            ("format", "format", 'f'),
+            ("help", 'h'),
+            ("input", 'i'),
+            ("output", 'o'),
+            ("format", 'f'),
         ]);
         match CliOptions::parse(&cli_config, options) {
             Ok(options) if options.has_named("help") => {
@@ -90,9 +93,9 @@ fn main() {
         }
     } else if tool == "solve-pg" {
         let cli_config = CliConfig::new(&[
-            ("help", "help", 'h'),
-            ("input", "input", 'i'),
-            ("output", "output", 'o'),
+            ("help", 'h'),
+            ("input", 'i'),
+            ("output", 'o'),
         ]);
         match CliOptions::parse(&cli_config, options) {
             Ok(options) if options.has_named("help") => {
@@ -108,10 +111,10 @@ fn main() {
         }
     } else if tool == "verify-lts" {
         let cli_config = CliConfig::new(&[
-            ("help", "help", 'h'),
-            ("input", "input", 'i'),
-            ("property", "property", 'f'),
-            ("output", "output", 'o'),
+            ("help", 'h'),
+            ("input", 'i'),
+            ("property", 'f'),
+            ("output", 'o'),
         ]);
         match CliOptions::parse(&cli_config, options) {
             Ok(options) if options.has_named("help") => {

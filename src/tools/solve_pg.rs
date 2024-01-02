@@ -1,6 +1,6 @@
 
 use crate::try_into;
-use crate::analysis::small_progress_measures::solve_parity_game;
+use crate::analysis::small_progress_measures::{IterationPolicy, solve_parity_game};
 use crate::core::error::Mcrl2Error;
 use crate::parity_game::parity_game::Player;
 use crate::parity_game::pgsolver::parse_pgsolver_game;
@@ -18,6 +18,23 @@ pub fn solve_pg(options: &CliOptions) -> Result<bool, Mcrl2Error> {
     } else {
         None
     };
+    let policy = if options.has_named("policy") {
+        let string = try_into!(options.get_named_string("policy"));
+        match string.as_str() {
+            "input" => IterationPolicy::InputOrder,
+            "random" => IterationPolicy::RandomOrder {
+                seed: rand::random::<u64>(),
+            },
+            "degree-ascending" => IterationPolicy::AscendingDegreeOrder,
+            "degree-descending" => IterationPolicy::DescendingDegreeOrder,
+            _ => return Err(Mcrl2Error::ToolUsageError {
+                message: format!("unknown policy '{}'", string),
+                option: Some(String::from("policy")),
+            }),
+        }
+    } else {
+        IterationPolicy::InputOrder
+    };
 
     eprintln!("Parsing parity game...");
     let now = Instant::now();
@@ -27,7 +44,7 @@ pub fn solve_pg(options: &CliOptions) -> Result<bool, Mcrl2Error> {
 
     eprintln!("Solving parity game...");
     let now = Instant::now();
-    let result = solve_parity_game(&pg, Player::Even);
+    let result = solve_parity_game(&pg, Player::Even, policy);
     eprintln!("Solving parity game took {} ms", now.elapsed().as_millis());
 
     if let Some(output_file) = output_file {

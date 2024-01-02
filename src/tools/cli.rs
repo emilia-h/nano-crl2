@@ -2,6 +2,7 @@
 use crate::core::error::Mcrl2Error;
 
 use std::collections::hash_map::HashMap;
+use std::collections::hash_set::HashSet;
 use std::fmt::{Display, Formatter};
 
 /// An error in the CLI input format.
@@ -61,12 +62,12 @@ impl Into<Mcrl2Error> for CliError {
 
 /// The configuration of a CLI tool, specifiying what options (`--option`) and
 /// shorthands (`-o`) are available.
-pub struct CliConfig<'a, 'b> {
-    pub names: HashMap<&'b str, &'a str>,
+pub struct CliConfig<'a> {
+    pub names: HashSet<&'a str>,
     pub shorthands: HashMap<char, &'a str>,
 }
 
-impl<'a, 'b> CliConfig<'a, 'b> {
+impl<'a> CliConfig<'a> {
     /// Creates a new `CliConfig` using a list of `(id, name, shorthand)`
     /// triples, such that both `--name` and `-shorthand` map to `id` when
     /// parsing the list of CLI arguments in `CliOptions::parse()`.
@@ -76,16 +77,15 @@ impl<'a, 'b> CliConfig<'a, 'b> {
     /// 
     /// # Preconditions
     /// The first and second element in each tuple cannot be an empty string.
-    pub fn new(config: &[(&'a str, &'b str, char)]) -> CliConfig<'a, 'b> {
-        let mut names = HashMap::new();
+    pub fn new(config: &[(&'a str, char)]) -> CliConfig<'a> {
+        let mut names = HashSet::new();
         let mut shorthands = HashMap::new();
 
-        for &(id, name, shorthand) in config {
-            assert_ne!(id, "");
+        for &(name, shorthand) in config {
             assert_ne!(name, "");
-            names.insert(name, id);
+            names.insert(name);
             if shorthand != '\0' {
-                shorthands.insert(shorthand, id);
+                shorthands.insert(shorthand, name);
             }
         }
 
@@ -110,8 +110,8 @@ impl CliOptions {
     /// # use nano_crl2::tools::cli::{CliConfig, CliOptions};
     /// 
     /// let config = CliConfig::new(&[
-    ///     ("message", "message", 'm'),
-    ///     ("help", "help", 'h'),
+    ///     ("message", 'm'),
+    ///     ("help", 'h'),
     /// ]);
     /// let args = [
     ///     String::from("git"), String::from("commit"),
@@ -142,8 +142,9 @@ impl CliOptions {
                 if let Some(split_index) = arg.find("=") {
                     // "--option=value"
                     let (key, value) = arg.split_at(split_index);
-                    if let Some(&id) = config.names.get(key.split_at(2).1) {
-                        named_values.entry(String::from(id))
+                    let name = key.split_at(2).1;
+                    if config.names.contains(name) {
+                        named_values.entry(String::from(name))
                             .or_insert(vec![])
                             .push(String::from(value.split_at(1).1));
                     } else {
@@ -152,8 +153,8 @@ impl CliOptions {
                 } else {
                     // "--option value" or just "--option"
                     let key = arg.split_at(2).1;
-                    if let Some(&id) = config.names.get(key) {
-                        current_option = Some(id);
+                    if config.names.contains(key) {
+                        current_option = Some(key);
                     } else {
                         return Err(CliError::UnrecognizedOption(String::from(key)));
                     }
@@ -175,7 +176,6 @@ impl CliOptions {
                     let key = arg.chars().nth(1).unwrap();
                     if let Some(&id) = config.shorthands.get(&key) {
                         let value = String::from(arg.split_at(2).1);
-                        eprintln!("adding {:?} to {:?}", value, id);
                         named_values.entry(String::from(id))
                             .or_insert(vec![])
                             .push(value);
@@ -195,6 +195,12 @@ impl CliOptions {
             }
         }
 
+        if let Some(name) = current_option {
+            named_values.entry(String::from(name))
+                .or_insert(vec![])
+                .push(String::new());
+        }
+
         Ok(CliOptions { values, named_values })
     }
 
@@ -203,7 +209,7 @@ impl CliOptions {
     /// # Example
     /// ```rust
     /// # use nano_crl2::tools::cli::{CliConfig, CliOptions};
-    /// let config = CliConfig::new(&[("message", "message", 'm')]);
+    /// let config = CliConfig::new(&[("message", 'm')]);
     /// let args = [
     ///     String::from("git"), String::from("commit"),
     ///     String::from("-m"), String::from("example"),
@@ -215,8 +221,26 @@ impl CliOptions {
         self.values.len()
     }
 
+    /// Returns the unnamed argument at a given `index`, or `None` if there are
+    /// not that many unnamed arguments.
+    /// 
+    /// # Example
+    /// ```rust
+    /// # use nano_crl2::tools::cli::{CliConfig, CliOptions};
+    /// let config = CliConfig::new(&[("input", 'i')]);
+    /// let args = [
+    ///     String::from("cli-tool"), String::from("run"),
+    ///     String::from("-i"), String::from("file.txt"),
+    ///     String::from("arg2"),
+    /// ];
+    /// let options = CliOptions::parse(&config, &args).unwrap();
+    /// assert_eq!(options.get_unnamed_string(0).unwrap(), "cli-tool");
+    /// assert_eq!(options.get_unnamed_string(1).unwrap(), "run");
+    /// assert_eq!(options.get_unnamed_string(2).unwrap(), "arg2");
+    /// assert!(options.get_unnamed_string(3).is_none());
+    /// ```
     pub fn get_unnamed_string(&self, index: usize) -> Option<&String> {
-        return self.values.get(index);
+        self.values.get(index)
     }
 
     /// Returns whether a specific named option was given in the input.
@@ -273,8 +297,8 @@ mod tests {
     #[test]
     fn test_parse_cli_basic() {
         let config = CliConfig::new(&[
-            ("inp", "input", 'i'),
-            ("out", "output", 'o'),
+            ("input", 'i'),
+            ("output", 'o'),
         ]);
         let args = [
             "--input=x",
@@ -285,13 +309,10 @@ mod tests {
         ].map(|s| String::from(s)).into_iter().collect::<Vec<_>>();
         let options = CliOptions::parse(&config, &args).unwrap();
 
-        assert_eq!(options.get_named_list("inp"), &vec![String::from("x"), String::from("x"), String::from("hello")]);
-        assert_eq!(options.get_named_list("out"), &vec![String::from("path")]);
+        assert_eq!(options.get_named_list("input"), &vec![String::from("x"), String::from("x"), String::from("hello")]);
+        assert_eq!(options.get_named_list("output"), &vec![String::from("path")]);
         assert_eq!(options.get_named_list("fake"), &Vec::<String>::new());
-        assert_eq!(options.get_named_list("output"), &Vec::<String>::new());
-        assert_eq!(options.get_named_list("input"), &Vec::<String>::new());
-        assert_eq!(options.get_named_string("out"), Ok(&String::from("path")));
-        assert!(options.get_named_string("inp").is_err());
+        assert_eq!(options.get_named_string("output"), Ok(&String::from("path")));
         assert!(options.get_named_string("fake").is_err());
 
         assert_eq!(options.get_unnamed_len(), 1);
@@ -300,13 +321,43 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_cli_empty() {
+        let config = CliConfig::new(&[
+            ("input", 'i'),
+            ("output", 'o'),
+        ]);
+
+        let args = [
+            "-i",
+        ].map(|s| String::from(s)).into_iter().collect::<Vec<_>>();
+        let options = CliOptions::parse(&config, &args).unwrap();
+        assert!(options.has_named("input"));
+        assert_eq!(options.get_named_string("input"), Ok(&String::from("")));
+        assert_eq!(options.get_named_bool("input", false), Ok(true));
+        assert_eq!(options.get_named_bool("input", true), Ok(true));
+        assert_eq!(options.get_named_bool("output", false), Ok(false));
+        assert_eq!(options.get_named_bool("output", true), Ok(true));
+
+        let args = [
+            "--input",
+        ].map(|s| String::from(s)).into_iter().collect::<Vec<_>>();
+        let options = CliOptions::parse(&config, &args).unwrap();
+        assert!(options.has_named("input"));
+        assert_eq!(options.get_named_string("input"), Ok(&String::from("")));
+        assert_eq!(options.get_named_bool("input", false), Ok(true));
+        assert_eq!(options.get_named_bool("input", true), Ok(true));
+        assert_eq!(options.get_named_bool("output", false), Ok(false));
+        assert_eq!(options.get_named_bool("output", true), Ok(true));
+    }
+
+    #[test]
     fn test_parse_cli_bool() {
         let config = CliConfig::new(&[
-            ("b", "bb", 'a'), // note b and a are swapped
-            ("a", "aa", 'b'),
-            ("c", "cc", 'c'),
-            ("d", "dd", 'd'),
-            ("e", "ee", 'e'),
+            ("aa", 'a'), // note b and a are swapped
+            ("bb", 'b'),
+            ("cc", 'c'),
+            ("dd", 'd'),
+            ("ee", 'e'),
         ]);
         let args = [
             "--bb=true",
@@ -318,13 +369,11 @@ mod tests {
         ].map(|s| String::from(s)).into_iter().collect::<Vec<_>>();
         let options = CliOptions::parse(&config, &args).unwrap();
 
-        eprintln!("{:?}", options);
-
-        assert_eq!(options.get_named_bool("a", false), Ok(true));
-        assert!(options.get_named_bool("b", false).is_err()); // multiple values
-        assert_eq!(options.get_named_bool("d", true), Ok(true));
-        assert_eq!(options.get_named_bool("d", false), Ok(false));
-        assert_eq!(options.get_named_bool("c", false), Ok(true));
+        assert!(options.get_named_bool("aa", false).is_err()); // multiple values
+        assert_eq!(options.get_named_bool("bb", false), Ok(true));
+        assert_eq!(options.get_named_bool("dd", true), Ok(true));
+        assert_eq!(options.get_named_bool("dd", false), Ok(false));
+        assert_eq!(options.get_named_bool("cc", false), Ok(true));
 
         assert_eq!(options.get_unnamed_len(), 1);
         assert_eq!(options.get_unnamed_string(0), Some(&String::from("remainder")));
