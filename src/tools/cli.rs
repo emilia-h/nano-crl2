@@ -4,6 +4,7 @@ use crate::core::error::Mcrl2Error;
 use std::collections::hash_map::HashMap;
 use std::collections::hash_set::HashSet;
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 
 /// An error in the CLI input format.
 #[derive(Debug, Eq, PartialEq)]
@@ -256,6 +257,23 @@ impl CliOptions {
         if let Some(values) = self.named_values.get(id) {
             if values.len() == 1 {
                 Ok(&values[0])
+            } else {
+                Err(CliError::TooManySupplied(String::from(id)))
+            }
+        } else {
+            Err(CliError::NotSupplied(String::from(id)))
+        }
+    }
+
+    pub fn get_named_int<T: FromStr>(&self, id: &str) -> Result<T, CliError> {
+        if let Some(values) = self.named_values.get(id) {
+            assert!(values.len() >= 1);
+
+            if values.len() == 1 {
+                match values[0].parse::<T>() {
+                    Ok(value) => Ok(value),
+                    Err(_) => Err(CliError::NotInteger(String::from(id))),
+                }
             } else {
                 Err(CliError::TooManySupplied(String::from(id)))
             }

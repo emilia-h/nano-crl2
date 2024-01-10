@@ -479,31 +479,31 @@ impl DisplayPretty for Proc {
                     options, f,
                 )?;
             },
-            Add { lhs, rhs } => {
+            Add { lhs: _, rhs: _ } => {
                 write!(f, "{:?}", self)?;
             },
-            Sum { variables, proc } => {
+            Sum { variables: _, proc: _ } => {
                 write!(f, "{:?}", self)?;
             },
-            Parallel { lhs, rhs } => {
+            Parallel { lhs: _, rhs: _ } => {
                 write!(f, "{:?}", self)?;
             },
-            RightParallel { lhs, rhs } => {
+            RightParallel { lhs: _, rhs: _ } => {
                 write!(f, "{:?}", self)?;
             },
-            Multi { lhs, rhs } => {
+            Multi { lhs: _, rhs: _ } => {
                 write!(f, "{:?}", self)?;
             },
-            IfThenElse { condition, then_proc, else_proc } => {
+            IfThenElse { condition: _, then_proc: _, else_proc: _ } => {
                 write!(f, "{:?}", self)?;
             },
-            LeftShift { lhs, rhs } => {
+            LeftShift { lhs: _, rhs: _ } => {
                 write!(f, "{:?}", self)?;
             },
-            Concat { lhs, rhs } => {
+            Concat { lhs: _, rhs: _ } => {
                 write!(f, "{:?}", self)?;
             },
-            Time { proc, time } => {
+            Time { proc: _, time: _ } => {
                 write!(f, "{:?}", self)?;
             },
         }

@@ -47,6 +47,7 @@ Where <options> is zero or more of the following:
                                     order
                                 degree-ascending - goes from low-degree vertices to high
                                 degree-descending - goes from high-degree vertices to low
+  --seed=<seed>             -s  [opt] Uses a specific seed in case a randomized algorithms is used
 ";
 
 const HELP_STRING_VERIFY_LTS: &'static str = "
@@ -96,13 +97,15 @@ fn main() {
             ("help", 'h'),
             ("input", 'i'),
             ("output", 'o'),
+            ("policy", 'p'),
+            ("seed", 's'),
         ]);
         match CliOptions::parse(&cli_config, options) {
             Ok(options) if options.has_named("help") => {
                 eprintln!("{}", HELP_STRING_SOLVE_PG);
             },
             Ok(options) => match solve_pg(&options) {
-                Ok(won) => println!("{}", won),
+                Ok(winner) => println!("{}", winner),
                 Err(error) => eprintln!("{:?}", error),
             },
             Err(error) => {

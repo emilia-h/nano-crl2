@@ -1,13 +1,12 @@
 
+use crate::common::read_resource_file;
+
 use nano_crl2::core::state_set::{StateSet, StateSetManager};
 use nano_crl2::lts::aldebaran::parse_aldebaran_lts;
 use nano_crl2::lts::lts::Lts;
 use nano_crl2::analysis::lts_verification::calculate_set;
 use nano_crl2::parser::lexer::tokenize;
 use nano_crl2::parser::parser::Parser;
-
-use std::fs::read_to_string;
-use std::path::PathBuf;
 
 fn test_calculate_set(
     lts: &Lts,
@@ -17,7 +16,6 @@ fn test_calculate_set(
 ) {
     let tokens = tokenize(formula_string).unwrap();
     let formula = Parser::new(&tokens).parse_state_formula().unwrap();
-    eprintln!("{:?}", formula);
 
     let result = calculate_set(&lts, &formula, state_set_manager).unwrap();
     assert_eq!(result, correct);
@@ -25,10 +23,7 @@ fn test_calculate_set(
 
 #[test]
 fn test_logical_operators() {
-    let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    d.push("res/tests/lts/basic.aut");
-
-    let lts_string = read_to_string(d).unwrap();
+    let lts_string = read_resource_file("tests/lts/basic.aut");
     let lts = parse_aldebaran_lts(&lts_string).unwrap();
     assert_eq!(lts.nodes.len(), 10);
     assert_eq!(

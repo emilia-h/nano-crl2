@@ -7,7 +7,6 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 
 use std::cmp::Ordering;
-use std::collections::hash_set::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -35,7 +34,7 @@ pub fn solve_parity_game(
     game: &Pg,
     player: Player,
     policy: IterationPolicy,
-) -> HashSet<usize> {
+) -> Vec<usize> {
     if player == Player::Odd {
         todo!();
     }
@@ -73,10 +72,10 @@ pub fn solve_parity_game(
         // TODO: implement different orderings
     }
 
-    let mut result = HashSet::new();
+    let mut result = Vec::new();
     for v in 0 .. game.nodes.len() {
         if !progress_measure[v].is_top() {
-            result.insert(v);
+            result.push(v);
         }
     }
     result
@@ -441,7 +440,7 @@ mod tests {
         );
     }
 
-    fn check_each_policy(game: &Pg, player: Player) -> HashSet<usize> {
+    fn check_each_policy(game: &Pg, player: Player) -> Vec<usize> {
         use IterationPolicy::*;
 
         let result = solve_parity_game(game, player, IterationPolicy::InputOrder);

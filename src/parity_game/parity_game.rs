@@ -2,6 +2,8 @@
 
 use crate::core::error::Mcrl2Error;
 
+use std::fmt::{Display, Formatter};
+
 /// An error while parsing a parity game in some format.
 #[derive(Debug)]
 pub struct PgParseError {
@@ -88,4 +90,13 @@ pub enum Player {
     /// The "odd" player, who wins a play iff the minimum infinitely often
     /// occuring priority is odd.
     Odd,
+}
+
+impl Display for Player {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            Player::Even => write!(f, "even"),
+            Player::Odd => write!(f, "odd"),
+        }
+    }
 }

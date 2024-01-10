@@ -6,12 +6,13 @@ use crate::parity_game::parity_game::Player;
 use crate::parity_game::pgsolver::parse_pgsolver_game;
 use crate::tools::cli::CliOptions;
 
-use std::fs::read_to_string;
+use std::fs::{File, read_to_string};
+use std::io::{BufWriter, Write};
 use std::time::Instant;
 
-/// Reads an LTS and a mu-calculus formula and calculates if the LTS satisfies
-/// this formula, and optionally which states satisfy it.
-pub fn solve_pg(options: &CliOptions) -> Result<bool, Mcrl2Error> {
+/// Reads a min parity game and calculates if node 0 is won by player "even",
+/// and optionally all the states that are won by player even.
+pub fn solve_pg(options: &CliOptions) -> Result<Player, Mcrl2Error> {
     let input_file = try_into!(options.get_named_string("input"));
     let output_file = if options.has_named("output") {
         Some(try_into!(options.get_named_string("output")))
@@ -22,8 +23,14 @@ pub fn solve_pg(options: &CliOptions) -> Result<bool, Mcrl2Error> {
         let string = try_into!(options.get_named_string("policy"));
         match string.as_str() {
             "input" => IterationPolicy::InputOrder,
-            "random" => IterationPolicy::RandomOrder {
-                seed: rand::random::<u64>(),
+            "random" => {
+                let seed = if options.has_named("seed") {
+                    try_into!(options.get_named_int::<u64>("seed"))
+                } else {
+                    rand::random::<u64>()
+                };
+                eprintln!("Using seed {} for 'random' policy", seed);
+                IterationPolicy::RandomOrder { seed }
             },
             "degree-ascending" => IterationPolicy::AscendingDegreeOrder,
             "degree-descending" => IterationPolicy::DescendingDegreeOrder,
@@ -48,8 +55,21 @@ pub fn solve_pg(options: &CliOptions) -> Result<bool, Mcrl2Error> {
     eprintln!("Solving parity game took {} ms", now.elapsed().as_millis());
 
     if let Some(output_file) = output_file {
-        std::fs::write(output_file, format!("{:?}", result))?;
+        let mut file = BufWriter::new(File::create(output_file)?);
+        for &elem in &result {
+            write!(file, "{}\n", elem)?;
+        }
     }
 
-    Ok(result.contains(&0))
+    assert!(result.len() <= pg.nodes.len());
+    eprintln!("# won by even: {}, # won by odd: {}",
+        result.len(),
+        pg.nodes.len() - result.len(),
+    );
+
+    Ok(if result.contains(&0) {
+        Player::Even
+    } else {
+        Player::Odd
+    })
 }
