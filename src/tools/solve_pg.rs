@@ -32,8 +32,9 @@ pub fn solve_pg(options: &CliOptions) -> Result<Player, Mcrl2Error> {
                 eprintln!("Using seed {} for 'random' policy", seed);
                 IterationPolicy::RandomOrder { seed }
             },
-            "degree-ascending" => IterationPolicy::AscendingDegreeOrder,
-            "degree-descending" => IterationPolicy::DescendingDegreeOrder,
+            "descending-degree" => IterationPolicy::DescendingDegreeOrder,
+            "reverse-bfs" => IterationPolicy::ReverseBfs,
+            "postorder-dfs" => IterationPolicy::PostOrderDfs,
             _ => return Err(Mcrl2Error::ToolUsageError {
                 message: format!("unknown policy '{}'", string),
                 option: Some(String::from("policy")),

@@ -17,8 +17,9 @@ fn test_solve_parity_game(name: &str, correct: &[usize]) {
     for policy in [
         InputOrder,
         RandomOrder { seed: rand::random::<u64>() },
-        AscendingDegreeOrder,
         DescendingDegreeOrder,
+        ReverseBfs,
+        PostOrderDfs,
     ] {
         let won_by_even = solve_parity_game(&pg, Player::Even, policy);
         assert_eq!(won_by_even, correct);

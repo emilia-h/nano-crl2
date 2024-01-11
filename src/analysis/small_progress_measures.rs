@@ -7,6 +7,7 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 
 use std::cmp::Ordering;
+use std::collections::vec_deque::VecDeque;
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -15,8 +16,9 @@ pub enum IterationPolicy {
     RandomOrder {
         seed: u64,
     },
-    AscendingDegreeOrder,
     DescendingDegreeOrder,
+    ReverseBfs,
+    PostOrderDfs,
 }
 
 /// Solves a parity game, treating it as a min-priority game.
@@ -59,17 +61,28 @@ pub fn solve_parity_game(
             order.shuffle(&mut rng);
             lift_ordered(game, &mut progress_measure, &play_value_limit, &order.into_iter());
         },
-        IterationPolicy::AscendingDegreeOrder => {
-            let mut order = (0 .. game.nodes.len()).collect::<Vec<_>>();
-            order.sort_by(|&i, &j| game.nodes[i].adj.len().cmp(&game.nodes[j].adj.len()));
-            lift_ordered(game, &mut progress_measure, &play_value_limit, &order.into_iter());
-        },
         IterationPolicy::DescendingDegreeOrder => {
+            let mut indegree = vec![0; game.nodes.len()];
+            for node in &game.nodes {
+                for edge in &node.adj {
+                    indegree[edge.target] += 1;
+                }
+            }
             let mut order = (0 .. game.nodes.len()).collect::<Vec<_>>();
-            order.sort_by(|&i, &j| game.nodes[j].adj.len().cmp(&game.nodes[i].adj.len()));
+            order.sort_by(|&i, &j| indegree[j].cmp(&indegree[i]));
             lift_ordered(game, &mut progress_measure, &play_value_limit, &order.into_iter());
         },
-        // TODO: implement different orderings
+        IterationPolicy::ReverseBfs => {
+            let mut order = get_distance_order(game);
+            order.reverse();
+            lift_ordered(game, &mut progress_measure, &play_value_limit, &order.into_iter());
+        },
+        IterationPolicy::PostOrderDfs => {
+            // technically not really a "topological" order, as the graph is
+            // not a DAG
+            let order = get_reverse_topological_order(game);
+            lift_ordered(game, &mut progress_measure, &play_value_limit, &order.into_iter());
+        },
     }
 
     let mut result = Vec::new();
@@ -94,7 +107,6 @@ where
     while found {
         found = false;
         for v in iterator.clone() {
-            // NOTE: could also be an `if`; investigate which works better
             while lift(game, progress_measure, &play_value_limit, v) {
                 found = true;
             }
@@ -124,7 +136,7 @@ fn lift(
     }
 
     let node = &game.nodes[v];
-    let v_priority = game.nodes[v].priority;
+    let v_priority = node.priority;
     match node.owner {
         Player::Even => {
             let mut min_prog = PlayValue::top();
@@ -364,6 +376,74 @@ impl PartialOrd for PlayValue {
     }
 }
 
+// bfs
+fn get_distance_order(game: &Pg) -> Vec<usize> {
+    let mut result = Vec::new();
+    let mut visited = vec![false; game.nodes.len()];
+    let mut queue = VecDeque::new();
+    for i in 0 .. game.nodes.len() {
+        if visited[i] {
+            continue;
+        }
+
+        visited[i] = true;
+
+        assert!(queue.is_empty());
+        queue.push_back(i);
+        while let Some(next) = queue.pop_front() {
+            for edge in &game.nodes[next].adj {
+                if !visited[edge.target] {
+                    visited[edge.target] = true;
+                    queue.push_back(edge.target);
+                }
+            }
+
+            result.push(next);
+        }
+    }
+
+    // result should be a permutation of `0 .. game.nodes.len()`
+    assert_eq!(result.len(), game.nodes.len());
+    result
+}
+
+// dfs
+fn get_reverse_topological_order(game: &Pg) -> Vec<usize> {
+    // https://stackoverflow.com/questions/20153488/topological-sort-using-dfs-without-recursion
+    let mut result = Vec::new();
+    let mut visited = vec![false; game.nodes.len()];
+    let mut stack = Vec::new();
+
+    for i in 0 .. game.nodes.len() {
+        if visited[i] {
+            continue;
+        }
+
+        stack.push((i, false));
+        while let Some((next, should_add)) = stack.pop() {
+            if should_add {
+                result.push(next);
+                continue;
+            }
+            if visited[next] {
+                continue;
+            }
+
+            visited[next] = true;
+            stack.push((next, true));
+            for edge in &game.nodes[next].adj {
+                if !visited[edge.target] {
+                    stack.push((edge.target, false));
+                }
+            }
+        }
+    }
+
+    // result should be a permutation of `0 .. game.nodes.len()`
+    assert_eq!(result.len(), game.nodes.len());
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -446,8 +526,9 @@ mod tests {
         let result = solve_parity_game(game, player, IterationPolicy::InputOrder);
         let policies = [
             RandomOrder { seed: rand::random::<u64>() },
-            AscendingDegreeOrder,
             DescendingDegreeOrder,
+            ReverseBfs,
+            PostOrderDfs,
         ];
         for policy in policies {
             assert_eq!(solve_parity_game(game, player, policy), result);

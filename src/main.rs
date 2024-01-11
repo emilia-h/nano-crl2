@@ -42,11 +42,12 @@ Where <options> is zero or more of the following:
   --input=<file>            -i  Gets input from the given parity game file
   --output=<file>           -o  Outputs the set of states won by the even player to a given file
   --policy=<policy>         -p  [opt] Uses the given iteration policy, where <policy> is one of:
-                                input - iterates as given in the input
+                                input (default) - iterates as given in the input
                                 random - generates a random order, then keeps iterating in that
                                     order
-                                degree-ascending - goes from low-degree vertices to high
-                                degree-descending - goes from high-degree vertices to low
+                                ascending-degree - goes from low-degree vertices to high
+                                reverse-bfs - does a reverse breadth-first traversal
+                                postorder-dfs - does a postorder depth-first traversal
   --seed=<seed>             -s  [opt] Uses a specific seed in case a randomized algorithms is used
 ";
 
