@@ -5,9 +5,10 @@
 //! 
 //! [mCRL2 user manual on this]: https://mcrl2.org/web/user_manual/tools/lts.html
 
+use crate::core::lexer::tokenize;
+use crate::core::parser::Parser;
 use crate::lts::lts::{Lts, LtsEdge, LtsNode, LtsParseError};
-use crate::parser::lexer::tokenize;
-use crate::parser::parser::Parser;
+use crate::model::proc::parse_multi_action;
 use crate::util::CharParser;
 
 /// Reads an LTS from a string in [Aldebaran format].
@@ -52,7 +53,7 @@ pub fn parse_aldebaran_lts(input: &str) -> Result<Lts, LtsParseError> {
             Ok(tokens) => tokens,
             Err(error) => return Err(parser.error(error.message)),
         };
-        let multi_action = match Parser::new(&tokens).parse_multi_action() {
+        let multi_action = match parse_multi_action(&mut Parser::new(&tokens)) {
             Ok(multi_action) => multi_action,
             Err(error) => return Err(parser.error(error.message)),
         };

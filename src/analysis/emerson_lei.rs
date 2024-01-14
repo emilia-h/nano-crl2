@@ -2,11 +2,13 @@
 //! systems (LTS) for properties, which are specified in mu-calculus formulas.
 
 use crate::analysis::action_formula::matches_action_formula;
-use crate::ast::formula::{ActionFormula, RegularFormulaEnum, StateFormula, StateFormulaEnum};
 use crate::core::error::Mcrl2Error;
 use crate::core::state_set::{StateSetManager, StateSet};
 use crate::core::syntax::Identifier;
 use crate::lts::lts::Lts;
+use crate::mu_calculus::action_formula::ActionFormula;
+use crate::mu_calculus::regular_formula::RegularFormulaEnum;
+use crate::mu_calculus::state_formula::{StateFormula, StateFormulaEnum};
 
 use std::collections::hash_map::HashMap;
 use std::collections::hash_set::HashSet;
@@ -559,14 +561,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::proc::Action;
-    use crate::parser::lexer::tokenize;
-    use crate::parser::parser::Parser;
+    use crate::model::proc::Action;
+    use crate::core::lexer::tokenize;
+    use crate::core::parser::Parser;
 
     #[test]
     fn test_rewrite_state_formula() {
         let tokens = tokenize("nu X . ([b] X && <a> true)").unwrap();
-        let formula = Parser::new(&tokens).parse_state_formula().unwrap();
+        let formula = Parser::new(&tokens).parse::<StateFormula>().unwrap();
         let formula_system = rewrite_state_formula(&formula).unwrap();
 
         for equation in &formula_system.equations {
@@ -589,7 +591,7 @@ mod tests {
         }
 
         let tokens = tokenize("nu X . nu Y . (<a> X || <b> Y || <c> true)").unwrap();
-        let formula = Parser::new(&tokens).parse_state_formula().unwrap();
+        let formula = Parser::new(&tokens).parse::<StateFormula>().unwrap();
         let formula_system = rewrite_state_formula(&formula).unwrap();
 
         for equation in &formula_system.equations {
@@ -601,7 +603,7 @@ mod tests {
         }
 
         let tokens = tokenize("nu X . mu Y . (<a> X || <b> Y || <c> true)").unwrap();
-        let formula = Parser::new(&tokens).parse_state_formula().unwrap();
+        let formula = Parser::new(&tokens).parse::<StateFormula>().unwrap();
         let formula_system = rewrite_state_formula(&formula).unwrap();
 
         for (i, equation) in formula_system.equations.iter().enumerate() {
@@ -620,13 +622,13 @@ mod tests {
     #[test]
     fn test_calculate_set() {
         let tokens = tokenize("nu X . <a> X").unwrap();
-        let has_infinite_a_loop = Parser::new(&tokens).parse_state_formula().unwrap();
+        let has_infinite_a_loop = Parser::new(&tokens).parse::<StateFormula>().unwrap();
 
         let tokens = tokenize("nu X . ([a] X && <a> true)").unwrap();
-        let has_no_deadlock = Parser::new(&tokens).parse_state_formula().unwrap();
+        let has_no_deadlock = Parser::new(&tokens).parse::<StateFormula>().unwrap();
 
         let tokens = tokenize("<a> true").unwrap();
-        let can_do_action = Parser::new(&tokens).parse_state_formula().unwrap();
+        let can_do_action = Parser::new(&tokens).parse::<StateFormula>().unwrap();
 
         let lts = Lts::from_edge_list(0, 5, vec![
             (0, vec![Action { id: Identifier::new("a"), args: Vec::new() }], 1),

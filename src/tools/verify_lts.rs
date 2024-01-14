@@ -1,11 +1,12 @@
 
 use crate::try_into;
-use crate::analysis::lts_verification::calculate_set;
+use crate::analysis::emerson_lei::calculate_set;
 use crate::core::error::Mcrl2Error;
+use crate::core::lexer::tokenize;
+use crate::core::parser::Parser;
 use crate::core::state_set::StateSetManager;
 use crate::lts::aldebaran::parse_aldebaran_lts;
-use crate::parser::lexer::tokenize;
-use crate::parser::parser::Parser;
+use crate::mu_calculus::state_formula::StateFormula;
 use crate::tools::cli::CliOptions;
 
 use std::fs::read_to_string;
@@ -33,7 +34,7 @@ pub fn verify_lts(options: &CliOptions) -> Result<bool, Mcrl2Error> {
     let formula_string = read_to_string(formula_file)?;
     let formula_tokens = try_into!(tokenize(&formula_string));
     let mut formula_parser = Parser::new(&formula_tokens);
-    let formula = try_into!(formula_parser.parse_state_formula());
+    let formula = try_into!(formula_parser.parse::<StateFormula>());
     eprintln!("Parsing property took {} ms", now.elapsed().as_millis());
 
     eprintln!("Verifying property on LTS...");

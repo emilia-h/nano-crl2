@@ -3,12 +3,13 @@
 //! 
 //! # Examples
 //! ```
-//! # use nano_crl2::parser::lexer::tokenize;
-//! # use nano_crl2::parser::parser::Parser;
+//! # use nano_crl2::core::lexer::tokenize;
+//! # use nano_crl2::core::parser::Parser;
+//! use nano_crl2::model::model::Model;
 //! let tokens = tokenize("act a: Nat; proc Repeat = a(123).Repeat; init Repeat;")
 //!     .expect("input was free of syntax errors");
 //! let mut parser = Parser::new(&tokens);
-//! let model = parser.parse_model()
+//! let model = parser.parse::<Model>()
 //!     .expect("input was free of syntax errors");
 //! 
 //! assert!(model.initial.is_some());
@@ -17,14 +18,8 @@
 //! ```
 
 use crate::core::error::Mcrl2Error;
-use crate::ast::decl::DeclEnum;
-use crate::ast::model::Model;
-use crate::core::syntax::Identifier;
-use crate::core::syntax::SourceLocation;
-use crate::parser::lexer::LexicalElement;
-use crate::parser::lexer::Token;
-
-use std::rc::Rc;
+use crate::core::lexer::{LexicalElement, Token};
+use crate::core::syntax::{Identifier, SourceLocation};
 
 /// A syntax error while parsing, which happens when the input is not in a
 /// correct format.
@@ -100,31 +95,9 @@ impl<'a> Parser<'a> {
         Parser { tokens, index: 0 }
     }
 
-    /// Parses a full mCRL2 model.
-    /// 
-    /// These mCRL2 models usually have the `.mcrl2` extension.
-    pub fn parse_model(&mut self) -> Result<Model, ParseError> {
-        let mut decls = Vec::new();
-        let mut initial = None;
-
-        while self.has_token() {
-            for decl in self.parse_decl()? {
-                if let DeclEnum::InitialDecl { value } = decl.value {
-                    if initial.is_some() {
-                        let message = "Cannot have more than one `init` declaration in the same model";
-                        return Err(ParseError::new(String::from(message), value.loc));
-                    }
-                    initial = Some(value);
-                } else {
-                    decls.push(Rc::new(decl));
-                }
-            }
-        }
-
-        Ok(Model {
-            decls,
-            initial,
-        })
+    /// Parses an arbitrary type that has the `Parseable` trait implemented.
+    pub fn parse<T: Parseable>(&mut self) -> Result<T, ParseError> {
+        T::parse(self)
     }
 
     /// Parses a single identifier.
@@ -274,4 +247,20 @@ impl<'a> Parser<'a> {
             loc.span(&self.tokens[self.index - 1].loc)
         }
     }
+}
+
+/// Parses an instance of a type from a stream of [`Token`]s.
+/// 
+/// [`Token`]: ../lexer/struct.Token.html
+pub trait Parseable
+where
+    Self: Sized
+{
+    /// Parses the implemented type from a stream of tokens, from the current
+    /// state of the `Parser`.
+    /// 
+    /// # Returns
+    /// An instance of `Self` if successful, a `ParseError` if the input is not
+    /// in the correct format for this type.
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError>;
 }

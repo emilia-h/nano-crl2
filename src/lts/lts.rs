@@ -1,6 +1,6 @@
 //! Defines structures for labelled transition systems (LTSs).
 
-use crate::ast::proc::Action;
+use crate::model::proc::Action;
 use crate::core::error::Mcrl2Error;
 
 /// An error while parsing the LTS, which happens when the given string is not

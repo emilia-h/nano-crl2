@@ -1,12 +1,13 @@
 
 use crate::common::read_resource_file;
 
+use nano_crl2::analysis::emerson_lei::calculate_set;
+use nano_crl2::core::lexer::tokenize;
+use nano_crl2::core::parser::Parser;
 use nano_crl2::core::state_set::{StateSet, StateSetManager};
 use nano_crl2::lts::aldebaran::parse_aldebaran_lts;
 use nano_crl2::lts::lts::Lts;
-use nano_crl2::analysis::lts_verification::calculate_set;
-use nano_crl2::parser::lexer::tokenize;
-use nano_crl2::parser::parser::Parser;
+use nano_crl2::mu_calculus::state_formula::StateFormula;
 
 fn test_calculate_set(
     lts: &Lts,
@@ -15,7 +16,7 @@ fn test_calculate_set(
     state_set_manager: &mut StateSetManager,
 ) {
     let tokens = tokenize(formula_string).unwrap();
-    let formula = Parser::new(&tokens).parse_state_formula().unwrap();
+    let formula = Parser::new(&tokens).parse::<StateFormula>().unwrap();
 
     let result = calculate_set(&lts, &formula, state_set_manager).unwrap();
     assert_eq!(result, correct);

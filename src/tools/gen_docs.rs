@@ -1,8 +1,9 @@
 
 use crate::try_into;
 use crate::core::error::Mcrl2Error;
-use crate::parser::lexer::tokenize;
-use crate::parser::parser::Parser;
+use crate::core::lexer::tokenize;
+use crate::core::parser::Parser;
+use crate::model::model::Model;
 use crate::tools::cli::CliOptions;
 
 use std::fmt::Display;
@@ -27,7 +28,7 @@ pub fn gen_docs(options: &CliOptions) -> Result<Docs, Mcrl2Error> {
         let string = std::fs::read_to_string(input_file)?;
         let tokens = try_into!(tokenize(&string));
         let mut parser = Parser::new(&tokens);
-        let model = try_into!(parser.parse_model());
+        let model = try_into!(parser.parse::<Model>());
 
         std::fs::write(output_file, format!("{}", model))?;
     }

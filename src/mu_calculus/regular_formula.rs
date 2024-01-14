@@ -1,0 +1,88 @@
+//! Defines AST structures for mu-calculus regular formulas, which are formulas
+//! to encode a set of sequences of actions inside a box (`[...]`) or diamond
+//! (`<...>`) operators.
+//! 
+//! # See also
+//! The [mCRL2 spec on this].
+//! 
+//! [mCRL2 spec on this]: https://mcrl2.org/web/user_manual/language_reference/mucalc.html#regular-formulas
+
+use crate::core::parser::{Parseable, ParseError, Parser};
+use crate::core::syntax::SourceLocation;
+use crate::model::node::AstNode;
+use crate::mu_calculus::action_formula::ActionFormula;
+
+use std::fmt::{Debug, Formatter};
+use std::rc::{Rc, Weak};
+
+/// A regular formula that can be used within the box (`[...]`) or diamond
+/// (`<...>`) operator.
+pub struct RegularFormula {
+    pub value: RegularFormulaEnum,
+    pub loc: SourceLocation,
+    pub parent: Option<Weak<dyn AstNode>>,
+}
+
+impl RegularFormula {
+    /// Creates a new regular formula with `parent` set to `None`.
+    pub fn new(value: RegularFormulaEnum, loc: SourceLocation) -> Self {
+        RegularFormula { value, loc, parent: None }
+    }
+}
+
+impl Debug for RegularFormula {
+    fn fmt(&self, formatter: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(formatter, "{:?}", self.value)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub enum RegularFormulaEnum {
+    ActionFormula {
+        value: Rc<ActionFormula>,
+    },
+    Add {
+        lhs: Rc<RegularFormula>,
+        rhs: Rc<RegularFormula>,
+    },
+    Concat {
+        lhs: Rc<RegularFormula>,
+        rhs: Rc<RegularFormula>,
+    },
+    Star {
+        value: Rc<RegularFormula>,
+    },
+    Plus {
+        value: Rc<RegularFormula>,
+    },
+}
+
+impl Parseable for RegularFormula {
+    fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
+        parse_regular_formula(parser)
+    }
+}
+
+/// Parses a regular formula.
+/// 
+/// # Returns
+/// A [`RegularFormula`] if the parser starts at a list of tokens that
+/// represent a state formula, a [parse error] otherwise.
+/// 
+/// # See also
+/// The [mCRL2 grammar on this].
+/// 
+/// [parse error]: ../../core/parser/struct.ParseError.html
+/// [`RegularFormula`]: ./struct.RegularFormula.html
+/// [mCRL2 grammar on this]: https://www.mcrl2.org/web/user_manual/language_reference/mucalc.html#grammar-token-RegFrm
+fn parse_regular_formula(parser: &mut Parser) -> Result<RegularFormula, ParseError> {
+    let loc = parser.get_loc();
+
+    let value = Rc::new(parser.parse::<ActionFormula>()?);
+    // TODO other regular formulas
+    Ok(RegularFormula::new(
+        RegularFormulaEnum::ActionFormula { value },
+        parser.until_now(&loc),
+    ))
+}

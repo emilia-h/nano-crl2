@@ -21,7 +21,7 @@ use std::str::Chars;
 /// 
 /// # Examples
 /// ```
-/// # use nano_crl2::parser::lexer::tokenize;
+/// # use nano_crl2::core::lexer::tokenize;
 /// // a word character is not allowed after a number
 /// let error = tokenize("123t").unwrap_err();
 /// eprintln!("{:?}", error);

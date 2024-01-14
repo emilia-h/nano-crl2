@@ -1,7 +1,7 @@
 
-use crate::analysis::lts_verification::FormulaError;
-use crate::ast::formula::{ActionFormula, ActionFormulaEnum};
-use crate::ast::proc::Action;
+use crate::analysis::emerson_lei::FormulaError;
+use crate::model::proc::Action;
+use crate::mu_calculus::action_formula::{ActionFormula, ActionFormulaEnum};
 
 pub fn matches_action_formula(
     multi_action: &Vec<Action>,

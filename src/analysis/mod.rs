@@ -2,5 +2,5 @@
 //! in this crate.
 
 pub mod action_formula;
-pub mod lts_verification;
+pub mod emerson_lei;
 pub mod small_progress_measures;

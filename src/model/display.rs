@@ -1,9 +1,9 @@
 
-use crate::ast::decl::{Decl, DeclEnum, VariableDecl};
-use crate::ast::expr::{Expr, ExprEnum};
-use crate::ast::model::Model;
-use crate::ast::proc::{Proc, ProcEnum};
-use crate::ast::sort::{Constructor, Sort, SortEnum};
+use crate::model::decl::{Decl, DeclEnum, VariableDecl};
+use crate::model::expr::{Expr, ExprEnum};
+use crate::model::model::Model;
+use crate::model::proc::{Proc, ProcEnum};
+use crate::model::sort::{Constructor, Sort, SortEnum};
 
 use std::fmt::Formatter;
 

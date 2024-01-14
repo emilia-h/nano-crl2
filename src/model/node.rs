@@ -3,9 +3,9 @@
 //! This is sometimes necessary when a node has a pointer to a different node,
 //! but does not know ahead of time if this is a `Decl`, an `Expr` etc.
 
-use crate::ast::decl::Decl;
-use crate::ast::expr::Expr;
-use crate::ast::sort::Sort;
+use crate::model::decl::Decl;
+use crate::model::expr::Expr;
+use crate::model::sort::Sort;
 
 use std::rc::Rc;
 

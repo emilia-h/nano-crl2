@@ -14,23 +14,6 @@ macro_rules! unwrap_pattern {
     };
 }
 
-/// Extracts the success value of a `Result`, assuming it is [`Ok`].
-/// 
-/// # Panics
-/// Panics if `x` is [`Err`] instead, and displays a formatted message for it.
-/// 
-/// [`Ok`]: https://doc.rust-lang.org/std/result/enum.Result.html#variant.Ok
-/// [`Err`]: https://doc.rust-lang.org/std/result/enum.Result.html#variant.Err
-pub fn unwrap_result<T, E>(x: Result<T, E>) -> T
-where
-    E: std::fmt::Debug
-{
-    match x {
-        Ok(result) => result,
-        Err(err) => panic!("{:?}", err),
-    }
-}
-
 /// A generic parser that iterates over individual characters.
 /// 
 /// It uses the [`Chars`] iterator to iterate over the given input.
