@@ -3,4 +3,5 @@
 
 pub mod action_formula;
 pub mod emerson_lei;
+pub mod semantic;
 pub mod small_progress_measures;

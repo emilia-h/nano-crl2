@@ -9,24 +9,22 @@
 
 use crate::core::parser::{Parseable, ParseError, Parser};
 use crate::core::syntax::SourceLocation;
-use crate::model::node::AstNode;
 use crate::mu_calculus::action_formula::ActionFormula;
 
 use std::fmt::{Debug, Formatter};
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 /// A regular formula that can be used within the box (`[...]`) or diamond
 /// (`<...>`) operator.
 pub struct RegularFormula {
     pub value: RegularFormulaEnum,
     pub loc: SourceLocation,
-    pub parent: Option<Weak<dyn AstNode>>,
 }
 
 impl RegularFormula {
     /// Creates a new regular formula with `parent` set to `None`.
     pub fn new(value: RegularFormulaEnum, loc: SourceLocation) -> Self {
-        RegularFormula { value, loc, parent: None }
+        RegularFormula { value, loc }
     }
 }
 

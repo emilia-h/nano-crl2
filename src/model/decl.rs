@@ -1,5 +1,5 @@
 //! Defines AST types for declarations (also called spec/specification in the
-//! mCRL2 spec), which defines something in a model, often with a name (an
+//! mCRL2 spec), which defines something in the model, often with a name (an
 //! identifier).
 //! 
 //! Examples are action declarations written as `act name: Sort;` or process
@@ -14,24 +14,22 @@ use crate::core::parser::{Parseable, ParseError, Parser};
 use crate::core::syntax::{Identifier, SourceLocation};
 use crate::model::display::display_pretty_default;
 use crate::model::expr::Expr;
-use crate::model::node::AstNode;
 use crate::model::proc::Proc;
 use crate::model::sort::Sort;
 
 use std::fmt::{Debug, Display, Formatter};
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 /// A declaration in an mCRL2 model.
 pub struct Decl {
     pub value: DeclEnum,
     pub loc: SourceLocation,
-    pub parent: Option<Weak<dyn AstNode>>,
 }
 
 impl Decl {
     /// Creates a new declaration with `parent` set to `None`.
     pub fn new(value: DeclEnum, loc: SourceLocation) -> Self {
-        Decl { value, loc, parent: None }
+        Decl { value, loc }
     }
 }
 
@@ -51,25 +49,25 @@ impl Display for Decl {
 /// The options for a declaration.
 #[derive(Debug)]
 pub enum DeclEnum {
-    ActionDecl {
+    Action {
         ids: Vec<Identifier>,
         sort: Option<Rc<Sort>>,
     },
-    ConstructorDecl {
+    Constructor {
         ids: Vec<Identifier>,
         sort: Rc<Sort>,
     },
-    EquationSetDecl {
+    EquationSet {
         variables: Vec<VariableDecl>,
         equations: Vec<EquationDecl>,
     },
-    GlobalVariableDecl {
+    GlobalVariable {
         variables: Vec<VariableDecl>,
     },
-    InitialDecl {
+    Initial {
         value: Rc<Proc>,
     },
-    MapDecl {
+    Map {
         id: Identifier,
         sort: Rc<Sort>,
     },
@@ -79,12 +77,12 @@ pub enum DeclEnum {
     /// Note that parameters are of the form `(id11, ..., id1M: Sort1, ...,
     /// idN1, ..., idNM: SortN)` i.e. parameters can be grouped together, hence
     /// the complicated data representation of the parameters.
-    ProcessDecl {
+    Process {
         id: Identifier,
         params: Vec<VariableDecl>,
         process: Rc<Proc>,
     },
-    SortDecl {
+    Sort {
         // can be either "sort a1, ..., aN;" or "sort a = S;"
         ids: Vec<Identifier>,
         value: Option<Rc<Sort>>,
@@ -208,7 +206,7 @@ fn parse_action_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     parser.expect_token(&LexicalElement::Semicolon)?;
 
     Ok(Decl::new(
-        DeclEnum::ActionDecl { ids, sort },
+        DeclEnum::Action { ids, sort },
         parser.until_now(&loc),
     ))
 }
@@ -226,7 +224,7 @@ fn parse_constructor_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     parser.expect_token(&LexicalElement::Semicolon)?;
 
     Ok(Decl::new(
-        DeclEnum::ConstructorDecl { ids, sort },
+        DeclEnum::Constructor { ids, sort },
         parser.until_now(&loc),
     ))
 }
@@ -270,7 +268,7 @@ fn parse_equation_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     }
 
     Ok(Decl::new(
-        DeclEnum::EquationSetDecl { variables, equations },
+        DeclEnum::EquationSet { variables, equations },
         parser.until_now(&loc),
     ))
 }
@@ -283,7 +281,7 @@ fn parse_global_variable_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     parser.expect_token(&LexicalElement::Semicolon)?;
 
     Ok(Decl::new(
-        DeclEnum::GlobalVariableDecl { variables },
+        DeclEnum::GlobalVariable { variables },
         parser.until_now(&loc),
     ))
 }
@@ -296,7 +294,7 @@ fn parse_initial_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     parser.expect_token(&LexicalElement::Semicolon)?;
 
     Ok(Decl::new(
-        DeclEnum::InitialDecl { value },
+        DeclEnum::Initial { value },
         parser.until_now(&loc),
     ))
 }
@@ -311,7 +309,7 @@ fn parse_map_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     parser.expect_token(&LexicalElement::Semicolon)?;
 
     Ok(Decl::new(
-        DeclEnum::MapDecl { id, sort },
+        DeclEnum::Map { id, sort },
         parser.until_now(&loc),
     ))
 }
@@ -343,7 +341,7 @@ fn parse_process_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     parser.expect_token(&LexicalElement::Semicolon)?;
 
     Ok(Decl::new(
-        DeclEnum::ProcessDecl { id, params, process },
+        DeclEnum::Process { id, params, process },
         parser.until_now(&loc),
     ))
 }
@@ -368,7 +366,7 @@ fn parse_sort_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
         (ids, None)
     };
 
-    Ok(Decl::new(DeclEnum::SortDecl { ids, value }, parser.until_now(&loc)))
+    Ok(Decl::new(DeclEnum::Sort { ids, value }, parser.until_now(&loc)))
 }
 
 fn is_decl_keyword(element: &LexicalElement) -> bool {
@@ -399,7 +397,7 @@ mod tests {
         assert_eq!(decl.len(), 1);
 
         let (variables, equations) = unwrap_pattern!(&decl[0].value,
-            DeclEnum::EquationSetDecl { variables, equations } => (variables, equations)
+            DeclEnum::EquationSet { variables, equations } => (variables, equations)
         );
 
         assert_eq!(variables.len(), 2);

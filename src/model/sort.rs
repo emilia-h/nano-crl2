@@ -10,22 +10,20 @@ use crate::core::lexer::LexicalElement;
 use crate::core::parser::{Parseable, ParseError, Parser};
 use crate::core::syntax::{Identifier, SourceLocation};
 use crate::model::display::display_pretty_default;
-use crate::model::node::AstNode;
 
 use std::fmt::{Debug, Display, Formatter};
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 /// A sort in an mCRL2 model, AKA a type.
 pub struct Sort {
     pub value: SortEnum,
     pub loc: SourceLocation,
-    pub parent: Option<Weak<dyn AstNode>>,
 }
 
 impl Sort {
     /// Creates a new sort with `parent` set to `None`.
     pub fn new(value: SortEnum, loc: SourceLocation) -> Self {
-        Sort { value, loc, parent: None }
+        Sort { value, loc }
     }
 }
 

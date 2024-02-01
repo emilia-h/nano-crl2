@@ -14,38 +14,38 @@ use std::rc::Rc;
 /// An mCRL2 model, which consists of a set of declarations along with an
 /// initial process that may instantiate these declarations.
 #[derive(Debug)]
-pub struct Model {
+pub struct Module {
     pub decls: Vec<Rc<Decl>>,
     pub initial: Option<Rc<Proc>>,
 }
 
-impl Display for Model {
+impl Display for Module {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         display_pretty_default(self, f)
     }
 }
 
-impl Parseable for Model {
+impl Parseable for Module {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
-        parse_model(parser)
+        parse_module(parser)
     }
 }
 
-/// Parses a full mCRL2 model.
+/// Parses a full mCRL2 model module.
 /// 
-/// These mCRL2 models usually have the `.mcrl2` extension.
+/// These mCRL2 files usually have the `.mcrl2` extension.
 /// 
 /// # See also
 /// The [mCRL2 grammar on this].
 /// 
 /// [mCRL2 grammar on this]: https://www.mcrl2.org/web/user_manual/language_reference/mcrl2.html#grammar-token-mCRL2Spec
-pub fn parse_model(parser: &mut Parser) -> Result<Model, ParseError> {
+pub fn parse_module(parser: &mut Parser) -> Result<Module, ParseError> {
     let mut decls = Vec::new();
     let mut initial = None;
 
     while parser.has_token() {
         for decl in parser.parse::<Vec<Decl>>()? {
-            if let DeclEnum::InitialDecl { value } = decl.value {
+            if let DeclEnum::Initial { value } = decl.value {
                 if initial.is_some() {
                     let message = "Cannot have more than one `init` declaration in the same model";
                     return Err(ParseError::new(String::from(message), value.loc));
@@ -57,7 +57,7 @@ pub fn parse_model(parser: &mut Parser) -> Result<Model, ParseError> {
         }
     }
 
-    Ok(Model {
+    Ok(Module {
         decls,
         initial,
     })

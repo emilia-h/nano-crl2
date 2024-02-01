@@ -5,16 +5,15 @@
 //! ```
 //! # use nano_crl2::core::lexer::tokenize;
 //! # use nano_crl2::core::parser::Parser;
-//! use nano_crl2::model::model::Model;
+//! use nano_crl2::model::module::Module;
 //! let tokens = tokenize("act a: Nat; proc Repeat = a(123).Repeat; init Repeat;")
 //!     .expect("input was free of syntax errors");
 //! let mut parser = Parser::new(&tokens);
-//! let model = parser.parse::<Model>()
+//! let module = parser.parse::<Module>()
 //!     .expect("input was free of syntax errors");
 //! 
-//! assert!(model.initial.is_some());
-//! assert_eq!(model.decls.len(), 2);
-//! println!("{:?}", model);
+//! assert!(module.initial.is_some());
+//! assert_eq!(module.decls.len(), 2);
 //! ```
 
 use crate::core::error::Mcrl2Error;

@@ -36,4 +36,5 @@ fn test_small_games() {
     test_solve_parity_game("small6", &[3]);
     test_solve_parity_game("small7", &[]);
     test_solve_parity_game("small8", &[0, 1, 2, 3, 4, 5, 6, 7]);
+    test_solve_parity_game("small9", &[0, 1, 2, 4]);
 }

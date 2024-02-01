@@ -8,23 +8,21 @@ use crate::core::parser::{Parseable, ParseError, Parser};
 use crate::core::syntax::{Identifier, SourceLocation};
 use crate::model::decl::VariableDecl;
 use crate::model::display::display_pretty_default;
-use crate::model::node::AstNode;
 use crate::model::sort::Sort;
 
 use std::fmt::{Debug, Display, Formatter};
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
-/// A data expression in the mCRL2 model.
+/// A data expression in an mCRL2 model.
 pub struct Expr {
     pub value: ExprEnum,
     pub loc: SourceLocation,
-    pub parent: Option<Weak<dyn AstNode>>,
 }
 
 impl Expr {
     /// Creates a new expression with `parent` set to `None`.
     pub fn new(value: ExprEnum, loc: SourceLocation) -> Self {
-        Expr { value, loc, parent: None }
+        Expr { value, loc }
     }
 }
 
@@ -40,7 +38,7 @@ impl Display for Expr {
     }
 }
 
-/// The options for an expression.
+/// The possible syntactic forms of an expression.
 #[derive(Debug)]
 pub enum ExprEnum {
     Id {

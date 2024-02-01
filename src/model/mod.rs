@@ -8,7 +8,6 @@
 pub mod decl;
 pub mod display;
 pub mod expr;
-pub mod model;
-pub mod node;
+pub mod module;
 pub mod sort;
 pub mod proc;

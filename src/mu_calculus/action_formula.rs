@@ -1,7 +1,7 @@
 //! Defines AST types for mu-calculus action formulas, that are used inside the
 //! modal operators `[...]` (box) and `<...>` (diamond).
 //! 
-//! Such a formula, given a context of a `Model`, encodes a (possibly infinite)
+//! Such a formula, given a context of a `Module`, encodes a (possibly infinite)
 //! set of actions.
 
 use crate::core::lexer::LexicalElement;
@@ -10,10 +10,9 @@ use crate::core::syntax::SourceLocation;
 use crate::model::decl::VariableDecl;
 use crate::model::expr::Expr;
 use crate::model::proc::{Action, parse_multi_action};
-use crate::model::node::AstNode;
 
 use std::fmt::{Debug, Formatter};
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 /// A formula that tests a single action, that can be used within a regular
 /// formula and thus inside a box (`[...]`) or diamond (`<...>`) operator.
@@ -24,13 +23,12 @@ use std::rc::{Rc, Weak};
 pub struct ActionFormula {
     pub value: ActionFormulaEnum,
     pub loc: SourceLocation,
-    pub parent: Option<Weak<dyn AstNode>>,
 }
 
 impl ActionFormula {
     /// Creates a new action formula with `parent` set to `None`.
     pub fn new(value: ActionFormulaEnum, loc: SourceLocation) -> Self {
-        ActionFormula { value, loc, parent: None }
+        ActionFormula { value, loc }
     }
 }
 

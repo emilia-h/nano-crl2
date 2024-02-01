@@ -1,6 +1,7 @@
 
 pub mod analysis;
 pub mod core;
+pub mod ir;
 pub mod lts;
 pub mod model;
 pub mod mu_calculus;

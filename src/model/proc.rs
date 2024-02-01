@@ -15,24 +15,22 @@ use crate::core::parser::{Parseable, ParseError, Parser};
 use crate::core::syntax::{Identifier, SourceLocation};
 use crate::model::decl::VariableDecl;
 use crate::model::expr::{Expr, parse_unit_expr};
-use crate::model::node::AstNode;
 
 use std::fmt::{Debug, Display, Formatter};
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 use super::display::display_pretty_default;
 
-/// A process expression in a model.
+/// A process expression in an mCRL2 model.
 pub struct Proc {
     pub value: ProcEnum,
     pub loc: SourceLocation,
-    pub parent: Option<Weak<dyn AstNode>>,
 }
 
 impl Proc {
     /// Creates a new process with `parent` set to `None`.
     pub fn new(value: ProcEnum, loc: SourceLocation) -> Self {
-        Proc { value, loc, parent: None }
+        Proc { value, loc }
     }
 }
 

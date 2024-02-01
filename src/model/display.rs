@@ -1,7 +1,7 @@
 
 use crate::model::decl::{Decl, DeclEnum, VariableDecl};
 use crate::model::expr::{Expr, ExprEnum};
-use crate::model::model::Model;
+use crate::model::module::Module;
 use crate::model::proc::{Proc, ProcEnum};
 use crate::model::sort::{Constructor, Sort, SortEnum};
 
@@ -76,7 +76,7 @@ impl DisplayPretty for Decl {
         use DeclEnum::*;
 
         match &self.value {
-            ActionDecl { ids, sort } => {
+            Action { ids, sort } => {
                 write!(f, "act ")?;
                 display_separated(
                     ids, ", ",
@@ -89,7 +89,7 @@ impl DisplayPretty for Decl {
                 }
                 write!(f, ";\n")?;
             },
-            ConstructorDecl { ids, sort } => {
+            Constructor { ids, sort } => {
                 write!(f, "cons ")?;
                 display_separated(
                     ids, ", ",
@@ -100,7 +100,7 @@ impl DisplayPretty for Decl {
                 sort.fmt(options, f)?;
                 write!(f, ";\n")?;
             },
-            EquationSetDecl { variables, equations } => {
+            EquationSet { variables, equations } => {
                 if variables.len() > 0 {
                     write!(f, "var ")?;
                     for (i, variable_decl) in variables.iter().enumerate() {
@@ -139,22 +139,22 @@ impl DisplayPretty for Decl {
                     write!(f, ";\n")?;
                 }
             },
-            GlobalVariableDecl { variables } => {
+            GlobalVariable { variables } => {
                 write!(f, "glob ")?;
                 display_var_decl_list(variables, options, f)?;
                 write!(f, ";\n")?;
             },
-            InitialDecl { value } => {
+            Initial { value } => {
                 write!(f, "init ")?;
                 value.fmt(&options.indent(1), f)?;
                 write!(f, ";\n")?;
             },
-            MapDecl { id, sort } => {
+            Map { id, sort } => {
                 write!(f, "map {}: ", id)?;
                 sort.fmt(options, f)?;
                 write!(f, ";\n")?;
             },
-            ProcessDecl { id, params, process } => {
+            Process { id, params, process } => {
                 let new_options = options.indent(1);
                 write!(f, "proc {}", id)?;
                 if params.len() > 0 {
@@ -168,7 +168,7 @@ impl DisplayPretty for Decl {
                 process.fmt(&new_options, f)?;
                 write!(f, ";\n")?;
             },
-            SortDecl { ids, value } => {
+            Sort { ids, value } => {
                 write!(f, "sort ")?;
                 display_separated(
                     ids, ", ",
@@ -384,7 +384,7 @@ impl DisplayPretty for Expr {
     }
 }
 
-impl DisplayPretty for Model {
+impl DisplayPretty for Module {
     fn fmt(
         &self,
         options: &DisplayOptions,
