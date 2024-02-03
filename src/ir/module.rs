@@ -20,9 +20,9 @@ pub struct IrModule {
 }
 
 impl IrModule {
-    fn new_rc(context: Weak<RefCell<TranslationUnit>>) -> Rc<RefCell<Self>> {
+    fn new_rc(context: &Rc<RefCell<TranslationUnit>>) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(IrModule {
-            context,
+            context: Rc::downgrade(&context),
             decls: Vec::new(),
             rewrite_rules: Vec::new(),
         }))
@@ -38,8 +38,10 @@ impl IrModule {
 }
 
 /// Creates a new empty module and adds it to a given translation unit.
-pub fn add_module(context: &Rc<RefCell<TranslationUnit>>) -> Rc<RefCell<IrModule>> {
-    let ir_module = IrModule::new_rc(Rc::downgrade(context));
+pub fn add_module(
+    context: &Rc<RefCell<TranslationUnit>>,
+) -> Rc<RefCell<IrModule>> {
+    let ir_module = IrModule::new_rc(&context);
     context.borrow_mut().push_module(Rc::clone(&ir_module));
     ir_module
 }

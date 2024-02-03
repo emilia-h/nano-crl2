@@ -7,7 +7,7 @@
 //! [PGSolver parity game format]: https://github.com/tcsprojects/pgsolver/blob/master/doc/pgsolver.pdf
 
 use crate::parity_game::parity_game::{Pg, PgEdge, PgParseError, PgNode, Player};
-use crate::util::CharParser;
+use crate::util::parsing::CharParser;
 
 /// Parses a parity game in PGSolver format.
 pub fn parse_pgsolver_game(input: &str) -> Result<Pg, PgParseError> {

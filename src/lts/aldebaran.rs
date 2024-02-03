@@ -9,7 +9,7 @@ use crate::core::lexer::tokenize;
 use crate::core::parser::Parser;
 use crate::lts::lts::{Lts, LtsEdge, LtsNode, LtsParseError};
 use crate::model::proc::parse_multi_action;
-use crate::util::CharParser;
+use crate::util::parsing::CharParser;
 
 /// Reads an LTS from a string in [Aldebaran format].
 /// 

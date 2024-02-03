@@ -1,14 +1,15 @@
 
-#[derive(Clone, Eq, PartialEq)]
+use crate::util::interning::Interned;
+
+use std::rc::Rc;
+
+#[derive(Clone, Eq, Hash, PartialEq)]
 pub struct IrSort {
-    pub index: usize,
+    pub value: Interned<Rc<IrSortEnum>>,
 }
 
-pub struct IrSortDefinition {
-    pub value: IrSortDefinitionEnum,
-}
-
-pub enum IrSortDefinitionEnum {
+#[derive(Clone)]
+pub enum IrSortEnum {
     Unit,
     Bool,
     Pos,
@@ -16,27 +17,27 @@ pub enum IrSortDefinitionEnum {
     Int,
     Real,
     List {
-        subsort: usize,
+        subsort: IrSort,
     },
     Set {
-        subsort: usize,
+        subsort: IrSort,
     },
     FSet {
-        subsort: usize,
+        subsort: IrSort,
     },
     Bag {
-        subsort: usize,
+        subsort: IrSort,
     },
     FBag {
-        subsort: usize,
+        subsort: IrSort,
     },
     Struct,
     Carthesian {
-        lhs: usize,
-        rhs: usize,
+        lhs: IrSort,
+        rhs: IrSort,
     },
     Function {
-        lhs: usize,
-        rhs: usize,
+        lhs: IrSort,
+        rhs: IrSort,
     },
 }
