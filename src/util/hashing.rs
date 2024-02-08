@@ -2,36 +2,36 @@
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-pub trait Internable: Clone {
+pub trait Addressable: Clone {
     fn to_pointer_value(&self) -> usize;
 }
 
-impl<T> Internable for Rc<T> {
+impl<T> Addressable for Rc<T> {
     fn to_pointer_value(&self) -> usize {
         Rc::as_ptr(self) as usize
     }
 }
 
 #[derive(Clone)]
-pub struct Interned<P: Internable> {
+pub struct HashByAddress<P: Addressable> {
     value: P,
 }
 
-impl<P: Internable> Interned<P> {
+impl<P: Addressable> HashByAddress<P> {
     pub fn new(value: P) -> Self {
-        Interned { value }
+        HashByAddress { value }
     }
 }
 
-impl<P: Internable> PartialEq for Interned<P> {
+impl<P: Addressable> PartialEq for HashByAddress<P> {
     fn eq(&self, other: &Self) -> bool {
         self.value.to_pointer_value() == other.value.to_pointer_value()
     }
 }
 
-impl<P: Internable> Eq for Interned<P> {}
+impl<P: Addressable> Eq for HashByAddress<P> {}
 
-impl<P: Internable> Hash for Interned<P> {
+impl<P: Addressable> Hash for HashByAddress<P> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write_usize(self.value.to_pointer_value())
     }

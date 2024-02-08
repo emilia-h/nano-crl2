@@ -1,111 +1,170 @@
 
 use crate::unwrap_pattern;
-use crate::ir::decl::{IrDecl, IrDeclEnum};
+use crate::analysis::context::AnalysisContext;
+use crate::core::syntax::Identifier;
+use crate::ir::decl::{DeclId, IrDecl, IrDeclEnum};
 use crate::ir::expr::IrRewriteRule;
-use crate::ir::module::{add_module, IrModule};
-use crate::ir::sort::IrSort;
-use crate::ir::translation_unit::TranslationUnit;
+use crate::ir::module::ModuleId;
+use crate::ir::proc::ProcId;
+use crate::ir::sort::{IrSort, SortId};
 use crate::model::decl::{Decl, DeclEnum};
-use crate::model::module::Module;
+use crate::model::proc::Proc;
 use crate::model::sort::{Sort, SortEnum};
 
-use std::cell::RefCell;
-use std::rc::{Rc, Weak};
+use std::collections::hash_map::HashMap;
+use std::rc::Rc;
 
-/// Converts an AST module (including its declarations) to a new IR module and
-/// adds it to the translation unit.
-pub fn add_module_from_ast(
-    context: &Rc<RefCell<TranslationUnit>>,
-    module: &Module,
-) -> Rc<RefCell<IrModule>> {
-    let ir_module = add_module(&context);
-    for decl in &module.decls {
+#[derive(Debug)]
+pub enum SemanticError {
+    IdentifierError(String, Identifier),
+    TypeError(String),
+}
+
+pub struct ModuleAstMapping {
+    pub id_map: HashMap<Identifier, Rc<IrDecl>>,
+    pub ast_proc_map: HashMap<ProcId, Rc<Proc>>,
+    pub ast_sort_map: HashMap<SortId, Rc<Sort>>,
+}
+
+/// Given an AST module, return the  to a new IR module.
+pub fn query_module_ast_mapping(
+    context: &AnalysisContext,
+    module: ModuleId,
+) -> Rc<ModuleAstMapping> {
+    if let Some(result) = context.ir_module_mappings.borrow().get(&module) {
+        return Rc::clone(result);
+    }
+
+    let (_name, ast_module) = context.get_ast_module(module);
+    // let name = name.clone();
+    let decls = ast_module.decls.iter().map(|x| Rc::clone(x)).collect::<Vec<_>>();
+
+    let mut id_map = HashMap::new();
+    let mut ast_proc_map = HashMap::new();
+    let mut ast_sort_map = HashMap::new();
+    let mut ir_rewrite_rules = Vec::new();
+    for decl in &decls {
         match &decl.value {
             DeclEnum::EquationSet { .. } => {
-                add_rewrite_rule_from_ast(&mut ir_module.borrow_mut(), decl);
+                create_ir_rewrite_rule(
+                    context,
+                    decl,
+                    &mut ir_rewrite_rules,
+                ).unwrap();
             },
             _ => {
-                add_decl_from_ast(&mut ir_module.borrow_mut(), decl);
-            }
+                create_ir_decl(
+                    context, module,
+                    decl,
+                    &mut id_map, &mut ast_proc_map, &mut ast_sort_map,
+                ).unwrap();
+            },
         };
     }
 
-    ir_module
+    let result = Rc::new(ModuleAstMapping {
+        id_map,
+        ast_proc_map,
+        ast_sort_map,
+    });
+    context.ir_module_mappings.borrow_mut().insert(module, Rc::clone(&result));
+    result
 }
 
-fn add_decl_from_ast(
-    module: &mut IrModule,
-    decl: &Decl,
-) {
-    let context_ptr = Weak::upgrade(&module.context).unwrap();
-    let mut context = context_ptr.borrow_mut();
-
+fn create_ir_decl(
+    context: &AnalysisContext,
+    module: ModuleId,
+    decl: &Rc<Decl>,
+    id_map: &mut HashMap<Identifier, Rc<IrDecl>>,
+    ast_proc_map: &mut HashMap<ProcId, Rc<Proc>>,
+    ast_sort_map: &mut HashMap<SortId, Rc<Sort>>,
+) -> Result<(), SemanticError> {
     match &decl.value {
         DeclEnum::Action { ids, sort } => {
-            let sort = if let Some(v) = &sort {
-                create_sort_from_ast(&mut context, v)
+            let sort_id = if let Some(v) = sort {
+                let fresh = context.generate_sort_id(module);
+                ast_sort_map.insert(fresh, Rc::clone(&v));
+                fresh
             } else {
                 todo!()
-                // context.get_sorts().get_unit_sort()
             };
 
             for id in ids {
-                module.push_decl(IrDecl {
+                id_map.insert(id.clone(), Rc::new(IrDecl {
                     id: id.clone(),
-                    value: IrDeclEnum::Action { sort: sort.clone() },
-                });
+                    value: IrDeclEnum::Action { sort: sort_id },
+                }));
             }
         },
-        DeclEnum::Constructor { ids, sort } => {
-            todo!()
+        DeclEnum::Constructor { ids: _, sort: _ } => {
+            todo!();
         },
         DeclEnum::GlobalVariable { variables } => {
             for variable_decl in variables {
-                let sort = create_sort_from_ast(&mut context, &variable_decl.sort);
+                let sort_id = context.generate_sort_id(module);
+                ast_sort_map.insert(sort_id, Rc::clone(&variable_decl.sort));
+
                 for id in &variable_decl.ids {
-                    module.push_decl(IrDecl {
+                    id_map.insert(id.clone(), Rc::new(IrDecl {
                         id: id.clone(),
-                        value: IrDeclEnum::GlobalVariable { sort: sort.clone() },
-                    });
+                        value: IrDeclEnum::GlobalVariable { sort: sort_id },
+                    }));
                 }
             }
         },
         DeclEnum::Map { id, sort } => {
-            let sort = create_sort_from_ast(&mut context, sort);
-            module.push_decl(IrDecl {
+            let sort_id = context.generate_sort_id(module);
+            ast_sort_map.insert(sort_id, Rc::clone(&sort));
+
+            id_map.insert(id.clone(), Rc::new(IrDecl {
                 id: id.clone(),
-                value: IrDeclEnum::Map { sort },
-            });
+                value: IrDeclEnum::Map { sort: sort_id },
+            }));
         },
         DeclEnum::Process { id, params, process } => {
-            todo!()
+            let proc_id = context.generate_proc_id(module);
+            // ast_proc_map.insert(proc_id, (Rc::clone(&params), Rc::clone(&process)));
+
+            id_map.insert(id.clone(), Rc::new(IrDecl {
+                id: id.clone(),
+                value: IrDeclEnum::Process {  },
+            }));
+
+            todo!();
         },
         DeclEnum::Sort { ids, value } => {
-            let sort = if let Some(v) = &value {
-                create_sort_from_ast(&mut context, v)
+            let sort_id = if let Some(v) = &value {
+                let fresh = context.generate_sort_id(module);
+                ast_sort_map.insert(fresh, Rc::clone(&v));
+                fresh
             } else {
-                // context.get_sorts().get_unit_sort()
                 todo!()
             };
 
             for id in ids {
-                module.push_decl(IrDecl {
+                id_map.insert(id.clone(), Rc::new(IrDecl {
                     id: id.clone(),
-                    value: IrDeclEnum::Sort { sort: sort.clone() },
-                });
+                    value: IrDeclEnum::Sort { sort: sort_id },
+                }));
             }
         },
-        _ => panic!(),
+        DeclEnum::EquationSet { .. } | DeclEnum::Initial { .. } => panic!(),
     }
+
+    Ok(())
 }
 
-// # Preconditions
-// the value of `decl` must be of the `DeclEnum::Equation` variant.
-fn add_rewrite_rule_from_ast(
-    module: &mut IrModule,
-    decl: &Decl,
-) {
-    let (variables, equations) = unwrap_pattern!(
+/// Constructs the rewrite rule that corresponds to a given equation set
+/// declaration.
+/// 
+/// # Preconditions
+/// `decl` must a `DeclEnum::Equation` variant.
+fn create_ir_rewrite_rule(
+    _context: &AnalysisContext,
+    decl: &Rc<Decl>,
+    _output: &mut Vec<IrRewriteRule>,
+) -> Result<(), SemanticError> {
+    let (_variables, _equations) = unwrap_pattern!(
         &decl.value,
         DeclEnum::EquationSet { variables, equations } => (variables, equations)
     );
@@ -113,9 +172,31 @@ fn add_rewrite_rule_from_ast(
     todo!();
 }
 
-fn create_sort_from_ast(
-    context: &mut TranslationUnit,
-    sort: &Sort,
+pub fn query_ir_proc(
+    _context: &AnalysisContext,
+    _proc: &Rc<Proc>,
+) -> Result<(), SemanticError> {
+    todo!();
+}
+
+/// Returns (and constructs if necessary) the intermediate representation of a
+/// sort.
+pub fn query_ir_sort(
+    context: &AnalysisContext,
+    sort: SortId,
+) -> IrSort {
+    let mapping = query_module_ast_mapping(context, sort.module);
+    let ast_sort = mapping.ast_sort_map.get(&sort);
+    match ast_sort {
+        Some(s) => query_ir_sort_impl(context, &mapping, &s),
+        None => context.get_sorts().get_unit_sort(),
+    }
+}
+
+fn query_ir_sort_impl(
+    context: &AnalysisContext,
+    mapping: &Rc<ModuleAstMapping>,
+    sort: &Rc<Sort>,
 ) -> IrSort {
     match &sort.value {
         SortEnum::Bool => context.get_sorts().get_bool_sort(),
@@ -124,46 +205,41 @@ fn create_sort_from_ast(
         SortEnum::Int => context.get_sorts().get_int_sort(),
         SortEnum::Real => context.get_sorts().get_real_sort(),
         SortEnum::List { subsort } => {
-            let sort = create_sort_from_ast(context, &subsort);
-            context.get_sorts().get_list_sort(&sort)
+            let s = query_ir_sort_impl(context, mapping, &subsort);
+            context.get_sorts().get_list_sort(&s)
         },
         SortEnum::Set { subsort } => {
-            let sort = create_sort_from_ast(context, &subsort);
-            // context.get_sorts().get_set_sort(&sort)
-            todo!()
+            let s = query_ir_sort_impl(context, mapping, &subsort);
+            context.get_sorts().get_set_sort(&s)
         },
         SortEnum::Bag { subsort } => {
-            let sort = create_sort_from_ast(context, &subsort);
-            // context.get_sorts().get_bag_sort(&sort)
-            todo!()
+            let s = query_ir_sort_impl(context, mapping, &subsort);
+            context.get_sorts().get_bag_sort(&s)
         },
         SortEnum::FSet { subsort } => {
-            let sort = create_sort_from_ast(context, &subsort);
-            // context.get_sorts().get_fset_sort(&sort)
-            todo!()
+            let s = query_ir_sort_impl(context, mapping, &subsort);
+            context.get_sorts().get_fset_sort(&s)
         },
         SortEnum::FBag { subsort } => {
-            let sort = create_sort_from_ast(context, &subsort);
-            // context.get_sorts().get_fbag_sort(&sort)
-            todo!()
+            let sort = query_ir_sort_impl(context, mapping, &subsort);
+            context.get_sorts().get_fbag_sort(&sort)
         },
         SortEnum::Id { id } => {
+            let ir_decl = mapping.id_map.get(&id);
             todo!()
         },
         SortEnum::Struct { constructors } => {
             todo!()
         },
         SortEnum::Carthesian { lhs, rhs } => {
-            let l = create_sort_from_ast(context, &lhs);
-            let r = create_sort_from_ast(context, &rhs);
-            // context.get_sorts().get_carthesian_sort(&l, &r)
-            todo!()
+            let l = query_ir_sort_impl(context, mapping, &lhs);
+            let r = query_ir_sort_impl(context, mapping, &rhs);
+            context.get_sorts().get_carthesian_sort(&l, &r)
         },
         SortEnum::Function { lhs, rhs } => {
-            let l = create_sort_from_ast(context, &lhs);
-            let r = create_sort_from_ast(context, &rhs);
-            // context.get_sorts().get_function_sort(&l, &r)
-            todo!()
+            let l = query_ir_sort_impl(context, mapping, &lhs);
+            let r = query_ir_sort_impl(context, mapping, &rhs);
+            context.get_sorts().get_function_sort(&l, &r)
         },
     }
 }

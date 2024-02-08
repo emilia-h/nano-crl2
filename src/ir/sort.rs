@@ -1,11 +1,12 @@
 
-use crate::util::interning::Interned;
+use crate::ir::module::ModuleId;
+use crate::util::hashing::HashByAddress;
 
 use std::rc::Rc;
 
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub struct IrSort {
-    pub value: Interned<Rc<IrSortEnum>>,
+    pub value: HashByAddress<Rc<IrSortEnum>>,
 }
 
 #[derive(Clone)]
@@ -40,4 +41,10 @@ pub enum IrSortEnum {
         lhs: IrSort,
         rhs: IrSort,
     },
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct SortId {
+    pub(crate) module: ModuleId,
+    pub(crate) value: usize,
 }

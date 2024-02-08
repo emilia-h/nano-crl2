@@ -5,5 +5,5 @@
 pub mod decl;
 pub mod expr;
 pub mod module;
+pub mod proc;
 pub mod sort;
-pub mod translation_unit;

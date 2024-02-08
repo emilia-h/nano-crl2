@@ -1,10 +1,6 @@
 
 use crate::ir::decl::IrDecl;
 use crate::ir::expr::IrRewriteRule;
-use crate::ir::translation_unit::TranslationUnit;
-
-use std::cell::RefCell;
-use std::rc::{Rc, Weak};
 
 /// Essentially a single file of mCRL2 code.
 /// 
@@ -14,34 +10,25 @@ use std::rc::{Rc, Weak};
 /// 
 /// [`TranslationUnit`]: ../../translation_unit/struct.TranslationUnit.html
 pub struct IrModule {
-    pub context: Weak<RefCell<TranslationUnit>>,
-    decls: Vec<IrDecl>,
-    rewrite_rules: Vec<IrRewriteRule>,
+    pub name: String,
+    pub decl_ids: Vec<IrDecl>,
+    pub rewrite_rules: Vec<IrRewriteRule>,
 }
 
 impl IrModule {
-    fn new_rc(context: &Rc<RefCell<TranslationUnit>>) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(IrModule {
-            context: Rc::downgrade(&context),
-            decls: Vec::new(),
+    /// Creates a new IR module that contains the specified declaration IDs.
+    pub fn new(name: String, decl_ids: Vec<IrDecl>) -> Self {
+        IrModule {
+            name,
+            decl_ids,
             rewrite_rules: Vec::new(),
-        }))
-    }
-
-    pub fn push_decl(&mut self, decl: IrDecl) {
-        self.decls.push(decl);
-    }
-
-    pub fn push_rewrite_rule(&mut self, rewrite_rule: IrRewriteRule) {
-        self.rewrite_rules.push(rewrite_rule);
+        }
     }
 }
 
-/// Creates a new empty module and adds it to a given translation unit.
-pub fn add_module(
-    context: &Rc<RefCell<TranslationUnit>>,
-) -> Rc<RefCell<IrModule>> {
-    let ir_module = IrModule::new_rc(&context);
-    context.borrow_mut().push_module(Rc::clone(&ir_module));
-    ir_module
+/// A (nameless) identifier that, within a given analysis context, refers to a
+/// specific module.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct ModuleId {
+    pub(crate) index: usize,
 }
