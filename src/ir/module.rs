@@ -1,6 +1,10 @@
 
-use crate::ir::decl::IrDecl;
-use crate::ir::expr::IrRewriteRule;
+use crate::core::syntax::Identifier;
+use crate::ir::decl::{DeclId, IrDecl};
+use crate::ir::expr::{ExprId, IrExpr, IrRewriteRule};
+use crate::ir::proc::{IrProc, ProcId};
+
+use std::collections::hash_map::HashMap;
 
 /// Essentially a single file of mCRL2 code.
 /// 
@@ -9,21 +13,14 @@ use crate::ir::expr::IrRewriteRule;
 /// holds a weak pointer to.
 /// 
 /// [`TranslationUnit`]: ../../translation_unit/struct.TranslationUnit.html
+#[derive(Debug)]
 pub struct IrModule {
     pub name: String,
-    pub decl_ids: Vec<IrDecl>,
+    pub decls: HashMap<DeclId, IrDecl>,
+    pub exprs: HashMap<ExprId, IrExpr>,
+    pub procs: HashMap<ProcId, IrProc>,
     pub rewrite_rules: Vec<IrRewriteRule>,
-}
-
-impl IrModule {
-    /// Creates a new IR module that contains the specified declaration IDs.
-    pub fn new(name: String, decl_ids: Vec<IrDecl>) -> Self {
-        IrModule {
-            name,
-            decl_ids,
-            rewrite_rules: Vec::new(),
-        }
-    }
+    pub top_level_symbols: HashMap<Identifier, DeclId>,
 }
 
 /// A (nameless) identifier that, within a given analysis context, refers to a

@@ -1,5 +1,6 @@
 
 use std::hash::{Hash, Hasher};
+use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
 pub trait Addressable: Clone {
@@ -20,6 +21,12 @@ pub struct HashByAddress<P: Addressable> {
 impl<P: Addressable> HashByAddress<P> {
     pub fn new(value: P) -> Self {
         HashByAddress { value }
+    }
+}
+
+impl<P: Addressable + Debug> Debug for HashByAddress<P> {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        self.value.fmt(f)
     }
 }
 

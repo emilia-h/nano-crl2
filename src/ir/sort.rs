@@ -4,12 +4,12 @@ use crate::util::hashing::HashByAddress;
 
 use std::rc::Rc;
 
-#[derive(Clone, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct IrSort {
     pub value: HashByAddress<Rc<IrSortEnum>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum IrSortEnum {
     Unit,
     Bool,

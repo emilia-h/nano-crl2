@@ -34,7 +34,7 @@ impl Display for Identifier {
 
 /// A location in a source file, i.e. an inclusive interval over two `(line,
 /// char)` coordinates.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub struct SourceLocation {
     start_line: usize,
     start_char: usize,
@@ -81,6 +81,22 @@ impl SourceLocation {
             end_line: usize::max(self.end_line, other.end_line),
             end_char: usize::max(self.end_char, other.end_char),
         }
+    }
+}
+
+impl Debug for SourceLocation {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        Display::fmt(&self, f)
+    }
+}
+
+impl Display for SourceLocation {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(
+            f, "({}, {}) - ({}, {})",
+            self.start_line, self.start_char,
+            self.end_line, self.end_char,
+        )
     }
 }
 

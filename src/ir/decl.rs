@@ -1,13 +1,14 @@
 
-use crate::core::syntax::Identifier;
 use crate::ir::module::ModuleId;
+use crate::ir::proc::ProcId;
 use crate::ir::sort::SortId;
 
+#[derive(Debug)]
 pub struct IrDecl {
-    pub id: Identifier,
     pub value: IrDeclEnum,
 }
 
+#[derive(Debug)]
 pub enum IrDeclEnum {
     Action {
         sort: SortId,
@@ -18,11 +19,15 @@ pub enum IrDeclEnum {
     GlobalVariable {
         sort: SortId,
     },
+    LocalVariable {
+        sort: SortId,
+    },
     Map {
         sort: SortId,
     },
     Process {
-
+        params: Vec<DeclId>,
+        proc: ProcId,
     },
     Sort {
         sort: SortId,

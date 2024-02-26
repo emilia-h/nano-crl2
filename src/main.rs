@@ -1,8 +1,9 @@
 
+use nano_crl2::tools::check_input::check_input;
+use nano_crl2::tools::gen_docs::gen_docs;
 use nano_crl2::tools::solve_pg::solve_pg;
 use nano_crl2::tools::verify_lts::verify_lts;
 use nano_crl2::tools::cli::{CliConfig, CliOptions};
-use nano_crl2::tools::gen_docs::gen_docs;
 use std::env;
 
 // character limit per line is 100
@@ -13,12 +14,23 @@ $ nanocrl2 <tool> <options...>
 
 Where <tool> is one of:
   help              Get extra help about a particular tool
+  check-input       Parses files and checks that they are syntactically correct and well-formed.
   gen-docs          Parses .mcrl2 files and generates documentation for the declarations in those
                     files.
   solve-pg          Parses a parity game file (.gm) and outputs the winner for each vertex in the
                     game.
   verify-lts        Parses an LTS file (.aut) and a formula file (.mcf) and outputs for which
                     states of the LTS file it holds.
+";
+
+const HELP_STRING_CHECK_INPUT: &'static str = "
+check-model: a checker for well-formedness of mCRL2 files. Usage:
+
+$ nanocrl2 check-input <options...>
+
+Where <options> is zero or more of the following:
+  --help                    -h  Shows this message
+  --input=<file>            -i  Gets input from the given file(s)
 ";
 
 const HELP_STRING_GEN_DOCS: &'static str = "
@@ -74,7 +86,27 @@ fn main() {
     let tool = args[1].as_str();
     let options = &args[2..];
 
-    if tool == "gen-docs" {
+    if tool == "check-input" {
+        let cli_config = CliConfig::new(&[
+            ("help", 'h'),
+            ("input", 'i'),
+        ]);
+        match CliOptions::parse(&cli_config, options) {
+            Ok(options) if options.has_named("help") => {
+                eprintln!("{}", HELP_STRING_CHECK_INPUT);
+            },
+            Ok(options) => match check_input(&options) {
+                Ok(()) => println!("success"),
+                Err(error) => {
+                    println!("failure");
+                    eprintln!("{:?}", error);
+                },
+            },
+            Err(error) => {
+                eprintln!("{:?}", error);
+            },
+        }
+    } else if tool == "gen-docs" {
         let cli_config = CliConfig::new(&[
             ("help", 'h'),
             ("input", 'i'),

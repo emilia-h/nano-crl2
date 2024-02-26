@@ -80,12 +80,12 @@ pub enum DeclEnum {
     Process {
         id: Identifier,
         params: Vec<VariableDecl>,
-        process: Rc<Proc>,
+        proc: Rc<Proc>,
     },
     Sort {
         // can be either "sort a1, ..., aN;" or "sort a = S;"
         ids: Vec<Identifier>,
-        value: Option<Rc<Sort>>,
+        sort: Option<Rc<Sort>>,
     },
 }
 
@@ -341,7 +341,7 @@ fn parse_process_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     parser.expect_token(&LexicalElement::Semicolon)?;
 
     Ok(Decl::new(
-        DeclEnum::Process { id, params, process },
+        DeclEnum::Process { id, params, proc: process },
         parser.until_now(&loc),
     ))
 }
@@ -366,7 +366,7 @@ fn parse_sort_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
         (ids, None)
     };
 
-    Ok(Decl::new(DeclEnum::Sort { ids, value }, parser.until_now(&loc)))
+    Ok(Decl::new(DeclEnum::Sort { ids, sort: value }, parser.until_now(&loc)))
 }
 
 fn is_decl_keyword(element: &LexicalElement) -> bool {

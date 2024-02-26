@@ -1,7 +1,7 @@
 
 use crate::try_into;
 use crate::analysis::context::AnalysisContext;
-use crate::analysis::semantic::ir_conversion::query_module_ast_mapping;
+use crate::analysis::ir_conversion::module::query_ir_module;
 use crate::core::error::Mcrl2Error;
 use crate::core::lexer::tokenize;
 use crate::core::parser::Parser;
@@ -11,7 +11,7 @@ use crate::tools::cli::CliOptions;
 use std::fs::read_to_string;
 use std::path::Path;
 
-pub fn check_model(options: &CliOptions) -> Result<(), Mcrl2Error> {
+pub fn check_input(options: &CliOptions) -> Result<(), Mcrl2Error> {
     let input_files = options.get_named_list("input");
 
     let mut context = AnalysisContext::new();
@@ -42,7 +42,8 @@ pub fn check_model(options: &CliOptions) -> Result<(), Mcrl2Error> {
     }
 
     for module_id in module_ids {
-        let _ = query_module_ast_mapping(&context, module_id);
+        let ir = query_ir_module(&context, module_id);
+        eprintln!("{:#?}", ir);
     }
 
     Ok(())

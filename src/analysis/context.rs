@@ -1,6 +1,8 @@
+//! Implements data structures that assist in analysis in this library.
 
-use crate::analysis::semantic::ir_conversion::ModuleAstMapping;
-use crate::ir::module::ModuleId;
+use crate::ir::decl::DeclId;
+use crate::ir::expr::ExprId;
+use crate::ir::module::{IrModule, ModuleId};
 use crate::ir::proc::ProcId;
 use crate::ir::sort::{IrSort, IrSortEnum, SortId};
 use crate::model::module::Module;
@@ -11,26 +13,36 @@ use std::collections::hash_map::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
 
+// my work is for a part based on the rustc compiler architecture:
 // https://rustc-dev-guide.rust-lang.org/query.html
 // https://rustc-dev-guide.rust-lang.org/queries/incremental-compilation-in-detail.html
 
+/// The central data structure for analysis in this library.
+/// 
+/// It takes a couple of inputs, namely ASTs that are obtained from a parser.
+/// 
+/// Other data, such as intermediate representations (IRs), are computed using
+/// queries that are cached to avoid computing the same result more than once.
 pub struct AnalysisContext {
     pub(crate) ast_modules: Vec<(String, Module)>,
-    pub(crate) ir_module_mappings: RefCell<HashMap<ModuleId, Rc<ModuleAstMapping>>>,
+    pub(crate) ir_modules: RefCell<HashMap<ModuleId, Rc<IrModule>>>,
     pub(crate) sort_context: SortContext,
     id_counter: Cell<usize>,
 }
 
 impl AnalysisContext {
+    /// Constructs a new empty context, with no inputs.
     pub fn new() -> Self {
         AnalysisContext {
             ast_modules: Vec::new(),
-            ir_module_mappings: RefCell::new(HashMap::new()),
+            ir_modules: RefCell::new(HashMap::new()),
             sort_context: SortContext::new(),
             id_counter: Cell::new(0),
         }
     }
 
+    /// Adds the AST of a module as a new input to the context, and returns the
+    /// ID that it is given internally.
     pub fn add_ast_module(&mut self, name: String, module: Module) -> ModuleId {
         self.ast_modules.push((name, module));
         ModuleId { index: self.ast_modules.len() - 1 }
@@ -44,19 +56,43 @@ impl AnalysisContext {
         &self.sort_context
     }
 
+    /// Returns a declaration ID that was not returned by this function before.
+    pub fn generate_decl_id(&self, module: ModuleId) -> DeclId {
+        let value = self.id_counter.get();
+        self.id_counter.set(value + 1);
+        DeclId { module, value }
+    }
+
+    pub fn generate_expr_id(&self, module: ModuleId) -> ExprId {
+        let value = self.id_counter.get();
+        self.id_counter.set(value + 1);
+        ExprId { module, value }
+    }
+
+    /// Returns a sort ID that was not returned by this function before.
     pub fn generate_sort_id(&self, module: ModuleId) -> SortId {
         let value = self.id_counter.get();
         self.id_counter.set(value + 1);
         SortId { module, value }
     }
 
+    /// Returns a process ID that was not returned by this function before.
     pub fn generate_proc_id(&self, module: ModuleId) -> ProcId {
         let value = self.id_counter.get();
         self.id_counter.set(value + 1);
         ProcId { module, value }
     }
+
+    /// Adds an error to the error list.
+    pub fn error(&self, ) {
+
+    }
 }
 
+/// Stores the intermediate representation of sorts, which are cached/interned.
+/// 
+/// This allows for constant-time equality checks and avoids creating too many
+/// objects that all look the same.
 pub struct SortContext {
     unit_sort: IrSort,
     bool_sort: IrSort,
@@ -158,7 +194,7 @@ impl SortContext {
         )
     }
 
-    pub fn get_struct_sort(&mut self) -> IrSort {
+    pub fn get_struct_sort(&self) -> IrSort {
         todo!()
     }
 

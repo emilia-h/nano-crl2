@@ -1,6 +1,6 @@
 //! These modules define command-line interface (CLI) tools.
 
-pub mod check_model;
+pub mod check_input;
 pub mod cli;
 pub mod gen_docs;
 pub mod verify_lts;

@@ -154,7 +154,7 @@ impl DisplayPretty for Decl {
                 sort.fmt(options, f)?;
                 write!(f, ";\n")?;
             },
-            Process { id, params, process } => {
+            Process { id, params, proc: process } => {
                 let new_options = options.indent(1);
                 write!(f, "proc {}", id)?;
                 if params.len() > 0 {
@@ -168,7 +168,7 @@ impl DisplayPretty for Decl {
                 process.fmt(&new_options, f)?;
                 write!(f, ";\n")?;
             },
-            Sort { ids, value } => {
+            Sort { ids, sort: value } => {
                 write!(f, "sort ")?;
                 display_separated(
                     ids, ", ",

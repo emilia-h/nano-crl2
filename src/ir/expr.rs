@@ -1,14 +1,32 @@
 
-use crate::core::syntax::Identifier;
+use crate::core::syntax::{Identifier, SourceLocation};
+use crate::ir::decl::DeclId;
+use crate::ir::module::ModuleId;
 use crate::ir::sort::IrSort;
 
+#[derive(Debug)]
 pub struct IrExpr {
-
+    pub value: IrExprEnum,
+    pub loc: SourceLocation,
 }
 
+#[derive(Debug)]
+pub enum IrExprEnum {
+    Name {
+        id: DeclId,
+    },
+}
+
+#[derive(Debug)]
 pub struct IrRewriteRule {
     pub variables: Vec<(Identifier, IrSort)>,
-    pub condition: IrExpr,
-    pub lhs: IrExpr,
-    pub rhs: IrExpr,
+    pub condition: ExprId,
+    pub lhs: ExprId,
+    pub rhs: ExprId,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct ExprId {
+    pub(crate) module: ModuleId,
+    pub(crate) value: usize,
 }
