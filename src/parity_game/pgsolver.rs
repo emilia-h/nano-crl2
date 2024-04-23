@@ -65,7 +65,8 @@ fn parse_pgsolver_line<F>(
     parser: &mut CharParser<'_, PgParseError, F>,
 ) -> Result<(usize, u32, Player, Vec<PgEdge>, Option<String>), PgParseError>
 where
-    F: Fn(String, usize, usize) -> PgParseError {
+    F: Fn(String, usize, usize) -> PgParseError,
+{
     let identifier = parser.parse_number()? as usize;
 
     let priority = parser.parse_number()? as u32;

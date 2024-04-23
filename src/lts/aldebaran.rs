@@ -75,7 +75,8 @@ fn parse_aldebaran_line<F>(
     parser: &mut CharParser<'_, LtsParseError, F>,
 ) -> Result<(usize, String, usize), LtsParseError>
 where
-    F: Fn(String, usize, usize) -> LtsParseError {
+    F: Fn(String, usize, usize) -> LtsParseError,
+{
     parser.expect_chars("(")?;
 
     let start_state = parser.parse_number()?;

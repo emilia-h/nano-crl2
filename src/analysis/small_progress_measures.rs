@@ -101,7 +101,7 @@ fn lift_ordered<T>(
     iterator: &T,
 )
 where
-    T: Clone + Iterator<Item = usize>
+    T: Clone + Iterator<Item = usize>,
 {
     let mut found = true;
     while found {

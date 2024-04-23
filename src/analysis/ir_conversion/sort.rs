@@ -61,10 +61,10 @@ fn create_ir_sort(
             context.get_sorts().get_fbag_sort(&sort)
         },
         SortEnum::Id { id } => {
-            let ir_decl = id_map.get(&id);
+            let _ir_decl = id_map.get(&id);
             todo!()
         },
-        SortEnum::Struct { constructors } => {
+        SortEnum::Struct { constructors: _ } => {
             todo!()
         },
         SortEnum::Carthesian { lhs, rhs } => {

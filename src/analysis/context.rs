@@ -220,7 +220,7 @@ impl SortContext {
         value: F,
     ) -> IrSort
     where
-        F: Fn() -> IrSortEnum
+        F: Fn() -> IrSortEnum,
     {
         sorts.entry(key)
             .or_insert_with(|| IrSort { value: HashByAddress::new(Rc::new(value())) })

@@ -587,7 +587,7 @@ fn parse_left_associative_expr<'a, F>(
     options: &[(&LexicalElement, &dyn Fn(Rc<Expr>, Rc<Expr>) -> ExprEnum)],
 ) -> Result<Expr, ParseError>
 where
-    F: Fn(&mut Parser<'a>) -> Result<Expr, ParseError>
+    F: Fn(&mut Parser<'a>) -> Result<Expr, ParseError>,
 {
     let loc = parser.get_loc();
     let mut result = sub_parser(parser)?;
@@ -615,7 +615,7 @@ fn parse_right_associative_expr<'a, F>(
     constructor: &dyn Fn(Rc<Expr>, Rc<Expr>) -> ExprEnum,
 ) -> Result<Expr, ParseError>
 where
-    F: Fn(&mut Parser<'a>) -> Result<Expr, ParseError>
+    F: Fn(&mut Parser<'a>) -> Result<Expr, ParseError>,
 {
     let loc = parser.get_loc();
     let lhs = sub_parser(parser)?;

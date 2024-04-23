@@ -600,7 +600,7 @@ fn display_separated<T, F>(
     f: &mut Formatter,
 ) -> Result<(), std::fmt::Error>
 where
-    F: Fn(&T, &mut Formatter) -> Result<(), std::fmt::Error>
+    F: Fn(&T, &mut Formatter) -> Result<(), std::fmt::Error>,
 {
     for (i, value) in values.iter().enumerate() {
         if i > 0 {
@@ -660,7 +660,8 @@ fn display_unary_process_operator<T, F>(
     f: &mut Formatter,
 ) -> Result<(), std::fmt::Error>
 where
-    F: Fn(&T, &mut Formatter) -> Result<(), std::fmt::Error> {
+    F: Fn(&T, &mut Formatter) -> Result<(), std::fmt::Error>,
+{
     let new_options = options.indent(1);
     write!(f, "{}(\n", op)?;
     display_indentation(&new_options, f)?;

@@ -538,7 +538,7 @@ fn rewrite_binary_state_formula<'a, F>(
     equations: &mut Vec<(IrStateFormulaEquation, bool)>,
 ) -> Result<(usize, HashSet<usize>, HashSet<usize>), FormulaError>
 where
-    F: Fn(usize, usize) -> IrStateFormulaEquation
+    F: Fn(usize, usize) -> IrStateFormulaEquation,
 {
     let (l_index, mut l_set, mut l_fixpoint_set) = rewrite_state_formula_impl(
         lhs,

@@ -125,8 +125,16 @@ pub fn convert_ir_proc(
                 ir_mapping,
             )?;
             // sum x: X, y: Y . z is equivalent to sum x: X . sum y: Y . z
-            for variable_decl in variables {
-                for id in &variable_decl.ids {
+            // we work inside out here
+            for (i, variable_decl) in variables.iter().enumerate().rev() {
+                for (j, id) in variable_decl.ids.iter().enumerate().rev() {
+                    eprintln!("({}, {})", i, j);
+                    let next_id = if i == 0 && j == 0 {
+                        // the last generated IrProc has to be mapped to from result_id
+                        result_id
+                    } else {
+                        context.generate_proc_id(ir_mapping.module)
+                    };
                     let variable = id_map.remove(id).unwrap();
 
                     let sort_id = convert_ir_sort(
@@ -136,18 +144,18 @@ pub fn convert_ir_proc(
                         ir_mapping,
                     )?;
 
-                    ir_mapping.procs.insert(result_id, IrProc {
+                    // intermediate := sum variable : sort . intermediate
+                    ir_mapping.procs.insert(next_id, IrProc {
                         value: IrProcEnum::Sum {
                             variable,
                             sort: sort_id,
-                            proc: result_id,
+                            proc: intermediate_id,
                         },
                         loc: proc.loc,
                     });
+                    intermediate_id = next_id;
                 }
             }
-
-            // the last generated IrProc has to be mapped to from result_id
         },
         ProcEnum::Parallel { lhs, rhs } => {
             add_binary_ir_proc(
@@ -171,7 +179,7 @@ pub fn convert_ir_proc(
                 },
             )?;
         },
-        ProcEnum::Multi { lhs, rhs } => {
+        ProcEnum::Multi { lhs: _, rhs: _ } => {
             todo!()
         },
         ProcEnum::IfThenElse { condition, then_proc, else_proc } => {
@@ -246,7 +254,7 @@ fn add_binary_ir_proc<F>(
     f: F,
 ) -> Result<(), SemanticError>
 where
-    F: FnOnce(ProcId, ProcId) -> IrProc
+    F: FnOnce(ProcId, ProcId) -> IrProc,
 {
     let l = convert_ir_proc(
         context, id_map,

@@ -253,7 +253,7 @@ impl<'a> Parser<'a> {
 /// [`Token`]: ../lexer/struct.Token.html
 pub trait Parseable
 where
-    Self: Sized
+    Self: Sized,
 {
     /// Parses the implemented type from a stream of tokens, from the current
     /// state of the `Parser`.

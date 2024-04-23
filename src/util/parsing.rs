@@ -6,14 +6,20 @@ use std::str::Chars;
 /// It uses the [`Chars`] iterator to iterate over the given input.
 /// 
 /// [`Chars`]: https://doc.rust-lang.org/std/str/struct.Chars.html
-pub struct CharParser<'a, E, F> where F: Fn(String, usize, usize) -> E {
+pub struct CharParser<'a, E, F>
+where
+    F: Fn(String, usize, usize) -> E,
+{
     chars: Chars<'a>,
     curr_line: usize,
     curr_char: usize,
     to_err: F,
 }
 
-impl<'a, E, F> CharParser<'a, E, F> where F: Fn(String, usize, usize) -> E {
+impl<'a, E, F> CharParser<'a, E, F>
+where
+    F: Fn(String, usize, usize) -> E,
+{
     /// Creates a new parser from a string input, with a custom erroring
     /// function.
     /// 
