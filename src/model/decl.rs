@@ -18,7 +18,7 @@ use crate::model::proc::Proc;
 use crate::model::sort::Sort;
 
 use std::fmt::{Debug, Display, Formatter};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// A declaration in an mCRL2 model.
 pub struct Decl {
@@ -51,11 +51,11 @@ impl Display for Decl {
 pub enum DeclEnum {
     Action {
         ids: Vec<Identifier>,
-        sort: Option<Rc<Sort>>,
+        sort: Option<Arc<Sort>>,
     },
     Constructor {
         ids: Vec<Identifier>,
-        sort: Rc<Sort>,
+        sort: Arc<Sort>,
     },
     EquationSet {
         variables: Vec<VariableDecl>,
@@ -65,11 +65,11 @@ pub enum DeclEnum {
         variables: Vec<VariableDecl>,
     },
     Initial {
-        value: Rc<Proc>,
+        value: Arc<Proc>,
     },
     Map {
         id: Identifier,
-        sort: Rc<Sort>,
+        sort: Arc<Sort>,
     },
     /// Represents a process declaration of the form `proc Name(params) =
     /// process;`.
@@ -80,12 +80,12 @@ pub enum DeclEnum {
     Process {
         id: Identifier,
         params: Vec<VariableDecl>,
-        proc: Rc<Proc>,
+        proc: Arc<Proc>,
     },
     Sort {
         // can be either "sort a1, ..., aN;" or "sort a = S;"
         ids: Vec<Identifier>,
-        sort: Option<Rc<Sort>>,
+        sort: Option<Arc<Sort>>,
     },
 }
 
@@ -97,15 +97,15 @@ pub enum DeclEnum {
 #[derive(Debug)]
 pub struct VariableDecl {
     pub ids: Vec<Identifier>,
-    pub sort: Rc<Sort>,
+    pub sort: Arc<Sort>,
 }
 
 /// A single equation declaration of the form `[condition ->] lhs = rhs`.
 #[derive(Debug)]
 pub struct EquationDecl {
-    pub condition: Option<Rc<Expr>>,
-    pub lhs: Rc<Expr>,
-    pub rhs: Rc<Expr>,    
+    pub condition: Option<Arc<Expr>>,
+    pub lhs: Arc<Expr>,
+    pub rhs: Arc<Expr>,    
 }
 
 impl Parseable for Vec<Decl> {
@@ -152,13 +152,17 @@ pub fn parse_decl_block(parser: &mut Parser) -> Result<Vec<Decl>, ParseError> {
             // got some completely other token that a declaration cannot start with
             return Err(ParseError::expected("a declaration", token));
         }
+        if current_decl_type == Some(Init) {
+            // can only have one `init` declaration
+            return Ok(vec![parse_initial_decl(parser)?]);
+        }
 
         decls.push(match current_decl_type.as_ref().unwrap() {
             Act => parse_action_decl(parser)?,
             Cons => parse_constructor_decl(parser)?,
             Eqn => parse_equation_decl(parser)?,
             Glob => parse_global_variable_decl(parser)?,
-            Init => parse_initial_decl(parser)?,
+            Init => unreachable!(),
             Map => parse_map_decl(parser)?,
             Proc => parse_process_decl(parser)?,
             Sort => parse_sort_decl(parser)?,
@@ -177,13 +181,13 @@ pub fn parse_var_decl_list(parser: &mut Parser) -> Result<Vec<VariableDecl>, Par
 
     let ids = parser.parse_identifier_list()?;
     parser.expect_token(&LexicalElement::Colon)?;
-    let sort = Rc::new(parser.parse::<Sort>()?);
+    let sort = Arc::new(parser.parse::<Sort>()?);
     result.push(VariableDecl { ids, sort });
 
     while parser.skip_if_equal(&LexicalElement::Comma) {
         let ids = parser.parse_identifier_list()?;
         parser.expect_token(&LexicalElement::Colon)?;
-        let sort = Rc::new(parser.parse::<Sort>()?);
+        let sort = Arc::new(parser.parse::<Sort>()?);
         result.push(VariableDecl { ids, sort });
     }
 
@@ -198,7 +202,7 @@ fn parse_action_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     let ids = parser.parse_identifier_list()?;
 
     let sort = if parser.skip_if_equal(&LexicalElement::Colon) {
-        Some(Rc::new(parser.parse::<Sort>()?))
+        Some(Arc::new(parser.parse::<Sort>()?))
     } else {
         None
     };
@@ -219,7 +223,7 @@ fn parse_constructor_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     let ids = parser.parse_identifier_list()?;
 
     parser.expect_token(&LexicalElement::Colon)?;
-    let sort = Rc::new(parser.parse::<Sort>()?);
+    let sort = Arc::new(parser.parse::<Sort>()?);
 
     parser.expect_token(&LexicalElement::Semicolon)?;
 
@@ -249,15 +253,15 @@ fn parse_equation_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     parser.expect_token(&LexicalElement::Eqn)?;
     let mut equations = Vec::new();
     while parser.has_token() && !is_decl_keyword(&parser.get_token().value) {
-        let expr = Rc::new(parser.parse::<Expr>()?);
+        let expr = Arc::new(parser.parse::<Expr>()?);
         if parser.skip_if_equal(&LexicalElement::Equals) {
-            let rhs = Rc::new(parser.parse::<Expr>()?);
+            let rhs = Arc::new(parser.parse::<Expr>()?);
 
             equations.push(EquationDecl { condition: None, lhs: expr, rhs });
         } else if parser.skip_if_equal(&LexicalElement::Arrow) {
-            let lhs = Rc::new(parser.parse::<Expr>()?);
+            let lhs = Arc::new(parser.parse::<Expr>()?);
             parser.expect_token(&LexicalElement::Equals)?;
-            let rhs = Rc::new(parser.parse::<Expr>()?);
+            let rhs = Arc::new(parser.parse::<Expr>()?);
 
             equations.push(EquationDecl { condition: Some(expr), lhs, rhs });
         } else {
@@ -290,7 +294,7 @@ fn parse_initial_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     let loc = parser.get_loc();
     parser.expect_token(&LexicalElement::Init).unwrap();
 
-    let value = Rc::new(parser.parse::<Proc>()?);
+    let value = Arc::new(parser.parse::<Proc>()?);
     parser.expect_token(&LexicalElement::Semicolon)?;
 
     Ok(Decl::new(
@@ -305,7 +309,7 @@ fn parse_map_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
 
     let id = parser.parse_identifier()?;
     parser.expect_token(&LexicalElement::Colon)?;
-    let sort = Rc::new(parser.parse::<Sort>()?);
+    let sort = Arc::new(parser.parse::<Sort>()?);
     parser.expect_token(&LexicalElement::Semicolon)?;
 
     Ok(Decl::new(
@@ -328,7 +332,7 @@ fn parse_process_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
         while {
             let ids = parser.parse_identifier_list()?;
             parser.expect_token(&LexicalElement::Colon)?;
-            let sort = Rc::new(parser.parse::<Sort>()?);
+            let sort = Arc::new(parser.parse::<Sort>()?);
             params.push(VariableDecl { ids, sort });
 
             parser.skip_if_equal(&LexicalElement::Comma)
@@ -337,7 +341,7 @@ fn parse_process_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     }
     parser.expect_token(&LexicalElement::Equals)?;
 
-    let process = Rc::new(parser.parse::<Proc>()?);
+    let process = Arc::new(parser.parse::<Proc>()?);
     parser.expect_token(&LexicalElement::Semicolon)?;
 
     Ok(Decl::new(
@@ -354,7 +358,7 @@ fn parse_sort_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
         // sort A = B;
         let id = parser.parse_identifier()?;
         parser.expect_token(&LexicalElement::Equals).unwrap();
-        let value = Some(Rc::new(parser.parse::<Sort>()?));
+        let value = Some(Arc::new(parser.parse::<Sort>()?));
         parser.expect_token(&LexicalElement::Semicolon)?;
 
         (vec![id], value)

@@ -7,12 +7,12 @@ use crate::ir::sort::{IrSort, SortId};
 use crate::model::sort::{Sort, SortEnum};
 
 use std::collections::hash_map::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub fn convert_ir_sort(
     context: &AnalysisContext,
     id_map: &HashMap<Identifier, DeclId>,
-    sort: &Option<Rc<Sort>>,
+    sort: &Option<Arc<Sort>>,
     result_id: SortId,
     ir_mapping: &mut ModuleIrMapping,
 ) -> Result<SortId, SemanticError> {
@@ -32,7 +32,7 @@ pub fn convert_ir_sort(
 fn create_ir_sort(
     context: &AnalysisContext,
     id_map: &HashMap<Identifier, DeclId>,
-    sort: &Rc<Sort>,
+    sort: &Arc<Sort>,
 ) -> Result<IrSort, SemanticError> {
     Ok(match &sort.value {
         SortEnum::Bool => context.get_sorts().get_bool_sort(),

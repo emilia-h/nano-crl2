@@ -11,7 +11,7 @@ use crate::util::hashing::HashByAddress;
 use std::cell::{Cell, RefCell};
 use std::collections::hash_map::HashMap;
 use std::hash::Hash;
-use std::rc::Rc;
+use std::sync::Arc;
 
 // my work is for a part based on the rustc compiler architecture:
 // https://rustc-dev-guide.rust-lang.org/query.html
@@ -25,7 +25,7 @@ use std::rc::Rc;
 /// queries that are cached to avoid computing the same result more than once.
 pub struct AnalysisContext {
     pub(crate) ast_modules: Vec<(String, Module)>,
-    pub(crate) ir_modules: RefCell<HashMap<ModuleId, Rc<IrModule>>>,
+    pub(crate) ir_modules: RefCell<HashMap<ModuleId, Arc<IrModule>>>,
     pub(crate) sort_context: SortContext,
     id_counter: Cell<usize>,
 }
@@ -114,12 +114,12 @@ pub struct SortContext {
 impl SortContext {
     fn new() -> Self {
         SortContext {
-            unit_sort: IrSort { value: HashByAddress::new(Rc::new(IrSortEnum::Unit)) },
-            bool_sort: IrSort { value: HashByAddress::new(Rc::new(IrSortEnum::Bool)) },
-            pos_sort: IrSort { value: HashByAddress::new(Rc::new(IrSortEnum::Pos)) },
-            nat_sort: IrSort { value: HashByAddress::new(Rc::new(IrSortEnum::Nat)) },
-            int_sort: IrSort { value: HashByAddress::new(Rc::new(IrSortEnum::Int)) },
-            real_sort: IrSort { value: HashByAddress::new(Rc::new(IrSortEnum::Real)) },
+            unit_sort: IrSort { value: HashByAddress::new(Arc::new(IrSortEnum::Unit)) },
+            bool_sort: IrSort { value: HashByAddress::new(Arc::new(IrSortEnum::Bool)) },
+            pos_sort: IrSort { value: HashByAddress::new(Arc::new(IrSortEnum::Pos)) },
+            nat_sort: IrSort { value: HashByAddress::new(Arc::new(IrSortEnum::Nat)) },
+            int_sort: IrSort { value: HashByAddress::new(Arc::new(IrSortEnum::Int)) },
+            real_sort: IrSort { value: HashByAddress::new(Arc::new(IrSortEnum::Real)) },
             list_sorts: RefCell::new(HashMap::new()),
             set_sorts: RefCell::new(HashMap::new()),
             bag_sorts: RefCell::new(HashMap::new()),
@@ -223,7 +223,7 @@ impl SortContext {
         F: Fn() -> IrSortEnum,
     {
         sorts.entry(key)
-            .or_insert_with(|| IrSort { value: HashByAddress::new(Rc::new(value())) })
+            .or_insert_with(|| IrSort { value: HashByAddress::new(Arc::new(value())) })
             .clone()
     }
 }

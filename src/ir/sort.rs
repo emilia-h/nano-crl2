@@ -2,11 +2,11 @@
 use crate::ir::module::ModuleId;
 use crate::util::hashing::HashByAddress;
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct IrSort {
-    pub value: HashByAddress<Rc<IrSortEnum>>,
+    pub value: HashByAddress<Arc<IrSortEnum>>,
 }
 
 #[derive(Clone, Debug)]

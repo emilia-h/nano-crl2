@@ -15,6 +15,23 @@ pub enum IrExprEnum {
     Name {
         id: DeclId,
     },
+    Number {
+        // TODO should actually allow arbitrary-size integers
+        value: u64,
+    },
+    // TODO many more
+    Apply {
+        callee: ExprId,
+        args: Vec<ExprId>,
+    },
+    // TODO many more
+    Forall {
+
+    },
+    Exists {
+
+    },
+    // TODO many more
 }
 
 #[derive(Debug)]

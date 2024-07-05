@@ -12,7 +12,7 @@ use crate::model::proc::Proc;
 use crate::model::sort::Sort;
 
 use std::collections::hash_map::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum SemanticError {
@@ -36,14 +36,14 @@ pub enum SemanticError {
 pub fn query_ir_module(
     context: &AnalysisContext,
     module: ModuleId,
-) -> Rc<IrModule> {
+) -> Arc<IrModule> {
     if let Some(result) = context.ir_modules.borrow().get(&module) {
-        return Rc::clone(result);
+        return Arc::clone(result);
     }
 
     let (name, ast_module) = context.get_ast_module(module);
     let name = name.clone();
-    let decls = ast_module.decls.iter().map(|x| Rc::clone(x)).collect::<Vec<_>>();
+    let decls = ast_module.decls.iter().map(|x| Arc::clone(x)).collect::<Vec<_>>();
 
     // step 1: collect all top-level declarations, convert those to `IrDecl`s
     // and store all necessary data in some maps
@@ -71,7 +71,7 @@ pub fn query_ir_module(
         convert_ir_decl(context, &mapping, decl_id, &mut ir_mapping);
     }
 
-    let result = Rc::new(IrModule {
+    let result = Arc::new(IrModule {
         name,
         decls: ir_mapping.decls,
         exprs: ir_mapping.exprs,
@@ -79,7 +79,7 @@ pub fn query_ir_module(
         rewrite_rules: Vec::new(),
         top_level_symbols: mapping.id_map,
     });
-    context.ir_modules.borrow_mut().insert(module, Rc::clone(&result));
+    context.ir_modules.borrow_mut().insert(module, Arc::clone(&result));
     result
 }
 
@@ -89,7 +89,7 @@ pub fn query_ir_module(
 fn add_decl_to_mapping(
     context: &AnalysisContext,
     module: ModuleId,
-    decl: &Rc<Decl>,
+    decl: &Arc<Decl>,
     mapping: &mut ModuleAstMapping,
     decls: &mut HashMap<DeclId, IrDecl>,
 ) -> Result<(), SemanticError> {
@@ -112,7 +112,7 @@ fn add_decl_to_mapping(
         },
         DeclEnum::Constructor { ids, sort } => {
             let sort_id = context.generate_sort_id(module);
-            mapping.ast_sort_map.insert(sort_id, Some(Rc::clone(&sort)));
+            mapping.ast_sort_map.insert(sort_id, Some(Arc::clone(&sort)));
 
             for id in ids {
                 add_ir_decl(decls, id, IrDeclEnum::Constructor { sort: sort_id });
@@ -121,7 +121,7 @@ fn add_decl_to_mapping(
         DeclEnum::GlobalVariable { variables } => {
             for variable_decl in variables {
                 let sort_id = context.generate_sort_id(module);
-                mapping.ast_sort_map.insert(sort_id, Some(Rc::clone(&variable_decl.sort)));
+                mapping.ast_sort_map.insert(sort_id, Some(Arc::clone(&variable_decl.sort)));
 
                 for id in &variable_decl.ids {
                     add_ir_decl(decls, id, IrDeclEnum::GlobalVariable { sort: sort_id });
@@ -130,7 +130,7 @@ fn add_decl_to_mapping(
         },
         DeclEnum::Map { id, sort } => {
             let sort_id = context.generate_sort_id(module);
-            mapping.ast_sort_map.insert(sort_id, Some(Rc::clone(&sort)));
+            mapping.ast_sort_map.insert(sort_id, Some(Arc::clone(&sort)));
 
             add_ir_decl(decls, id, IrDeclEnum::Map { sort: sort_id });
         },
@@ -140,7 +140,7 @@ fn add_decl_to_mapping(
             let mut param_mappings = Vec::new();
             for variable_decl in params {
                 let sort_id = context.generate_sort_id(module);
-                mapping.ast_sort_map.insert(sort_id, Some(Rc::clone(&variable_decl.sort)));
+                mapping.ast_sort_map.insert(sort_id, Some(Arc::clone(&variable_decl.sort)));
 
                 for id in &variable_decl.ids {
                     let param_id = context.generate_decl_id(module);
@@ -151,7 +151,7 @@ fn add_decl_to_mapping(
                     param_mappings.push((id.clone(), sort_id));
                 }
             }
-            mapping.ast_proc_map.insert(process_id, (param_mappings, Rc::clone(&proc)));
+            mapping.ast_proc_map.insert(process_id, (param_mappings, Arc::clone(&proc)));
 
             let proc = IrDeclEnum::Process { params: param_ids, proc: process_id };
             add_ir_decl(decls, id, proc);
@@ -159,7 +159,7 @@ fn add_decl_to_mapping(
         DeclEnum::Sort { ids, sort } => {
             let sort_id = context.generate_sort_id(module);
             if let Some(s) = sort {
-                mapping.ast_sort_map.insert(sort_id, Some(Rc::clone(&s)));
+                mapping.ast_sort_map.insert(sort_id, Some(Arc::clone(&s)));
             } else {
                 todo!("construct new structural type");
             }
@@ -188,14 +188,14 @@ pub struct ModuleAstMapping {
 
     /// Stores IDs of process declarations in this module and maps them to its
     /// parameters in the AST and a `Proc` node in the AST.
-    pub ast_proc_map: HashMap<ProcId, (Vec<(Identifier, SortId)>, Rc<Proc>)>,
+    pub ast_proc_map: HashMap<ProcId, (Vec<(Identifier, SortId)>, Arc<Proc>)>,
 
     /// Stores IDs of sorts in this module and maps them to a node in the AST.
     /// 
     /// Note that if an ID is mapped to `None`, this means that the code did
     /// not explicitly denote a sort. Most likely this means that a "unit" sort
     /// is to be substituted.
-    pub ast_sort_map: HashMap<SortId, Option<Rc<Sort>>>,
+    pub ast_sort_map: HashMap<SortId, Option<Arc<Sort>>>,
 }
 
 pub struct ModuleIrMapping {

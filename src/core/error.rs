@@ -17,8 +17,8 @@ pub enum Mcrl2Error {
     /// A syntax or other compilation error in an mCRL2 model.
     ModelError {
         message: String,
-        line: usize,
-        character: usize,
+        line: u32,
+        character: u32,
     },
 
     /// An error in input or output, for instance when a given file does not

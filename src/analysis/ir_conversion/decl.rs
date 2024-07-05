@@ -35,7 +35,8 @@ pub fn convert_ir_decl(
         IrDeclEnum::Process { params, proc } => {
             let proc = proc.clone();
 
-            // go from process id to original AST parameters and process
+            // go from process id to original AST parameters and process, then
+            // convert them and add them to the name map
             let (ast_params, ast_proc) = mapping.ast_proc_map.get(&proc)
                 .expect("process should have been added to mapping in step 1");
 

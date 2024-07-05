@@ -29,8 +29,8 @@ use std::str::Chars;
 #[derive(Debug)]
 pub struct LexError {
     pub message: String,
-    pub line: usize,
-    pub character: usize,
+    pub line: u32,
+    pub character: u32,
 }
 
 impl Into<Mcrl2Error> for LexError {
@@ -315,7 +315,7 @@ pub fn reconstruct_from_tokens(input: &[Token]) -> String {
 
         let string = format!("{}", token.value);
         result.push_str(&string);
-        curr_char += string.len();
+        curr_char += string.len() as u32;
     }
 
     result
@@ -386,8 +386,8 @@ impl<'a> Lexer<'a> {
                     if in_integer {
                         return Err(LexError {
                             message: String::from("found word character right after integer"),
-                            line: self.curr_line,
-                            character: self.curr_char,
+                            line: self.curr_line as u32,
+                            character: self.curr_char as u32,
                         });
                     }
                     in_identifier = true;
@@ -592,10 +592,10 @@ impl<'a> Lexer<'a> {
         self.tokens.push(Token {
             value: element,
             loc: SourceLocation::new(
-                self.token_line,
-                self.token_char,
-                self.curr_line,
-                self.curr_char,
+                self.token_line as u32,
+                self.token_char as u32,
+                self.curr_line as u32,
+                self.curr_char as u32,
             ),
         });
         self.skip_whitespace();

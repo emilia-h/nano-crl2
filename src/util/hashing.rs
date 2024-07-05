@@ -1,6 +1,7 @@
 
 use std::hash::{Hash, Hasher};
 use std::fmt::{Debug, Formatter};
+use std::sync::Arc;
 use std::rc::Rc;
 
 pub trait Addressable: Clone {
@@ -10,6 +11,12 @@ pub trait Addressable: Clone {
 impl<T> Addressable for Rc<T> {
     fn to_pointer_value(&self) -> usize {
         Rc::as_ptr(self) as usize
+    }
+}
+
+impl<T> Addressable for Arc<T> {
+    fn to_pointer_value(&self) -> usize {
+        Arc::as_ptr(self) as usize
     }
 }
 

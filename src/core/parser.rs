@@ -25,8 +25,8 @@ use crate::core::syntax::{Identifier, SourceLocation};
 #[derive(Debug)]
 pub struct ParseError {
     pub message: String,
-    pub line: usize,
-    pub character: usize,
+    pub line: u32,
+    pub character: u32,
 }
 
 impl ParseError {

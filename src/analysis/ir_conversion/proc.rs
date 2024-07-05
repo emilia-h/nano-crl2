@@ -5,11 +5,12 @@ use crate::analysis::ir_conversion::module::{ModuleIrMapping, SemanticError};
 use crate::analysis::ir_conversion::sort::convert_ir_sort;
 use crate::core::syntax::Identifier;
 use crate::ir::decl::{DeclId, IrDeclEnum};
+use crate::ir::expr::ExprId;
 use crate::ir::proc::{IrProc, IrProcEnum, ProcId};
 use crate::model::proc::{Proc, ProcEnum};
 
 use std::collections::hash_map::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Constructs the intermediate representation of a process.
 /// 
@@ -20,7 +21,7 @@ use std::rc::Rc;
 pub fn convert_ir_proc(
     context: &AnalysisContext,
     id_map: &mut HashMap<Identifier, DeclId>,
-    proc: &Rc<Proc>,
+    proc: &Arc<Proc>,
     result_id: ProcId,
     ir_mapping: &mut ModuleIrMapping,
 ) -> Result<ProcId, SemanticError> {
@@ -139,7 +140,7 @@ pub fn convert_ir_proc(
 
                     let sort_id = convert_ir_sort(
                         context, id_map,
-                        &Some(Rc::clone(&variable_decl.sort)),
+                        &Some(Arc::clone(&variable_decl.sort)),
                         context.generate_sort_id(ir_mapping.module),
                         ir_mapping,
                     )?;
@@ -179,8 +180,17 @@ pub fn convert_ir_proc(
                 },
             )?;
         },
-        ProcEnum::Multi { lhs: _, rhs: _ } => {
-            todo!()
+        ProcEnum::Multi { lhs, rhs } => {
+            // in the AST `|` is a binary operator, but in the IR we want it to
+            // be a single vec, so we recursively collect all actions here
+            let mut actions = Vec::new();
+            extract_actions(context, id_map, lhs, ir_mapping, &mut actions)?;
+            extract_actions(context, id_map, rhs, ir_mapping, &mut actions)?;
+
+            ir_mapping.procs.insert(result_id, IrProc {
+                value: IrProcEnum::MultiAction { actions },
+                loc: proc.loc,
+            });
         },
         ProcEnum::IfThenElse { condition, then_proc, else_proc } => {
             let c = convert_ir_expr(
@@ -244,11 +254,53 @@ pub fn convert_ir_proc(
     Ok(result_id)
 }
 
+/// Adds all actions within a multi-action, or returns an error if the
+/// multi-action operator `|` is used on another (syntactic) construct than an
+/// action.
+fn extract_actions(
+    context: &AnalysisContext,
+    id_map: &mut HashMap<Identifier, DeclId>,
+    proc: &Arc<Proc>,
+    ir_mapping: &mut ModuleIrMapping,
+    output: &mut Vec<(DeclId, Vec<ExprId>)>,
+) -> Result<(), SemanticError> {
+    match &proc.value {
+        ProcEnum::Action { value } => {
+            let Some(&decl_id) = id_map.get(&value.id) else {
+                return Err(SemanticError::IdentifierError {
+                    message: "Unrecognized identifier".to_owned(),
+                    id: value.id.clone(),
+                });
+            };
+            let mut arg_ids = Vec::new();
+            for arg in &value.args {
+                arg_ids.push(convert_ir_expr(
+                    context, id_map,
+                    arg, context.generate_expr_id(ir_mapping.module),
+                    ir_mapping,
+                )?);
+            }
+            output.push((decl_id, arg_ids));
+        },
+        ProcEnum::Multi { lhs, rhs } => {
+            extract_actions(context, id_map, lhs, ir_mapping, output)?;
+            extract_actions(context, id_map, rhs, ir_mapping, output)?;
+        },
+        _ => {
+            return Err(SemanticError::NodeKindError {
+                message: "The multi-action operator | can only be used between (multi-)actions".to_owned(),
+            });
+        },
+    }
+
+    Ok(())
+}
+
 fn add_binary_ir_proc<F>(
     context: &AnalysisContext,
     id_map: &mut HashMap<Identifier, DeclId>,
-    lhs: &Rc<Proc>,
-    rhs: &Rc<Proc>,
+    lhs: &Arc<Proc>,
+    rhs: &Arc<Proc>,
     result_id: ProcId,
     ir_mapping: &mut ModuleIrMapping,
     f: F,

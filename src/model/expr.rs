@@ -11,7 +11,7 @@ use crate::model::display::display_pretty_default;
 use crate::model::sort::Sort;
 
 use std::fmt::{Debug, Display, Formatter};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// A data expression in an mCRL2 model.
 pub struct Expr {
@@ -51,132 +51,132 @@ pub enum ExprEnum {
         value: bool,
     },
     List {
-        values: Vec<Rc<Expr>>,
+        values: Vec<Arc<Expr>>,
     },
     Set {
-        values: Vec<Rc<Expr>>,
+        values: Vec<Arc<Expr>>,
     },
     Bag {
-        values: Vec<(Rc<Expr>, Rc<Expr>)>,
+        values: Vec<(Arc<Expr>, Arc<Expr>)>,
     },
     SetComprehension {
         id: Identifier,
-        sort: Rc<Sort>,
-        expr: Rc<Expr>,
+        sort: Arc<Sort>,
+        expr: Arc<Expr>,
     },
     FunctionUpdate {
-        function: Rc<Expr>,
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        function: Arc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     Apply {
-        callee: Rc<Expr>,
-        args: Vec<Rc<Expr>>,
+        callee: Arc<Expr>,
+        args: Vec<Arc<Expr>>,
     },
     LogicalNot {
-        value: Rc<Expr>,
+        value: Arc<Expr>,
     },
     Negate {
-        value: Rc<Expr>,
+        value: Arc<Expr>,
     },
     Count {
-        value: Rc<Expr>,
+        value: Arc<Expr>,
     },
     Forall {
         variables: Vec<VariableDecl>,
-        expr: Rc<Expr>,
+        expr: Arc<Expr>,
     },
     Exists {
         variables: Vec<VariableDecl>,
-        expr: Rc<Expr>,
+        expr: Arc<Expr>,
     },
     Lambda {
         variables: Vec<VariableDecl>,
-        expr: Rc<Expr>,
+        expr: Arc<Expr>,
     },
     Implies {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     LogicalOr {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     LogicalAnd {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     Equals {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     NotEquals {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     LessThan {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     LessThanEquals {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     GreaterThan {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     GreaterThanEquals {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     In {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     Cons {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     Snoc {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     Concat {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     Add {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     Subtract {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     Divide {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     IntegerDivide {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     Mod {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     Multiply {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     Index {
-        lhs: Rc<Expr>,
-        rhs: Rc<Expr>,
+        lhs: Arc<Expr>,
+        rhs: Arc<Expr>,
     },
     Where {
-        expr: Rc<Expr>,
-        assignments: Vec<(Identifier, Rc<Expr>)>,
+        expr: Arc<Expr>,
+        assignments: Vec<(Identifier, Arc<Expr>)>,
     },
 }
 
@@ -186,7 +186,7 @@ impl Parseable for Expr {
     }
 }
 
-impl Parseable for Vec<Rc<Expr>> {
+impl Parseable for Vec<Arc<Expr>> {
     fn parse(parser: &mut Parser) -> Result<Self, ParseError> {
         parse_expr_list(parser)
     }
@@ -227,11 +227,11 @@ pub fn parse_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
 
             let id = parser.parse_identifier()?;
             parser.expect_token(&LexicalElement::Equals)?;
-            let value = Rc::new(parser.parse::<Expr>()?);
+            let value = Arc::new(parser.parse::<Expr>()?);
             assignments.push((id, value));
         }
         Ok(Expr::new(
-            ExprEnum::Where { expr: Rc::new(expr), assignments },
+            ExprEnum::Where { expr: Arc::new(expr), assignments },
             parser.until_now(&loc),
         ))
     } else {
@@ -253,7 +253,7 @@ fn parse_binder_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
             parser.skip_token();
             let variables = parser.parse::<Vec<VariableDecl>>()?;
             parser.expect_token(&LexicalElement::Period)?;
-            let expr = Rc::new(parse_implies_expr(parser)?);
+            let expr = Arc::new(parse_implies_expr(parser)?);
             Ok(Expr::new(
                 ExprEnum::Exists { variables, expr },
                 parser.until_now(&loc),
@@ -263,7 +263,7 @@ fn parse_binder_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
             parser.skip_token();
             let variables = parser.parse::<Vec<VariableDecl>>()?;
             parser.expect_token(&LexicalElement::Period)?;
-            let expr = Rc::new(parse_implies_expr(parser)?);
+            let expr = Arc::new(parse_implies_expr(parser)?);
             Ok(Expr::new(
                 ExprEnum::Forall { variables, expr },
                 parser.until_now(&loc),
@@ -273,7 +273,7 @@ fn parse_binder_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
             parser.skip_token();
             let variables = parser.parse::<Vec<VariableDecl>>()?;
             parser.expect_token(&LexicalElement::Period)?;
-            let expr = Rc::new(parse_implies_expr(parser)?);
+            let expr = Arc::new(parse_implies_expr(parser)?);
             Ok(Expr::new(
                 ExprEnum::Lambda { variables, expr },
                 parser.until_now(&loc),
@@ -433,7 +433,7 @@ pub fn parse_unit_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
             parser.skip_token();
             let expr = parse_unit_expr(parser)?;
             return Ok(Expr::new(
-                ExprEnum::Negate { value: Rc::new(expr) },
+                ExprEnum::Negate { value: Arc::new(expr) },
                 parser.until_now(&loc),
             ));
         },
@@ -441,7 +441,7 @@ pub fn parse_unit_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
             parser.skip_token();
             let expr = parse_unit_expr(parser)?;
             return Ok(Expr::new(
-                ExprEnum::LogicalNot { value: Rc::new(expr) },
+                ExprEnum::LogicalNot { value: Arc::new(expr) },
                 parser.until_now(&loc),
             ))
         },
@@ -449,7 +449,7 @@ pub fn parse_unit_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
             parser.skip_token();
             let expr = parse_unit_expr(parser)?;
             return Ok(Expr::new(
-                ExprEnum::Count { value: Rc::new(expr) },
+                ExprEnum::Count { value: Arc::new(expr) },
                 parser.until_now(&loc),
             ))
         },
@@ -506,22 +506,22 @@ pub fn parse_unit_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
                 todo!()
                 // let id = parser.parse_identifier()?;
                 // parser.expect_token(&LexicalElement::Colon).unwrap();
-                // let sort = Rc::new(parser.parse_sort()?);
+                // let sort = Arc::new(parser.parse_sort()?);
                 // parser.expect_token(&LexicalElement::Pipe)?;
-                // let expr = Rc::new(parser.parse_expr()?);
+                // let expr = Arc::new(parser.parse_expr()?);
                 // Expr::new(
                 //     ExprEnum::SetComprehension { id, sort, expr },
                 //     parser.until_now(&loc),
                 // )
             } else {
                 // { a, ... } (set) or { a + b : 1, ... } (bag)
-                let expr = Rc::new(parser.parse::<Expr>()?);
+                let expr = Arc::new(parser.parse::<Expr>()?);
                 if parser.skip_if_equal(&LexicalElement::Colon) { // bag
                     todo!()
                 } else { // set
                     let mut values = vec![expr];
                     while parser.skip_if_equal(&LexicalElement::Comma) {
-                        values.push(Rc::new(parser.parse::<Expr>()?));
+                        values.push(Arc::new(parser.parse::<Expr>()?));
                     }
                     parser.expect_token(&LexicalElement::ClosingBrace)?;
                     Expr::new(ExprEnum::Set { values }, parser.until_now(&loc))
@@ -550,17 +550,17 @@ pub fn parse_unit_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
             parser.expect_token(&LexicalElement::ClosingParen)?;
 
             result = Expr::new(
-                ExprEnum::Apply { callee: Rc::new(result), args },
+                ExprEnum::Apply { callee: Arc::new(result), args },
                 parser.until_now(&loc),
             );
         } else if parser.skip_if_equal(&LexicalElement::OpeningBracket) {
-            let lhs = Rc::new(parser.parse::<Expr>()?);
+            let lhs = Arc::new(parser.parse::<Expr>()?);
             parser.expect_token(&LexicalElement::Arrow)?;
-            let rhs = Rc::new(parser.parse::<Expr>()?);
+            let rhs = Arc::new(parser.parse::<Expr>()?);
             parser.expect_token(&LexicalElement::ClosingBracket)?;
 
             result = Expr::new(ExprEnum::FunctionUpdate {
-                function: Rc::new(result),
+                function: Arc::new(result),
                 lhs, rhs,
             }, parser.until_now(&loc));
         } else {
@@ -570,11 +570,11 @@ pub fn parse_unit_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
 }
 
 /// Parses comma-separated list of expressions
-pub fn parse_expr_list(parser: &mut Parser) -> Result<Vec<Rc<Expr>>, ParseError> {
+pub fn parse_expr_list(parser: &mut Parser) -> Result<Vec<Arc<Expr>>, ParseError> {
     let mut result = Vec::new();
-    result.push(Rc::new(parser.parse::<Expr>()?));
+    result.push(Arc::new(parser.parse::<Expr>()?));
     while parser.skip_if_equal(&LexicalElement::Comma) {
-        result.push(Rc::new(parser.parse::<Expr>()?));
+        result.push(Arc::new(parser.parse::<Expr>()?));
     }
     Ok(result)
 }
@@ -584,7 +584,7 @@ pub fn parse_expr_list(parser: &mut Parser) -> Result<Vec<Rc<Expr>>, ParseError>
 fn parse_left_associative_expr<'a, F>(
     parser: &mut Parser<'a>,
     sub_parser: &F,
-    options: &[(&LexicalElement, &dyn Fn(Rc<Expr>, Rc<Expr>) -> ExprEnum)],
+    options: &[(&LexicalElement, &dyn Fn(Arc<Expr>, Arc<Expr>) -> ExprEnum)],
 ) -> Result<Expr, ParseError>
 where
     F: Fn(&mut Parser<'a>) -> Result<Expr, ParseError>,
@@ -595,9 +595,9 @@ where
     'outer: loop {
         for (lexical_element, constructor) in options {
             if parser.skip_if_equal(lexical_element) {
-                let rhs = Rc::new(sub_parser(parser)?);
+                let rhs = Arc::new(sub_parser(parser)?);
                 result = Expr::new(
-                    constructor(Rc::new(result), rhs),
+                    constructor(Arc::new(result), rhs),
                     parser.until_now(&loc),
                 );
                 continue 'outer;
@@ -612,7 +612,7 @@ fn parse_right_associative_expr<'a, F>(
     parser: &mut Parser<'a>,
     sub_parser: &F,
     lexical_element: &LexicalElement,
-    constructor: &dyn Fn(Rc<Expr>, Rc<Expr>) -> ExprEnum,
+    constructor: &dyn Fn(Arc<Expr>, Arc<Expr>) -> ExprEnum,
 ) -> Result<Expr, ParseError>
 where
     F: Fn(&mut Parser<'a>) -> Result<Expr, ParseError>,
@@ -621,12 +621,12 @@ where
     let lhs = sub_parser(parser)?;
 
     if parser.skip_if_equal(lexical_element) {
-        let rhs = Rc::new(parse_right_associative_expr(
+        let rhs = Arc::new(parse_right_associative_expr(
             parser, sub_parser, lexical_element, constructor,
         )?);
 
         Ok(Expr::new(
-            constructor(Rc::new(lhs), rhs),
+            constructor(Arc::new(lhs), rhs),
             parser.until_now(&loc),
         ))
     } else {

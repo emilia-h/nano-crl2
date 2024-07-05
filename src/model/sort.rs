@@ -12,7 +12,7 @@ use crate::core::syntax::{Identifier, SourceLocation};
 use crate::model::display::display_pretty_default;
 
 use std::fmt::{Debug, Display, Formatter};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// A sort in an mCRL2 model, AKA a type.
 pub struct Sort {
@@ -48,19 +48,19 @@ pub enum SortEnum {
     Int,
     Real,
     List {
-        subsort: Rc<Sort>,
+        subsort: Arc<Sort>,
     },
     Set {
-        subsort: Rc<Sort>,
+        subsort: Arc<Sort>,
     },
     Bag {
-        subsort: Rc<Sort>,
+        subsort: Arc<Sort>,
     },
     FSet {
-        subsort: Rc<Sort>,
+        subsort: Arc<Sort>,
     },
     FBag {
-        subsort: Rc<Sort>,
+        subsort: Arc<Sort>,
     },
     Id {
         id: Identifier,
@@ -69,12 +69,12 @@ pub enum SortEnum {
         constructors: Vec<Constructor>,
     },
     Carthesian {
-        lhs: Rc<Sort>,
-        rhs: Rc<Sort>,
+        lhs: Arc<Sort>,
+        rhs: Arc<Sort>,
     },
     Function {
-        lhs: Rc<Sort>,
-        rhs: Rc<Sort>,
+        lhs: Arc<Sort>,
+        rhs: Arc<Sort>,
     },
 }
 
@@ -84,7 +84,7 @@ pub enum SortEnum {
 #[derive(Debug)]
 pub struct Constructor {
     pub id: Identifier,
-    pub properties: Vec<(Option<Identifier>, Rc<Sort>)>,
+    pub properties: Vec<(Option<Identifier>, Arc<Sort>)>,
     pub recognizer_function_id: Option<Identifier>,
 }
 
@@ -109,7 +109,7 @@ pub fn parse_sort(parser: &mut Parser) -> Result<Sort, ParseError> {
     if parser.skip_if_equal(&LexicalElement::Arrow) {
         let rhs = parser.parse::<Sort>()?;
         Ok(Sort::new(
-            SortEnum::Function { lhs: Rc::new(lhs), rhs: Rc::new(rhs) },
+            SortEnum::Function { lhs: Arc::new(lhs), rhs: Arc::new(rhs) },
             parser.until_now(&loc),
         ))
     } else {
@@ -125,7 +125,7 @@ fn parse_carthesian_sort(parser: &mut Parser) -> Result<Sort, ParseError> {
     if parser.skip_if_equal(&LexicalElement::HashSign) {
         let rhs = parse_carthesian_sort(parser)?;
         Ok(Sort::new(
-            SortEnum::Carthesian { lhs: Rc::new(lhs), rhs: Rc::new(rhs) },
+            SortEnum::Carthesian { lhs: Arc::new(lhs), rhs: Arc::new(rhs) },
             parser.until_now(&loc),
         ))
     } else {
@@ -161,35 +161,35 @@ fn parse_basic_sort(parser: &mut Parser) -> Result<Sort, ParseError> {
         LexicalElement::List => {
             parser.skip_token();
             parser.expect_token(&LexicalElement::OpeningParen)?;
-            let subsort = Rc::new(parser.parse::<Sort>()?);
+            let subsort = Arc::new(parser.parse::<Sort>()?);
             parser.expect_token(&LexicalElement::ClosingParen)?;
             Ok(Sort::new(SortEnum::List { subsort }, parser.until_now(&loc)))
         },
         LexicalElement::Set => {
             parser.skip_token();
             parser.expect_token(&LexicalElement::OpeningParen)?;
-            let subsort = Rc::new(parser.parse::<Sort>()?);
+            let subsort = Arc::new(parser.parse::<Sort>()?);
             parser.expect_token(&LexicalElement::ClosingParen)?;
             Ok(Sort::new(SortEnum::Set { subsort }, parser.until_now(&loc)))
         },
         LexicalElement::Bag => {
             parser.skip_token();
             parser.expect_token(&LexicalElement::OpeningParen)?;
-            let subsort = Rc::new(parser.parse::<Sort>()?);
+            let subsort = Arc::new(parser.parse::<Sort>()?);
             parser.expect_token(&LexicalElement::ClosingParen)?;
             Ok(Sort::new(SortEnum::Bag { subsort }, parser.until_now(&loc)))
         },
         LexicalElement::FSet => {
             parser.skip_token();
             parser.expect_token(&LexicalElement::OpeningParen)?;
-            let subsort = Rc::new(parser.parse::<Sort>()?);
+            let subsort = Arc::new(parser.parse::<Sort>()?);
             parser.expect_token(&LexicalElement::ClosingParen)?;
             Ok(Sort::new(SortEnum::FSet { subsort }, parser.until_now(&loc)))
         },
         LexicalElement::FBag => {
             parser.skip_token();
             parser.expect_token(&LexicalElement::OpeningParen)?;
-            let subsort = Rc::new(parser.parse::<Sort>()?);
+            let subsort = Arc::new(parser.parse::<Sort>()?);
             parser.expect_token(&LexicalElement::ClosingParen)?;
             Ok(Sort::new(SortEnum::FBag { subsort }, parser.until_now(&loc)))
         },
@@ -251,7 +251,7 @@ fn parse_constructor(parser: &mut Parser) -> Result<Constructor, ParseError> {
             };
             let sort = parser.parse::<Sort>()?;
 
-            properties.push((id, Rc::new(sort)));
+            properties.push((id, Arc::new(sort)));
 
             parser.skip_if_equal(&LexicalElement::Comma)
         } {}

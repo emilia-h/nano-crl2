@@ -9,14 +9,14 @@ use crate::model::display::display_pretty_default;
 use crate::model::proc::Proc;
 
 use std::fmt::{Display, Formatter};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// An mCRL2 model, which consists of a set of declarations along with an
 /// initial process that may instantiate these declarations.
 #[derive(Debug)]
 pub struct Module {
-    pub decls: Vec<Rc<Decl>>,
-    pub initial: Option<Rc<Proc>>,
+    pub decls: Vec<Arc<Decl>>,
+    pub initial: Option<Arc<Proc>>,
 }
 
 impl Display for Module {
@@ -52,7 +52,7 @@ pub fn parse_module(parser: &mut Parser) -> Result<Module, ParseError> {
                 }
                 initial = Some(value);
             } else {
-                decls.push(Rc::new(decl));
+                decls.push(Arc::new(decl));
             }
         }
     }

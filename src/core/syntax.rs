@@ -36,37 +36,37 @@ impl Display for Identifier {
 /// char)` coordinates.
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct SourceLocation {
-    start_line: usize,
-    start_char: usize,
-    end_line: usize,
-    end_char: usize,
+    start_line: u32,
+    start_char: u32,
+    end_line: u32,
+    end_char: u32,
 }
 
 impl SourceLocation {
     /// Creates a new `SourceLocation` spanning `(start_line, start_char)` to
     /// `(end_line, end_char)`.
     pub const fn new(
-        start_line: usize,
-        start_char: usize,
-        end_line: usize,
-        end_char: usize,
+        start_line: u32,
+        start_char: u32,
+        end_line: u32,
+        end_char: u32,
     ) -> Self {
         SourceLocation { start_line, start_char, end_line, end_char }
     }
 
-    pub fn get_start_line(&self) -> usize {
+    pub fn get_start_line(&self) -> u32 {
         self.start_line
     }
 
-    pub fn get_start_char(&self) -> usize {
+    pub fn get_start_char(&self) -> u32 {
         self.start_char
     }
 
-    pub fn get_end_line(&self) -> usize {
+    pub fn get_end_line(&self) -> u32 {
         self.end_line
     }
 
-    pub fn get_end_char(&self) -> usize {
+    pub fn get_end_char(&self) -> u32 {
         self.end_char
     }
 
@@ -76,10 +76,10 @@ impl SourceLocation {
     /// of both.
     pub fn span(&self, other: &SourceLocation) -> Self {
         SourceLocation {
-            start_line: usize::min(self.start_line, other.start_line),
-            start_char: usize::min(self.start_char, other.start_char),
-            end_line: usize::max(self.end_line, other.end_line),
-            end_char: usize::max(self.end_char, other.end_char),
+            start_line: u32::min(self.start_line, other.start_line),
+            start_char: u32::min(self.start_char, other.start_char),
+            end_line: u32::max(self.end_line, other.end_line),
+            end_char: u32::max(self.end_char, other.end_char),
         }
     }
 }

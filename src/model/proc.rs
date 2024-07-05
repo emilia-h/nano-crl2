@@ -17,7 +17,7 @@ use crate::model::decl::VariableDecl;
 use crate::model::expr::{Expr, parse_unit_expr};
 
 use std::fmt::{Debug, Display, Formatter};
-use std::rc::Rc;
+use std::sync::Arc;
 
 use super::display::display_pretty_default;
 
@@ -56,74 +56,74 @@ pub enum ProcEnum {
     // actions and named processes
     // Id {
     //     id: Identifier,
-    //     args: Vec<Rc<Expr>>,
+    //     args: Vec<Arc<Expr>>,
     // },
     Delta,
     Tau,
     Block {
         ids: Vec<Identifier>,
-        proc: Rc<Proc>,
+        proc: Arc<Proc>,
     },
     Allow {
         multi_ids: Vec<Vec<Identifier>>,
-        proc: Rc<Proc>,
+        proc: Arc<Proc>,
     },
     Hide {
         ids: Vec<Identifier>,
-        proc: Rc<Proc>,
+        proc: Arc<Proc>,
     },
     Rename {
         mappings: Vec<RenameMapping>,
-        proc: Rc<Proc>,
+        proc: Arc<Proc>,
     },
     Comm {
         mappings: Vec<CommMapping>,
-        proc: Rc<Proc>,
+        proc: Arc<Proc>,
     },
     Add {
-        lhs: Rc<Proc>,
-        rhs: Rc<Proc>,
+        lhs: Arc<Proc>,
+        rhs: Arc<Proc>,
     },
     Sum {
         variables: Vec<VariableDecl>,
-        proc: Rc<Proc>,
+        proc: Arc<Proc>,
     },
     Parallel {
-        lhs: Rc<Proc>,
-        rhs: Rc<Proc>,
+        lhs: Arc<Proc>,
+        rhs: Arc<Proc>,
     },
     RightParallel {
-        lhs: Rc<Proc>,
-        rhs: Rc<Proc>,
+        lhs: Arc<Proc>,
+        rhs: Arc<Proc>,
     },
     Multi { // a | b
-        lhs: Rc<Proc>,
-        rhs: Rc<Proc>,
+        lhs: Arc<Proc>,
+        rhs: Arc<Proc>,
     },
     IfThenElse {
-        condition: Rc<Expr>,
-        then_proc: Rc<Proc>,
-        else_proc: Option<Rc<Proc>>,
+        condition: Arc<Expr>,
+        then_proc: Arc<Proc>,
+        else_proc: Option<Arc<Proc>>,
     },
     // TODO what is "<<" in the spec???
     LeftShift {
-        lhs: Rc<Proc>,
-        rhs: Rc<Proc>,
+        lhs: Arc<Proc>,
+        rhs: Arc<Proc>,
     },
     Concat {
-        lhs: Rc<Proc>,
-        rhs: Rc<Proc>,
+        lhs: Arc<Proc>,
+        rhs: Arc<Proc>,
     },
     Time {
-        proc: Rc<Proc>,
-        time: Rc<Expr>,
+        proc: Arc<Proc>,
+        time: Arc<Expr>,
     },
 }
 
 #[derive(Clone, Debug)]
 pub struct Action {
     pub id: Identifier,
-    pub args: Vec<Rc<Expr>>,
+    pub args: Vec<Arc<Expr>>,
 }
 
 #[derive(Debug)]
@@ -186,7 +186,7 @@ pub fn parse_multi_action(parser: &mut Parser) -> Result<Vec<Action>, ParseError
             let id = parser.parse_identifier()?;
 
             let args = if parser.skip_if_equal(&LexicalElement::OpeningParen) {
-                let a = parser.parse::<Vec<Rc<Expr>>>()?;
+                let a = parser.parse::<Vec<Arc<Expr>>>()?;
                 parser.expect_token(&LexicalElement::ClosingParen)?;
                 a
             } else {
@@ -230,11 +230,11 @@ fn parse_conditional_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
 
     let mut parser_copy = parser.clone();
     Ok(if is_unit_data_expr(&mut parser_copy)? {
-        let condition = Rc::new(parse_unit_expr(parser)?);
+        let condition = Arc::new(parse_unit_expr(parser)?);
         parser.expect_token(&LexicalElement::Arrow)?;
-        let then_proc = Rc::new(parse_conditional_proc(parser)?);
+        let then_proc = Arc::new(parse_conditional_proc(parser)?);
         let else_proc = if parser.skip_if_equal(&LexicalElement::Diamond) {
-            Some(Rc::new(parse_conditional_proc(parser)?))
+            Some(Arc::new(parse_conditional_proc(parser)?))
         } else {
             None
         };
@@ -263,9 +263,9 @@ fn parse_time_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
     let loc = parser.get_loc();
     let proc = parse_multi_proc(parser)?;
     if parser.skip_if_equal(&LexicalElement::AtSign) {
-        let time = Rc::new(parse_unit_expr(parser)?);
+        let time = Arc::new(parse_unit_expr(parser)?);
         Ok(Proc::new(
-            ProcEnum::Time { proc: Rc::new(proc), time },
+            ProcEnum::Time { proc: Arc::new(proc), time },
             parser.until_now(&loc),
         ))
     } else {
@@ -291,7 +291,7 @@ fn parse_basic_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
             let id = Identifier::new(id);
             parser.skip_token();
             let args = if parser.skip_if_equal(&LexicalElement::OpeningParen) {
-                let args = parser.parse::<Vec<Rc<Expr>>>()?;
+                let args = parser.parse::<Vec<Arc<Expr>>>()?;
                 parser.expect_token(&LexicalElement::ClosingParen)?;
                 args
             } else {
@@ -400,7 +400,7 @@ fn parse_basic_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
             let variables = parser.parse::<Vec<VariableDecl>>()?;
             parser.expect_token(&LexicalElement::Period)?;
             // NOTE: `sum` has lower precedence than . but higher than +
-            let proc = Rc::new(parse_conditional_proc(parser)?);
+            let proc = Arc::new(parse_conditional_proc(parser)?);
             Proc::new(ProcEnum::Sum { variables, proc }, parser.until_now(&loc))
         },
         _ => {
@@ -429,7 +429,7 @@ fn parse_right_associative_proc<F, C>(
 ) -> Result<Proc, ParseError>
 where
     F: Fn(&mut Parser) -> Result<Proc, ParseError>,
-    C: Fn(Rc<Proc>, Rc<Proc>) -> ProcEnum,
+    C: Fn(Arc<Proc>, Arc<Proc>) -> ProcEnum,
 {
     let loc = parser.get_loc();
     let lhs = sub_parser(parser)?;
@@ -437,7 +437,7 @@ where
         let rhs = parse_right_associative_proc(parser, sub_parser, operator, constructor)?;
 
         Ok(Proc::new(
-            constructor(Rc::new(lhs), Rc::new(rhs)),
+            constructor(Arc::new(lhs), Arc::new(rhs)),
             parser.until_now(&loc),
         ))
     } else {
@@ -449,7 +449,7 @@ where
 fn parse_unary_process_operator<F, T>(
     parser: &mut Parser,
     set_parser: F,
-) -> Result<(T, Rc<Proc>), ParseError>
+) -> Result<(T, Arc<Proc>), ParseError>
 where F: Fn(&mut Parser) -> Result<T, ParseError> {
     parser.skip_token();
     parser.expect_token(&LexicalElement::OpeningParen)?;
@@ -457,7 +457,7 @@ where F: Fn(&mut Parser) -> Result<T, ParseError> {
     let ids = set_parser(parser)?;
     parser.expect_token(&LexicalElement::ClosingBrace)?;
     parser.expect_token(&LexicalElement::Comma)?;
-    let proc = Rc::new(parser.parse::<Proc>()?);
+    let proc = Arc::new(parser.parse::<Proc>()?);
     parser.expect_token(&LexicalElement::ClosingParen)?;
     Ok((ids, proc))
 }
@@ -512,7 +512,7 @@ mod tests {
     use crate::core::lexer::tokenize;
     use crate::model::expr::{Expr, ExprEnum};
 
-    fn parse_ite(input: &str) -> Option<(Rc<Expr>, Rc<Proc>, Option<Rc<Proc>>)> {
+    fn parse_ite(input: &str) -> Option<(Arc<Expr>, Arc<Proc>, Option<Arc<Proc>>)> {
         let tokens = tokenize(input).unwrap();
         let proc = Parser::new(&tokens).parse::<Proc>().unwrap();
         if let ProcEnum::IfThenElse { condition, then_proc, else_proc } = proc.value {
