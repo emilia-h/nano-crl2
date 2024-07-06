@@ -5,7 +5,7 @@
 
 use crate::core::lexer::LexicalElement;
 use crate::core::parser::{Parseable, ParseError, Parser};
-use crate::core::syntax::{Identifier, SourceLocation};
+use crate::core::syntax::{Identifier, SourceRange};
 use crate::model::decl::VariableDecl;
 use crate::model::display::display_pretty_default;
 use crate::model::sort::Sort;
@@ -16,12 +16,12 @@ use std::sync::Arc;
 /// A data expression in an mCRL2 model.
 pub struct Expr {
     pub value: ExprEnum,
-    pub loc: SourceLocation,
+    pub loc: SourceRange,
 }
 
 impl Expr {
     /// Creates a new expression with `parent` set to `None`.
-    pub fn new(value: ExprEnum, loc: SourceLocation) -> Self {
+    pub fn new(value: ExprEnum, loc: SourceRange) -> Self {
         Expr { value, loc }
     }
 }
@@ -174,6 +174,11 @@ pub enum ExprEnum {
         lhs: Arc<Expr>,
         rhs: Arc<Expr>,
     },
+    If {
+        condition: Arc<Expr>,
+        then_expr: Arc<Expr>,
+        else_expr: Arc<Expr>,
+    },
     Where {
         expr: Arc<Expr>,
         assignments: Vec<(Identifier, Arc<Expr>)>,
@@ -220,16 +225,15 @@ pub fn parse_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
 
     if parser.skip_if_equal(&LexicalElement::Whr) {
         let mut assignments = Vec::new();
-        loop {
-            if parser.skip_if_equal(&LexicalElement::End) {
-                break;
-            }
-
+        while { // do-while
             let id = parser.parse_identifier()?;
             parser.expect_token(&LexicalElement::Equals)?;
             let value = Arc::new(parser.parse::<Expr>()?);
             assignments.push((id, value));
-        }
+
+            parser.skip_if_equal(&LexicalElement::Comma)
+        } {}
+        parser.expect_token(&LexicalElement::End)?;
         Ok(Expr::new(
             ExprEnum::Where { expr: Arc::new(expr), assignments },
             parser.until_now(&loc),
@@ -461,6 +465,18 @@ pub fn parse_unit_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
             parser.skip_token();
             Expr::new(ExprEnum::Bool { value: false }, loc)
         },
+        LexicalElement::If => {
+            // NOTE: the `if` expression is not given in the mCRL2 grammar
+            parser.skip_token();
+            parser.expect_token(&LexicalElement::OpeningParen)?;
+            let condition = Arc::new(parser.parse::<Expr>()?);
+            parser.expect_token(&LexicalElement::Comma)?;
+            let then_expr = Arc::new(parser.parse::<Expr>()?);
+            parser.expect_token(&LexicalElement::Comma)?;
+            let else_expr = Arc::new(parser.parse::<Expr>()?);
+            parser.expect_token(&LexicalElement::ClosingParen)?;
+            Expr::new(ExprEnum::If { condition, then_expr, else_expr }, loc)
+        },
         &LexicalElement::Integer(value) => {
             parser.skip_token();
             Expr::new(ExprEnum::Number { value }, loc)
@@ -491,34 +507,73 @@ pub fn parse_unit_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
                 // {:}
                 parser.expect_token(&LexicalElement::ClosingBrace)?;
                 Expr::new(
-                    ExprEnum::Bag { values: vec![] },
+                    ExprEnum::Bag { values: Vec::new() },
                     parser.until_now(&loc),
                 )
             } else if parser.skip_if_equal(&LexicalElement::ClosingBrace) {
                 // {}
                 Expr::new(
-                    ExprEnum::Set { values: vec![] },
+                    ExprEnum::Set { values: Vec::new() },
                     parser.until_now(&loc),
                 )
             } else if parser.is_next_token(&LexicalElement::Colon) {
                 // { a: B | ... } (set comprehension) or
                 // { a: 1, b: 2, ... } (bag)
-                todo!()
-                // let id = parser.parse_identifier()?;
-                // parser.expect_token(&LexicalElement::Colon).unwrap();
-                // let sort = Arc::new(parser.parse_sort()?);
-                // parser.expect_token(&LexicalElement::Pipe)?;
-                // let expr = Arc::new(parser.parse_expr()?);
-                // Expr::new(
-                //     ExprEnum::SetComprehension { id, sort, expr },
-                //     parser.until_now(&loc),
-                // )
+                // need to do some lookahead :(
+                if {
+                    let mut parser_copy = parser.clone();
+                    if matches!(parser_copy.get_token().value, LexicalElement::Identifier(_)) {
+                        parser_copy.skip_token();
+                        parser_copy.expect_token(&LexicalElement::Colon).unwrap();
+                        // try to find the |, otherwise it's a bag
+                        is_in_set_comprehension(&mut parser_copy)?
+                    } else {
+                        false
+                    }
+                } {
+                    // in this case, it's a set comprehension; otherwise, just a bag
+                    let id = parser.parse_identifier()?;
+                    parser.expect_token(&LexicalElement::Colon).unwrap();
+                    let sort = Arc::new(parser.parse::<Sort>()?);
+                    parser.expect_token(&LexicalElement::Pipe)?;
+                    let expr = Arc::new(parser.parse::<Expr>()?);
+                    parser.expect_token(&LexicalElement::ClosingBrace)?;
+                    Expr::new(
+                        ExprEnum::SetComprehension { id, sort, expr },
+                        parser.until_now(&loc),
+                    )
+                } else { // just a bag
+                    // NOTE: some duplication with the case below
+                    let lhs1 = Arc::new(parser.parse::<Expr>()?);
+                    parser.expect_token(&LexicalElement::Colon).unwrap();
+                    let rhs1 = Arc::new(parser.parse::<Expr>()?);
+                    let mut values = vec![(lhs1, rhs1)];
+                    while parser.skip_if_equal(&LexicalElement::Comma) {
+                        let lhs = Arc::new(parser.parse::<Expr>()?);
+                        parser.expect_token(&LexicalElement::Colon)?;
+                        let rhs = Arc::new(parser.parse::<Expr>()?);
+                        values.push((lhs, rhs));
+                    }
+                    parser.expect_token(&LexicalElement::ClosingBrace)?;
+                    Expr::new(ExprEnum::Bag { values }, parser.until_now(&loc))
+                }
             } else {
                 // { a, ... } (set) or { a + b : 1, ... } (bag)
                 let expr = Arc::new(parser.parse::<Expr>()?);
-                if parser.skip_if_equal(&LexicalElement::Colon) { // bag
-                    todo!()
-                } else { // set
+                if parser.skip_if_equal(&LexicalElement::Colon) {
+                    // bag
+                    let rhs1 = Arc::new(parser.parse::<Expr>()?);
+                    let mut values = vec![(expr, rhs1)];
+                    while parser.skip_if_equal(&LexicalElement::Comma) {
+                        let lhs = Arc::new(parser.parse::<Expr>()?);
+                        parser.expect_token(&LexicalElement::Colon)?;
+                        let rhs = Arc::new(parser.parse::<Expr>()?);
+                        values.push((lhs, rhs));
+                    }
+                    parser.expect_token(&LexicalElement::ClosingBrace)?;
+                    Expr::new(ExprEnum::Bag { values }, parser.until_now(&loc))
+                } else {
+                    // set
                     let mut values = vec![expr];
                     while parser.skip_if_equal(&LexicalElement::Comma) {
                         values.push(Arc::new(parser.parse::<Expr>()?));
@@ -631,6 +686,44 @@ where
         ))
     } else {
         Ok(lhs)
+    }
+}
+
+/// This is another function I really did not want to write, but it is
+/// necessary to resolve the difficulties with parsing set comprehensions and
+/// bags.
+/// 
+/// Take for instance `{ n: F | n < 2 }` and `{ n: f }`. Here it is
+/// not possible to see from the first few tokens if it is a set comprehension
+/// or a bag expression. As a result, some lookahead is necessary.
+fn is_in_set_comprehension(parser: &mut Parser) -> Result<bool, ParseError> {
+    let mut delimiters = 0u32;
+    loop {
+        if !parser.has_token() {
+            return Err(ParseError::end_of_input(
+                "sort or expression",
+                parser.get_last_loc(),
+            ));
+        }
+        let token = parser.get_token();
+        if delimiters == 0 && token.value == LexicalElement::Pipe {
+            break Ok(true);
+        } else if token.value == LexicalElement::OpeningParen {
+            delimiters += 1;
+        } else if token.value == LexicalElement::OpeningBrace {
+            delimiters += 1;
+        } else if token.value == LexicalElement::ClosingParen {
+            if delimiters == 0 {
+                return Err(ParseError::delimiter_mismatch(")", token.loc));
+            }
+            delimiters -= 1;
+        } else if token.value == LexicalElement::ClosingBrace {
+            if delimiters == 0 {
+                break Ok(false);
+            }
+            delimiters -= 1;
+        }
+        parser.skip_token();
     }
 }
 

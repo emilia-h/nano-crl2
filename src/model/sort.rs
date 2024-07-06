@@ -8,7 +8,7 @@
 
 use crate::core::lexer::LexicalElement;
 use crate::core::parser::{Parseable, ParseError, Parser};
-use crate::core::syntax::{Identifier, SourceLocation};
+use crate::core::syntax::{Identifier, SourceRange};
 use crate::model::display::display_pretty_default;
 
 use std::fmt::{Debug, Display, Formatter};
@@ -17,12 +17,12 @@ use std::sync::Arc;
 /// A sort in an mCRL2 model, AKA a type.
 pub struct Sort {
     pub value: SortEnum,
-    pub loc: SourceLocation,
+    pub loc: SourceRange,
 }
 
 impl Sort {
     /// Creates a new sort with `parent` set to `None`.
-    pub fn new(value: SortEnum, loc: SourceLocation) -> Self {
+    pub fn new(value: SortEnum, loc: SourceRange) -> Self {
         Sort { value, loc }
     }
 }

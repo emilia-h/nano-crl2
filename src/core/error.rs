@@ -1,4 +1,6 @@
 
+use crate::core::syntax::SourceRange;
+
 /// A generic error type caused by user input when using this tool.
 #[derive(Debug)]
 pub enum Mcrl2Error {
@@ -17,8 +19,7 @@ pub enum Mcrl2Error {
     /// A syntax or other compilation error in an mCRL2 model.
     ModelError {
         message: String,
-        line: u32,
-        character: u32,
+        loc: SourceRange,
     },
 
     /// An error in input or output, for instance when a given file does not

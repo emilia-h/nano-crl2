@@ -32,18 +32,56 @@ impl Display for Identifier {
     }
 }
 
-/// A location in a source file, i.e. an inclusive interval over two `(line,
+/// A location in a text file.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub struct SourcePos {
+    line: u32,
+    character: u32,
+}
+
+impl SourcePos {
+    /// Creates a new `SourceLoc` from its components
+    pub const fn new(line: u32, character: u32) -> Self {
+        SourcePos { line, character }
+    }
+
+    pub const fn get_line(&self) -> u32 {
+        self.line
+    }
+
+    pub const fn get_char(&self) -> u32 {
+        self.character
+    }
+}
+
+impl Ord for SourcePos {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.line.cmp(&other.line) {
+            Ordering::Less => Ordering::Less,
+            Ordering::Equal => self.character.cmp(&other.character),
+            Ordering::Greater => Ordering::Greater,
+        }
+    }
+}
+
+impl PartialOrd for SourcePos {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// A selection in a source file, i.e. an inclusive interval over two `(line,
 /// char)` coordinates.
 #[derive(Clone, Copy, Eq, PartialEq)]
-pub struct SourceLocation {
+pub struct SourceRange {
     start_line: u32,
     start_char: u32,
     end_line: u32,
     end_char: u32,
 }
 
-impl SourceLocation {
-    /// Creates a new `SourceLocation` spanning `(start_line, start_char)` to
+impl SourceRange {
+    /// Creates a new `SourceRange` spanning `(start_line, start_char)` to
     /// `(end_line, end_char)`.
     pub const fn new(
         start_line: u32,
@@ -51,31 +89,39 @@ impl SourceLocation {
         end_line: u32,
         end_char: u32,
     ) -> Self {
-        SourceLocation { start_line, start_char, end_line, end_char }
+        SourceRange { start_line, start_char, end_line, end_char }
     }
 
-    pub fn get_start_line(&self) -> u32 {
+    pub const fn get_start(&self) -> SourcePos {
+        SourcePos::new(self.start_line, self.start_char)
+    }
+
+    pub const fn get_start_line(&self) -> u32 {
         self.start_line
     }
 
-    pub fn get_start_char(&self) -> u32 {
+    pub const fn get_start_char(&self) -> u32 {
         self.start_char
     }
 
-    pub fn get_end_line(&self) -> u32 {
+    pub const fn get_end(&self) -> SourcePos {
+        SourcePos::new(self.end_line, self.end_char)
+    }
+
+    pub const fn get_end_line(&self) -> u32 {
         self.end_line
     }
 
-    pub fn get_end_char(&self) -> u32 {
+    pub const fn get_end_char(&self) -> u32 {
         self.end_char
     }
 
-    /// Creates a new `SourceLocation` that spans two given locations.
+    /// Creates a new `SourceRange` that spans two given locations.
     /// 
-    /// In other words, returns the smallest location that is a superinterval
+    /// In other words, returns the smallest range that is a superinterval
     /// of both.
-    pub fn span(&self, other: &SourceLocation) -> Self {
-        SourceLocation {
+    pub fn span(&self, other: &SourceRange) -> Self {
+        SourceRange {
             start_line: u32::min(self.start_line, other.start_line),
             start_char: u32::min(self.start_char, other.start_char),
             end_line: u32::max(self.end_line, other.end_line),
@@ -84,13 +130,13 @@ impl SourceLocation {
     }
 }
 
-impl Debug for SourceLocation {
+impl Debug for SourceRange {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         Display::fmt(&self, f)
     }
 }
 
-impl Display for SourceLocation {
+impl Display for SourceRange {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         write!(
             f, "({}, {}) - ({}, {})",
@@ -100,14 +146,14 @@ impl Display for SourceLocation {
     }
 }
 
-impl Ord for SourceLocation {
+impl Ord for SourceRange {
     fn cmp(&self, other: &Self) -> Ordering {
         self.get_start_line().cmp(&other.get_start_line())
         .then(self.get_start_char().cmp(&other.get_start_char()))
     }
 }
 
-impl PartialOrd for SourceLocation {
+impl PartialOrd for SourceRange {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }

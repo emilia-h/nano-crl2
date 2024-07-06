@@ -1,0 +1,22 @@
+
+map n1: Nat;
+eqn n1 = 42;
+
+map f1: Set(Nat);
+eqn f1 = { n': Nat | n' < 2 };
+
+map f2: FSet(Nat);
+eqn f2 = { 0, 1, 2 + 5, 7 };
+
+map f3: FSet(Nat);
+eqn f3 = { };
+eqn f3 = {};
+
+map f4: FBag(Nat);
+eqn f4 = { n1: 7, 4: 7 };
+
+map f5: FBag(Nat);
+eqn f5 = { n1: 7 };
+
+map f6: FBag(Nat);
+eqn f6 = {:};

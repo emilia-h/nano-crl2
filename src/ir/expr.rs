@@ -1,5 +1,5 @@
 
-use crate::core::syntax::{Identifier, SourceLocation};
+use crate::core::syntax::{Identifier, SourceRange};
 use crate::ir::decl::DeclId;
 use crate::ir::module::ModuleId;
 use crate::ir::sort::IrSort;
@@ -7,7 +7,7 @@ use crate::ir::sort::IrSort;
 #[derive(Debug)]
 pub struct IrExpr {
     pub value: IrExprEnum,
-    pub loc: SourceLocation,
+    pub loc: SourceRange,
 }
 
 #[derive(Debug)]

@@ -13,7 +13,7 @@
 
 use crate::core::lexer::LexicalElement;
 use crate::core::parser::{Parseable, ParseError, Parser};
-use crate::core::syntax::{Identifier, SourceLocation};
+use crate::core::syntax::{Identifier, SourceRange};
 use crate::model::expr::Expr;
 use crate::mu_calculus::regular_formula::RegularFormula;
 
@@ -23,12 +23,12 @@ use std::rc::Rc;
 /// A mu-calculus formula that describes a property of an LTS or mCRL2 model.
 pub struct StateFormula {
     pub value: StateFormulaEnum,
-    pub loc: SourceLocation,
+    pub loc: SourceRange,
 }
 
 impl StateFormula {
     /// Creates a new state formula with `parent` set to `None`.
-    pub fn new(value: StateFormulaEnum, loc: SourceLocation) -> Self {
+    pub fn new(value: StateFormulaEnum, loc: SourceRange) -> Self {
         StateFormula { value, loc }
     }
 }

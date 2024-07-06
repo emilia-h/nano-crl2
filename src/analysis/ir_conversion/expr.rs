@@ -157,6 +157,9 @@ pub fn convert_ir_expr(
         ExprEnum::Index { lhs, rhs } => {
             todo!()
         },
+        ExprEnum::If { condition, then_expr, else_expr } => {
+            todo!()
+        },
         ExprEnum::Where { expr, assignments } => {
             todo!()
         },

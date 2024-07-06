@@ -12,7 +12,7 @@
 
 use crate::core::lexer::LexicalElement;
 use crate::core::parser::{Parseable, ParseError, Parser};
-use crate::core::syntax::{Identifier, SourceLocation};
+use crate::core::syntax::{Identifier, SourceRange};
 use crate::model::decl::VariableDecl;
 use crate::model::expr::{Expr, parse_unit_expr};
 
@@ -24,12 +24,12 @@ use super::display::display_pretty_default;
 /// A process expression in an mCRL2 model.
 pub struct Proc {
     pub value: ProcEnum,
-    pub loc: SourceLocation,
+    pub loc: SourceRange,
 }
 
 impl Proc {
     /// Creates a new process with `parent` set to `None`.
-    pub fn new(value: ProcEnum, loc: SourceLocation) -> Self {
+    pub fn new(value: ProcEnum, loc: SourceRange) -> Self {
         Proc { value, loc }
     }
 }
@@ -229,7 +229,7 @@ fn parse_conditional_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
     let loc = token.loc;
 
     let mut parser_copy = parser.clone();
-    Ok(if is_unit_data_expr(&mut parser_copy)? {
+    if is_unit_data_expr(&mut parser_copy)? {
         let condition = Arc::new(parse_unit_expr(parser)?);
         parser.expect_token(&LexicalElement::Arrow)?;
         let then_proc = Arc::new(parse_conditional_proc(parser)?);
@@ -239,13 +239,13 @@ fn parse_conditional_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
             None
         };
 
-        Proc::new(
+        Ok(Proc::new(
             ProcEnum::IfThenElse { condition, then_proc, else_proc },
             parser.until_now(&loc),
-        )
+        ))
     } else {
-        parse_concat_proc(parser)?
-    })
+        Ok(parse_concat_proc(parser)?)
+    }
 }
 
 fn parse_concat_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
@@ -462,6 +462,16 @@ where F: Fn(&mut Parser) -> Result<T, ParseError> {
     Ok((ids, proc))
 }
 
+/// A function I did not want to write, but is necessary to resolve the parsing
+/// difficulties with `->`.
+/// 
+/// The `->` process expects a UnitExpr on the left-hand side which can be a
+/// parenthesised expression (example: `(a + b == c) -> d`), while a process
+/// expression can also start with a parenthesis (example: `(a(2) + b(3)) .
+/// delta`).
+/// 
+/// As a result, some lookahead is necessary, because the first token alone
+/// does not determine whether we are looking at an expression or a process.
 fn is_unit_data_expr(parser: &mut Parser) -> Result<bool, ParseError> {
     use LexicalElement::*;
 

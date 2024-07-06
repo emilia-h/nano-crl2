@@ -364,6 +364,15 @@ impl DisplayPretty for Expr {
             Index { lhs, rhs } => {
                 display_binary_op(&**lhs, &**rhs, " . ", Precedence::Index, options, f)?;
             },
+            If { condition, then_expr, else_expr } => {
+                write!(f, "if (")?;
+                condition.fmt(&options.with_precedence(Precedence::Comma), f)?;
+                write!(f, ", ")?;
+                then_expr.fmt(&options.with_precedence(Precedence::Comma), f)?;
+                write!(f, ", ")?;
+                else_expr.fmt(&options.with_precedence(Precedence::Comma), f)?;
+                write!(f, ")")?;
+            },
             Where { expr, assignments } => {
                 if options.precedence <= Precedence::Where {
                     write!(f, "(")?;

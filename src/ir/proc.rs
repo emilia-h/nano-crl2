@@ -1,5 +1,5 @@
 
-use crate::core::syntax::SourceLocation;
+use crate::core::syntax::SourceRange;
 use crate::ir::decl::DeclId;
 use crate::ir::expr::ExprId;
 use crate::ir::module::ModuleId;
@@ -9,7 +9,7 @@ use crate::ir::sort::SortId;
 #[derive(Debug)]
 pub struct IrProc {
     pub value: IrProcEnum,
-    pub loc: SourceLocation,
+    pub loc: SourceRange,
 }
 
 #[derive(Debug)]

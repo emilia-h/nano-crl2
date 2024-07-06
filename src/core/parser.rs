@@ -18,51 +18,47 @@
 
 use crate::core::error::Mcrl2Error;
 use crate::core::lexer::{LexicalElement, Token};
-use crate::core::syntax::{Identifier, SourceLocation};
+use crate::core::syntax::{Identifier, SourceRange};
 
 /// A syntax error while parsing, which happens when the input is not in a
 /// correct format.
 #[derive(Debug)]
 pub struct ParseError {
     pub message: String,
-    pub line: u32,
-    pub character: u32,
+    pub loc: SourceRange,
 }
 
 impl ParseError {
     /// Creates a parse error with a given message and source location.
-    pub fn new(message: String, loc: SourceLocation) -> Self {
-        ParseError {
-            message,
-            line: loc.get_start_line(),
-            character: loc.get_start_char(),
-        }
+    pub fn new(message: String, loc: SourceRange) -> Self {
+        ParseError { message, loc }
     }
 
-    /// Creates a parse error with a message of the form "expected A but found
-    /// B".
+    /// Creates a parse error with a message of the form "expected X but found
+    /// Y".
     pub fn expected(expectation: &str, token: &Token) -> Self {
         let mut message = String::from("expected ");
         message.push_str(expectation);
         message.push_str(&format!(" but found {}", token.value));
-        ParseError {
-            message,
-            line: token.loc.get_start_line(),
-            character: token.loc.get_start_char(),
-        }
+        ParseError { message, loc: token.loc }
     }
 
-    /// Creates a parse error with a message of the form "expected A but the
+    /// Creates a parse error with a message of the form "expected X but the
     /// end of the input was reached".
-    pub fn end_of_input(expectation: &str, loc: SourceLocation) -> Self {
+    pub fn end_of_input(expectation: &str, loc: SourceRange) -> Self {
         let mut message = String::from("expected ");
         message.push_str(expectation);
         message.push_str(" but the end of the input was reached");
-        ParseError {
-            message,
-            line: loc.get_start_line(),
-            character: loc.get_start_char(),
-        }
+        ParseError { message, loc }
+    }
+
+    /// Creates a parse error signaling that a mismatching parenthesis,
+    /// bracket, or other delimiter was encountered, with a message of the form
+    /// "found unmatched delimiter X".
+    pub fn delimiter_mismatch(delimiter: &str, loc: SourceRange) -> Self {
+        let mut message = String::from("found unmatched closing delimiter ");
+        message.push_str(delimiter);
+        ParseError { message, loc }
     }
 }
 
@@ -70,8 +66,7 @@ impl Into<Mcrl2Error> for ParseError {
     fn into(self) -> Mcrl2Error {
         Mcrl2Error::ModelError {
             message: self.message,
-            line: self.line,
-            character: self.character,
+            loc: self.loc,
         }
     }
 }
@@ -91,7 +86,9 @@ impl<'a> Parser<'a> {
     /// Creates a new parser from a slice of tokens, that starts parsing from
     /// the first token.
     pub fn new(tokens: &'a [Token]) -> Self {
-        Parser { tokens, index: 0 }
+        let mut parser = Parser { tokens, index: 0 };
+        parser.skip_comments();
+        parser
     }
 
     /// Parses an arbitrary type that has the `Parseable` trait implemented.
@@ -125,8 +122,6 @@ impl<'a> Parser<'a> {
         Ok(ids)
     }
 
-    // helper functions //
-
     /// Returns the token that the parser is currently at.
     /// 
     /// # Preconditions
@@ -142,7 +137,7 @@ impl<'a> Parser<'a> {
     /// # Preconditions
     /// The parser must still have tokens left, i.e. `has_token()` must be
     /// true.
-    pub fn get_loc(&mut self) -> SourceLocation {
+    pub fn get_loc(&mut self) -> SourceRange {
         assert!(self.has_token());
         self.tokens[self.index].loc
     }
@@ -156,9 +151,10 @@ impl<'a> Parser<'a> {
     pub fn get_next_token(&self) -> Option<&Token> {
         assert!(self.has_token());
         let mut i = self.index + 1;
-        while i < self.tokens.len() &&
+        while i < self.tokens.len() && (
+            matches!(&self.tokens[i].value, LexicalElement::Comment(_)) ||
             matches!(&self.tokens[i].value, LexicalElement::DocComment(_))
-        {
+        ) {
             i += 1;
         }
         self.tokens.get(i)
@@ -166,11 +162,11 @@ impl<'a> Parser<'a> {
 
     /// Returns the location of the last token, or `(0, 0)` if there are no
     /// tokens.
-    pub fn get_last_loc(&self) -> SourceLocation {
+    pub fn get_last_loc(&self) -> SourceRange {
         if self.tokens.len() >= 1 {
             self.tokens[self.tokens.len() - 1].loc
         } else {
-            SourceLocation::new(0, 0, 0, 0)
+            SourceRange::new(0, 0, 0, 0)
         }
     }
 
@@ -199,13 +195,9 @@ impl<'a> Parser<'a> {
 
     /// Advances the parser by one token.
     pub fn skip_token(&mut self) {
-        let mut i = self.index + 1;
-        while i < self.tokens.len() &&
-            matches!(&self.tokens[i].value, LexicalElement::DocComment(_))
-        {
-            i += 1;
-        }
-        self.index = i;
+        assert!(self.has_token());
+        self.index += 1;
+        self.skip_comments();
     }
 
     /// Advances the parser by a token if the current token equals the given
@@ -237,11 +229,22 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Advances the parser as long as the current token is either
+    /// `LexicalElement::Comment` or `LexicalElement::DocComment`.
+    pub fn skip_comments(&mut self) {
+        while self.index < self.tokens.len() && (
+            matches!(&self.tokens[self.index].value, LexicalElement::Comment(_)) ||
+            matches!(&self.tokens[self.index].value, LexicalElement::DocComment(_))
+        ) {
+            self.index += 1;
+        }
+    }
+
     /// Returns a new token that spans all tokens from `loc` up till (and
     /// excluding) the current token.
-    pub fn until_now(&self, loc: &SourceLocation) -> SourceLocation {
+    pub fn until_now(&self, loc: &SourceRange) -> SourceRange {
         if self.index == 0 {
-            SourceLocation::new(0, 0, 0, 0)
+            SourceRange::new(0, 0, 0, 0)
         } else {
             loc.span(&self.tokens[self.index - 1].loc)
         }

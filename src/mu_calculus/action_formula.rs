@@ -6,7 +6,7 @@
 
 use crate::core::lexer::LexicalElement;
 use crate::core::parser::{Parseable, ParseError, Parser};
-use crate::core::syntax::SourceLocation;
+use crate::core::syntax::SourceRange;
 use crate::model::decl::VariableDecl;
 use crate::model::expr::Expr;
 use crate::model::proc::{Action, parse_multi_action};
@@ -22,12 +22,12 @@ use std::rc::Rc;
 /// about 0 or more consecutive actions.
 pub struct ActionFormula {
     pub value: ActionFormulaEnum,
-    pub loc: SourceLocation,
+    pub loc: SourceRange,
 }
 
 impl ActionFormula {
     /// Creates a new action formula with `parent` set to `None`.
-    pub fn new(value: ActionFormulaEnum, loc: SourceLocation) -> Self {
+    pub fn new(value: ActionFormulaEnum, loc: SourceRange) -> Self {
         ActionFormula { value, loc }
     }
 }

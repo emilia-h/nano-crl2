@@ -11,7 +11,7 @@
 //! [mu-calculus parser]: ../formula/index.html
 
 use crate::core::error::Mcrl2Error;
-use crate::core::syntax::SourceLocation;
+use crate::core::syntax::SourceRange;
 
 use std::fmt::{Display, Formatter};
 use std::str::Chars;
@@ -33,13 +33,21 @@ pub struct LexError {
     pub character: u32,
 }
 
+impl LexError {
+    pub fn get_loc(&self) -> SourceRange {
+        SourceRange::new(
+            self.line,
+            self.character,
+            self.line,
+            self.character,
+        )
+    }
+}
+
 impl Into<Mcrl2Error> for LexError {
     fn into(self) -> Mcrl2Error {
-        Mcrl2Error::ModelError {
-            message: self.message,
-            line: self.line,
-            character: self.character,
-        }
+        let loc = self.get_loc();
+        Mcrl2Error::ModelError { message: self.message, loc }
     }
 }
 
@@ -143,114 +151,190 @@ pub enum LexicalElement {
 
     Identifier(String),
 
+    Comment(String),
     DocComment(String),
 
     // TODO: should be arbitrarily large
     Integer(u64),
 }
 
+impl LexicalElement {
+    pub fn get_length(&self) -> usize {
+        use LexicalElement::*;
+
+        match self {
+            OpeningParen | ClosingParen | OpeningBracket | ClosingBracket |
+            OpeningBrace | ClosingBrace | Tilde | ExclamationMark |
+            AtSign | HashSign | DollarSign | Circonflex | Ampersand |
+            Asterisk | Dash | Equals | Plus | Pipe | Semicolon | Colon |
+            Comma | LessThan | Period | GreaterThan | Slash | QuestionMark => 1,
+
+            DoublePipe | DoubleAmpersand| DoubleEquals | NotEquals |
+            LessThanEquals | GreaterThanEquals | Diamond | Arrow | ThickArrow |
+            ConsOperator | SnocOperator | Concat => 2,
+
+            DoublePipeUnderscore => 3,
+
+            Act => 3,
+            Allow => 5,
+            Block => 5,
+            Comm => 4,
+            Cons => 4,
+            Delay => 5,
+            Div => 3,
+            End => 3,
+            Eqn => 3,
+            Exists => 6,
+            Forall => 6,
+            Glob => 4,
+            Hide => 4,
+            If => 2,
+            In => 2,
+            Init => 4,
+            Lambda => 6,
+            Map => 3,
+            Mod => 3,
+            Mu => 2,
+            Nu => 2,
+            Pbes => 4,
+            Proc => 4,
+            Rename => 6,
+            Sort => 4,
+            Struct => 6,
+            Sum => 3,
+            Val => 3,
+            Var => 3,
+            Whr => 3,
+            Yaled => 5,
+            Bag => 3,
+            Bool => 4,
+            FBag => 4,
+            FSet => 4,
+            Int => 3,
+            List => 4,
+            Nat => 3,
+            Pos => 3,
+            Real => 4,
+            Set => 3,
+            Delta => 5,
+            False => 5,
+            Nil => 3,
+            Tau => 3,
+            True => 4,
+
+            Identifier(string) => string.len(),
+            Comment(string) => string.len() + 1,
+            DocComment(string) => string.len() + 2,
+            Integer(value) => value.checked_ilog10().unwrap_or(0) as usize + 1,
+        }
+    }
+}
+
 impl Display for LexicalElement {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         use LexicalElement::*;
 
-        if let Some(value) = match self {
-            OpeningParen => Some("("),
-            ClosingParen => Some(")"),
-            OpeningBracket => Some("["),
-            ClosingBracket => Some("]"),
-            OpeningBrace => Some("{"),
-            ClosingBrace => Some("}"),
-            Tilde => Some("~"),
-            ExclamationMark => Some("!"),
-            AtSign => Some("@"),
-            HashSign => Some("#"),
-            DollarSign => Some("$"),
-            Circonflex => Some("^"),
-            Ampersand => Some("&"),
-            Asterisk => Some("*"),
-            Dash => Some("-"),
-            Equals => Some("="),
-            Plus => Some("+"),
-            Pipe => Some("|"),
-            Semicolon => Some(";"),
-            Colon => Some(":"),
-            Comma => Some(","),
-            LessThan => Some("<"),
-            Period => Some("."),
-            GreaterThan => Some(">"),
-            Slash => Some("/"),
-            QuestionMark => Some("?"),
-            DoublePipe => Some("||"),
-            DoubleAmpersand => Some("&&"),
-            DoubleEquals => Some("=="),
-            NotEquals => Some("!="),
-            LessThanEquals => Some("<="),
-            GreaterThanEquals => Some(">="),
-            Diamond => Some("<>"),
-            Arrow => Some("->"),
-            ThickArrow => Some("=>"),
-            ConsOperator => Some("|>"),
-            SnocOperator => Some("<|"),
-            Concat => Some("++"),
-            DoublePipeUnderscore => Some("||_"),
-            Act => Some("act"),
-            Allow => Some("allow"),
-            Block => Some("block"),
-            Comm => Some("comm"),
-            Cons => Some("cons"),
-            Delay => Some("delay"),
-            Div => Some("div"),
-            End => Some("end"),
-            Eqn => Some("eqn"),
-            Exists => Some("exists"),
-            Forall => Some("forall"),
-            Glob => Some("glob"),
-            Hide => Some("hide"),
-            If => Some("if"),
-            In => Some("in"),
-            Init => Some("init"),
-            Lambda => Some("lambda"),
-            Map => Some("map"),
-            Mod => Some("mod"),
-            Mu => Some("mu"),
-            Nu => Some("nu"),
-            Pbes => Some("pbes"),
-            Proc => Some("proc"),
-            Rename => Some("rename"),
-            Sort => Some("sort"),
-            Struct => Some("struct"),
-            Sum => Some("sum"),
-            Val => Some("val"),
-            Var => Some("var"),
-            Whr => Some("whr"),
-            Yaled => Some("yaled"),
-            Bag => Some("Bag"),
-            Bool => Some("Bool"),
-            FBag => Some("FBag"),
-            FSet => Some("FSet"),
-            Int => Some("Int"),
-            List => Some("List"),
-            Nat => Some("Nat"),
-            Pos => Some("Pos"),
-            Real => Some("Real"),
-            Set => Some("Set"),
-            Delta => Some("delta"),
-            False => Some("false"),
-            Nil => Some("nil"),
-            Tau => Some("tau"),
-            True => Some("true"),
-            Identifier(string) => Some(string.as_str()),
+        let value = match self {
+            OpeningParen => "(",
+            ClosingParen => ")",
+            OpeningBracket => "[",
+            ClosingBracket => "]",
+            OpeningBrace => "{",
+            ClosingBrace => "}",
+            Tilde => "~",
+            ExclamationMark => "!",
+            AtSign => "@",
+            HashSign => "#",
+            DollarSign => "$",
+            Circonflex => "^",
+            Ampersand => "&",
+            Asterisk => "*",
+            Dash => "-",
+            Equals => "=",
+            Plus => "+",
+            Pipe => "|",
+            Semicolon => ";",
+            Colon => ":",
+            Comma => ",",
+            LessThan => "<",
+            Period => ".",
+            GreaterThan => ">",
+            Slash => "/",
+            QuestionMark => "?",
+            DoublePipe => "||",
+            DoubleAmpersand => "&&",
+            DoubleEquals => "==",
+            NotEquals => "!=",
+            LessThanEquals => "<=",
+            GreaterThanEquals => ">=",
+            Diamond => "<>",
+            Arrow => "->",
+            ThickArrow => "=>",
+            ConsOperator => "|>",
+            SnocOperator => "<|",
+            Concat => "++",
+            DoublePipeUnderscore => "||_",
+            Act => "act",
+            Allow => "allow",
+            Block => "block",
+            Comm => "comm",
+            Cons => "cons",
+            Delay => "delay",
+            Div => "div",
+            End => "end",
+            Eqn => "eqn",
+            Exists => "exists",
+            Forall => "forall",
+            Glob => "glob",
+            Hide => "hide",
+            If => "if",
+            In => "in",
+            Init => "init",
+            Lambda => "lambda",
+            Map => "map",
+            Mod => "mod",
+            Mu => "mu",
+            Nu => "nu",
+            Pbes => "pbes",
+            Proc => "proc",
+            Rename => "rename",
+            Sort => "sort",
+            Struct => "struct",
+            Sum => "sum",
+            Val => "val",
+            Var => "var",
+            Whr => "whr",
+            Yaled => "yaled",
+            Bag => "Bag",
+            Bool => "Bool",
+            FBag => "FBag",
+            FSet => "FSet",
+            Int => "Int",
+            List => "List",
+            Nat => "Nat",
+            Pos => "Pos",
+            Real => "Real",
+            Set => "Set",
+            Delta => "delta",
+            False => "false",
+            Nil => "nil",
+            Tau => "tau",
+            True => "true",
+            Identifier(string) => string.as_str(),
+            Comment(string) => {
+                write!(f, "%{}", string)?;
+                return Ok(());
+            },
             DocComment(string) => {
                 write!(f, "%%{}", string)?;
-                None
+                return Ok(());
             },
-            LexicalElement::Integer(value) => {
+            Integer(value) => {
                 write!(f, "{}", value)?;
-                None
+                return Ok(());
             },
-        } {
-            write!(f, "{}", value)?;
-        }
+        };
+        write!(f, "{}", value)?;
         Ok(())
     }
 }
@@ -260,7 +344,7 @@ impl Display for LexicalElement {
 #[derive(Clone, Eq, PartialEq)]
 pub struct Token {
     pub value: LexicalElement,
-    pub loc: SourceLocation,
+    pub loc: SourceRange,
 }
 
 impl std::fmt::Debug for Token {
@@ -323,10 +407,10 @@ pub fn reconstruct_from_tokens(input: &[Token]) -> String {
 
 struct Lexer<'a> {
     tokens: Vec<Token>,
-    curr_line: usize,
-    curr_char: usize,
-    token_line: usize,
-    token_char: usize,
+    curr_line: u32,
+    curr_char: u32,
+    token_line: u32,
+    token_char: u32,
     iterator: Chars<'a>,
 }
 
@@ -413,15 +497,13 @@ impl<'a> Lexer<'a> {
                         }
                         self.advance_char(ch);
 
-                        if is_doc_comment {
-                            comment.push(ch);
-                        }
+                        comment.push(ch);
                     }
 
                     if is_doc_comment {
                         self.push_token(LexicalElement::DocComment(comment));
                     } else {
-                        self.skip_whitespace();
+                        self.push_token(LexicalElement::Comment(comment));
                     }
 
                     continue;
@@ -467,8 +549,8 @@ impl<'a> Lexer<'a> {
                         _ => {
                             return Err(LexError {
                                 message: format!("Found unexpected character {:?}", next),
-                                character: 0,
-                                line: 0,
+                                line: self.curr_line,
+                                character: self.curr_char,
                             });
                         }
                     } {
@@ -591,7 +673,7 @@ impl<'a> Lexer<'a> {
         assert!(self.curr_char >= self.token_char);
         self.tokens.push(Token {
             value: element,
-            loc: SourceLocation::new(
+            loc: SourceRange::new(
                 self.token_line as u32,
                 self.token_char as u32,
                 self.curr_line as u32,
@@ -665,13 +747,16 @@ mod tests {
             Identifier(String::from("whitespace")), OpeningParen, ClosingParen,
             Semicolon, Identifier(String::from("test_fun")), OpeningParen,
             Semicolon, Identifier(String::from("b")), DoublePipeUnderscore,
-            Integer(1), DoubleEquals, Proc, DoubleEquals,
-            DocComment(String::from("docs\tmore")), Cons,
+            Integer(1), DoubleEquals, Comment(String::from("abc")), Proc,
+            DoubleEquals, Comment(String::from("bc ")),
+            DocComment(String::from("docs\tmore")),
+            Comment(String::from(" % not docs\t\t\t")), Cons,
             Identifier(String::from("a")), Colon,
-            Identifier(String::from("b")),
-            Integer(0), Equals, Equals, Integer(0),
-            Identifier(String::from("a1")), Equals, Equals,
+            Identifier(String::from("b")), Comment(String::from("\t")),
+            Comment(String::from(" not docs")), Integer(0), Equals, Equals,
+            Integer(0), Identifier(String::from("a1")), Equals, Equals,
             Identifier(String::from("_b_2'")), Equals,
+            Comment(String::from("\t% not docs")),
         ];
         let result = tokenize(string).unwrap();
         assert_eq!(result.len(), tokens.len());
@@ -706,14 +791,17 @@ mod tests {
             a%bc
             123 %% docu
 
-                 % whitespace      
-            % fiasdjfais\n% fasojdo
+                 % whitespace      \n% fiasdjfais % fasojdo\n
             % % % % %
             =
             %";
         let tokens = &[
-            Identifier(String::from("test")), Identifier(String::from("a")),
-            Integer(123), DocComment(String::from(" docu")), Equals,
+            Identifier(String::from("test")), Comment(String::from(" abc")),
+            Identifier(String::from("a")), Comment(String::from("bc")),
+            Integer(123), DocComment(String::from(" docu")),
+            Comment(String::from(" whitespace      ")),
+            Comment(String::from(" fiasdjfais % fasojdo")),
+            Comment(String::from(" % % % %")), Equals, Comment(String::new()),
         ];
         let result = tokenize(string).unwrap();
         assert_eq!(result.len(), tokens.len());

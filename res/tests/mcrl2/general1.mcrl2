@@ -1,0 +1,31 @@
+
+% start comments
+% more
+
+act a1: Nat;
+act a2;
+act a3, a4: Nat;
+act a5, a_6, a7: Pos # Set(Nat) # FSet(List(Real));
+
+proc P1 = a_1(0); % comment
+
+init P4;
+
+%% doc comment
+proc P2 = sum x': Nat . sum y', z': Nat, w': Nat . % tricky comment
+    delta;
+
+proc P3 = b;
+
+glob
+    g1: Nat; % hi
+    g2: Nat;
+
+proc P4 = P3 . P5;
+
+proc P5 = P3 || P5 + a_3(2) + a_4(3) + a_5(4, f1(1), { [0, 1] });
+
+map f1: Nat -> Set(Nat);
+var x: Nat;
+    y: Nat;
+eqn f1(x) = { 0, x, y };

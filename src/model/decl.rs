@@ -11,7 +11,7 @@
 
 use crate::core::lexer::LexicalElement;
 use crate::core::parser::{Parseable, ParseError, Parser};
-use crate::core::syntax::{Identifier, SourceLocation};
+use crate::core::syntax::{Identifier, SourceRange};
 use crate::model::display::display_pretty_default;
 use crate::model::expr::Expr;
 use crate::model::proc::Proc;
@@ -23,12 +23,12 @@ use std::sync::Arc;
 /// A declaration in an mCRL2 model.
 pub struct Decl {
     pub value: DeclEnum,
-    pub loc: SourceLocation,
+    pub loc: SourceRange,
 }
 
 impl Decl {
     /// Creates a new declaration with `parent` set to `None`.
-    pub fn new(value: DeclEnum, loc: SourceLocation) -> Self {
+    pub fn new(value: DeclEnum, loc: SourceRange) -> Self {
         Decl { value, loc }
     }
 }

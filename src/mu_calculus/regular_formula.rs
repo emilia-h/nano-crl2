@@ -8,7 +8,7 @@
 //! [mCRL2 spec on this]: https://mcrl2.org/web/user_manual/language_reference/mucalc.html#regular-formulas
 
 use crate::core::parser::{Parseable, ParseError, Parser};
-use crate::core::syntax::SourceLocation;
+use crate::core::syntax::SourceRange;
 use crate::mu_calculus::action_formula::ActionFormula;
 
 use std::fmt::{Debug, Formatter};
@@ -18,12 +18,12 @@ use std::rc::Rc;
 /// (`<...>`) operator.
 pub struct RegularFormula {
     pub value: RegularFormulaEnum,
-    pub loc: SourceLocation,
+    pub loc: SourceRange,
 }
 
 impl RegularFormula {
     /// Creates a new regular formula with `parent` set to `None`.
-    pub fn new(value: RegularFormulaEnum, loc: SourceLocation) -> Self {
+    pub fn new(value: RegularFormulaEnum, loc: SourceRange) -> Self {
         RegularFormula { value, loc }
     }
 }
