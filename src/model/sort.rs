@@ -103,6 +103,10 @@ impl Parseable for Sort {
 pub fn parse_sort(parser: &mut Parser) -> Result<Sort, ParseError> {
     // the grammar is not very clear, but -> binds less strong than #
     // also note that -> is right-associative
+    if !parser.has_token() {
+        return parser.end_of_input("a sort");
+    }
+
     let loc = parser.get_loc();
     let lhs = parse_carthesian_sort(parser)?;
 
@@ -119,6 +123,10 @@ pub fn parse_sort(parser: &mut Parser) -> Result<Sort, ParseError> {
 
 fn parse_carthesian_sort(parser: &mut Parser) -> Result<Sort, ParseError> {
     // note that it's associative
+    if !parser.has_token() {
+        return parser.end_of_input("a sort");
+    }
+
     let loc = parser.get_loc();
     let lhs = parse_basic_sort(parser)?;
 
@@ -134,6 +142,10 @@ fn parse_carthesian_sort(parser: &mut Parser) -> Result<Sort, ParseError> {
 }
 
 fn parse_basic_sort(parser: &mut Parser) -> Result<Sort, ParseError> {
+    if !parser.has_token() {
+        return parser.end_of_input("a sort");
+    }
+
     let token = parser.get_token();
     let loc = token.loc;
 

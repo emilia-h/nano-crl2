@@ -92,6 +92,10 @@ impl Parseable for ActionFormula {
 /// [mCRL2 grammar on this]: https://www.mcrl2.org/web/user_manual/language_reference/mucalc.html#grammar-token-ActFrm
 pub fn parse_action_formula(parser: &mut Parser) -> Result<ActionFormula, ParseError> {
     // forall, exists
+    if !parser.has_token() {
+        return parser.end_of_input("an action formula");
+    }
+
     let loc = parser.get_loc();
 
     if parser.skip_if_equal(&LexicalElement::Forall) {
@@ -117,6 +121,10 @@ pub fn parse_action_formula(parser: &mut Parser) -> Result<ActionFormula, ParseE
 
 fn parse_implies_action_formula(parser: &mut Parser) -> Result<ActionFormula, ParseError> {
     // => (associates to the right)
+    if !parser.has_token() {
+        return parser.end_of_input("an action formula");
+    }
+
     let loc = parser.get_loc();
     let lhs = parse_or_action_formula(parser)?;
 
@@ -133,6 +141,10 @@ fn parse_implies_action_formula(parser: &mut Parser) -> Result<ActionFormula, Pa
 
 fn parse_or_action_formula(parser: &mut Parser) -> Result<ActionFormula, ParseError> {
     // || (associates to the right)
+    if !parser.has_token() {
+        return parser.end_of_input("an action formula");
+    }
+
     let loc = parser.get_loc();
     let lhs = parse_and_action_formula(parser)?;
 
@@ -149,6 +161,10 @@ fn parse_or_action_formula(parser: &mut Parser) -> Result<ActionFormula, ParseEr
 
 fn parse_and_action_formula(parser: &mut Parser) -> Result<ActionFormula, ParseError> {
     // && (associates to the right)
+    if !parser.has_token() {
+        return parser.end_of_input("an action formula");
+    }
+
     let loc = parser.get_loc();
     let lhs = parse_time_action_formula(parser)?;
 
@@ -165,6 +181,10 @@ fn parse_and_action_formula(parser: &mut Parser) -> Result<ActionFormula, ParseE
 
 fn parse_time_action_formula(parser: &mut Parser) -> Result<ActionFormula, ParseError> {
     // @ (associates to the left)
+    if !parser.has_token() {
+        return parser.end_of_input("an action formula");
+    }
+
     let loc = parser.get_loc();
     let mut result = parse_basic_action_formula(parser)?;
 
@@ -183,6 +203,10 @@ fn parse_time_action_formula(parser: &mut Parser) -> Result<ActionFormula, Parse
 }
 
 fn parse_basic_action_formula(parser: &mut Parser) -> Result<ActionFormula, ParseError> {
+    if !parser.has_token() {
+        return parser.end_of_input("an action formula");
+    }
+
     let token = parser.get_token();
     let loc = token.loc;
 

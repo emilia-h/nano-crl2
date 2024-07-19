@@ -99,7 +99,7 @@ impl<'a> Parser<'a> {
     /// Parses a single identifier.
     pub fn parse_identifier(&mut self) -> Result<Identifier, ParseError> {
         if !self.has_token() {
-            return Err(ParseError::end_of_input("an identifier", self.get_last_loc()));
+            return self.end_of_input("an identifier");
         }
 
         let token = self.get_token();
@@ -205,8 +205,7 @@ impl<'a> Parser<'a> {
     /// current token is different.
     pub fn expect_token(&mut self, value: &LexicalElement) -> Result<(), ParseError> {
         if !self.has_token() {
-            let loc = self.get_last_loc();
-            return Err(ParseError::end_of_input(&format!("{}", value), loc));
+            return self.end_of_input(&format!("{}", value));
         }
         let token = self.get_token();
         if &token.value == value {
@@ -238,6 +237,11 @@ impl<'a> Parser<'a> {
         ) {
             self.index += 1;
         }
+    }
+
+    /// Returns an `Err` because of unexpected end of input
+    pub fn end_of_input<T>(&self, expectation: &str) -> Result<T, ParseError> {
+        Err(ParseError::end_of_input(expectation, self.get_last_loc()))
     }
 
     /// Returns a new token that spans all tokens from `loc` up till (and

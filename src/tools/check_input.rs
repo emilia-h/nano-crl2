@@ -34,7 +34,7 @@ pub fn check_input(options: &CliOptions) -> Result<(), Mcrl2Error> {
             Some(name) => name,
             None => return Err(Mcrl2Error::IoError {
                 message: String::from("File path is not valid unicode"),
-                path: Some(input_file.clone())
+                path: Some(input_file.clone()),
             }),
         };
 

@@ -75,6 +75,10 @@ impl Parseable for RegularFormula {
 /// [`RegularFormula`]: ./struct.RegularFormula.html
 /// [mCRL2 grammar on this]: https://www.mcrl2.org/web/user_manual/language_reference/mucalc.html#grammar-token-RegFrm
 fn parse_regular_formula(parser: &mut Parser) -> Result<RegularFormula, ParseError> {
+    if !parser.has_token() {
+        return parser.end_of_input("a regular formula");
+    }
+
     let loc = parser.get_loc();
 
     let value = Rc::new(parser.parse::<ActionFormula>()?);

@@ -220,6 +220,10 @@ pub fn parse_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
     // /, *, div, mod (left associative)
     // . (left associative)
     // - (negation), !, #
+    if !parser.has_token() {
+        return parser.end_of_input("an expression");
+    }
+
     let loc = parser.get_loc();
     let expr = parse_binder_expr(parser)?;
 
@@ -246,8 +250,7 @@ pub fn parse_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
 // forall, exists, lambda
 fn parse_binder_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
     if !parser.has_token() {
-        let loc = parser.get_last_loc();
-        return Err(ParseError::end_of_input("an expression", loc));
+        return parser.end_of_input("an expression");
     }
 
     let loc = parser.get_loc();
@@ -423,8 +426,7 @@ fn parse_index_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
 // allows expressions of the form x[p -> q].
 pub fn parse_unit_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
     if !parser.has_token() {
-        let loc = parser.get_last_loc();
-        return Err(ParseError::end_of_input("an expression", loc));
+        return parser.end_of_input("an expression");
     }
 
     let token = parser.get_token();
@@ -644,6 +646,10 @@ fn parse_left_associative_expr<'a, F>(
 where
     F: Fn(&mut Parser<'a>) -> Result<Expr, ParseError>,
 {
+    if !parser.has_token() {
+        return parser.end_of_input("an expression");
+    }
+
     let loc = parser.get_loc();
     let mut result = sub_parser(parser)?;
 
@@ -672,6 +678,10 @@ fn parse_right_associative_expr<'a, F>(
 where
     F: Fn(&mut Parser<'a>) -> Result<Expr, ParseError>,
 {
+    if !parser.has_token() {
+        return parser.end_of_input("an expression");
+    }
+
     let loc = parser.get_loc();
     let lhs = sub_parser(parser)?;
 
@@ -700,11 +710,9 @@ fn is_in_set_comprehension(parser: &mut Parser) -> Result<bool, ParseError> {
     let mut delimiters = 0u32;
     loop {
         if !parser.has_token() {
-            return Err(ParseError::end_of_input(
-                "sort or expression",
-                parser.get_last_loc(),
-            ));
+            return parser.end_of_input("sort or expression");
         }
+
         let token = parser.get_token();
         if delimiters == 0 && token.value == LexicalElement::Pipe {
             break Ok(true);

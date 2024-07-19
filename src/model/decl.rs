@@ -195,6 +195,8 @@ pub fn parse_var_decl_list(parser: &mut Parser) -> Result<Vec<VariableDecl>, Par
 }
 
 fn parse_action_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
+    assert!(parser.has_token());
+
     let loc = parser.get_loc();
     parser.skip_if_equal(&LexicalElement::Act);
 
@@ -216,6 +218,8 @@ fn parse_action_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
 }
 
 fn parse_constructor_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
+    assert!(parser.has_token());
+
     let loc = parser.get_loc();
     parser.skip_if_equal(&LexicalElement::Cons);
 
@@ -234,6 +238,8 @@ fn parse_constructor_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
 }
 
 fn parse_equation_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
+    assert!(parser.has_token());
+
     let loc = parser.get_loc();
 
     // parse variables
@@ -254,7 +260,9 @@ fn parse_equation_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     let mut equations = Vec::new();
     while parser.has_token() && !is_decl_keyword(&parser.get_token().value) {
         let expr = Arc::new(parser.parse::<Expr>()?);
-        if parser.skip_if_equal(&LexicalElement::Equals) {
+        if !parser.has_token() {
+            return parser.end_of_input("either = or ->");
+        } else if parser.skip_if_equal(&LexicalElement::Equals) {
             let rhs = Arc::new(parser.parse::<Expr>()?);
 
             equations.push(EquationDecl { condition: None, lhs: expr, rhs });
@@ -265,7 +273,10 @@ fn parse_equation_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
 
             equations.push(EquationDecl { condition: Some(expr), lhs, rhs });
         } else {
-            return Err(ParseError::expected("either = or -> in an 'eqn' declaration", parser.get_token()));
+            return Err(ParseError::expected(
+                "either = or -> in an 'eqn' declaration",
+                parser.get_token(),
+            ));
         }
 
         parser.expect_token(&LexicalElement::Semicolon)?;
@@ -278,6 +289,8 @@ fn parse_equation_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
 }
 
 fn parse_global_variable_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
+    assert!(parser.has_token());
+
     let loc = parser.get_loc();
     parser.skip_if_equal(&LexicalElement::Glob);
 
@@ -291,6 +304,8 @@ fn parse_global_variable_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
 }
 
 fn parse_initial_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
+    assert!(parser.has_token());
+
     let loc = parser.get_loc();
     parser.expect_token(&LexicalElement::Init).unwrap();
 
@@ -304,6 +319,8 @@ fn parse_initial_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
 }
 
 fn parse_map_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
+    assert!(parser.has_token());
+
     let loc = parser.get_loc();
     parser.skip_if_equal(&LexicalElement::Map);
 
@@ -319,6 +336,8 @@ fn parse_map_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
 }
 
 fn parse_process_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
+    assert!(parser.has_token());
+
     let loc = parser.get_loc();
     parser.skip_if_equal(&LexicalElement::Proc);
 
@@ -351,6 +370,8 @@ fn parse_process_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
 }
 
 fn parse_sort_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
+    assert!(parser.has_token());
+
     let loc = parser.get_loc();
     parser.skip_if_equal(&LexicalElement::Sort);
 

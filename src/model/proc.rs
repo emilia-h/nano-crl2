@@ -152,8 +152,7 @@ impl Parseable for Proc {
 /// [mCRL2 grammar on this]: https://mcrl2.org/web/user_manual/language_reference/process.html#grammar-token-ProcExpr
 pub fn parse_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
     if !parser.has_token() {
-        let loc = parser.get_last_loc();
-        return Err(ParseError::end_of_input("a process", loc));
+        return parser.end_of_input("a process");
     }
 
     // + (associative, so treat it as if it associates to the right)
@@ -173,8 +172,7 @@ pub fn parse_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
 /// [mCRL2 grammar on this]: https://www.mcrl2.org/web/user_manual/language_reference/mucalc.html#grammar-token-MultAct
 pub fn parse_multi_action(parser: &mut Parser) -> Result<Vec<Action>, ParseError> {
     if !parser.has_token() {
-        let loc = parser.get_last_loc();
-        return Err(ParseError::end_of_input("a multi-action", loc));
+        return parser.end_of_input("a multi-action");
     }
 
     if parser.skip_if_equal(&LexicalElement::Tau) {
@@ -225,8 +223,11 @@ fn parse_conditional_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
     // a -> b and a -> b <> c
     // when encountering an identifier or '(', it could be either an
     // expression followed by ->, or it could be a process
-    let token = parser.get_token();
-    let loc = token.loc;
+    if !parser.has_token() {
+        return parser.end_of_input("a process");
+    }
+
+    let loc = parser.get_loc();
 
     let mut parser_copy = parser.clone();
     if is_unit_data_expr(&mut parser_copy)? {
@@ -259,6 +260,10 @@ fn parse_concat_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
 }
 
 fn parse_time_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
+    if !parser.has_token() {
+        return parser.end_of_input("an expression");
+    }
+
     // @
     let loc = parser.get_loc();
     let proc = parse_multi_proc(parser)?;
@@ -366,6 +371,10 @@ fn parse_basic_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
                     // a|b|c -> d, ..., e|f -> g
                     let mut mappings = Vec::new();
                     while {
+                        if !parser.has_token() {
+                            return parser.end_of_input("a communication mapping");
+                        }
+
                         let loc = parser.get_loc();
                         let lhs = parse_multi_id(parser)?;
                         parser.expect_token(&LexicalElement::Arrow)?;
@@ -431,6 +440,10 @@ where
     F: Fn(&mut Parser) -> Result<Proc, ParseError>,
     C: Fn(Arc<Proc>, Arc<Proc>) -> ProcEnum,
 {
+    if !parser.has_token() {
+        return parser.end_of_input("a process");
+    }
+
     let loc = parser.get_loc();
     let lhs = sub_parser(parser)?;
     if parser.skip_if_equal(operator) {
@@ -475,6 +488,7 @@ where F: Fn(&mut Parser) -> Result<T, ParseError> {
 fn is_unit_data_expr(parser: &mut Parser) -> Result<bool, ParseError> {
     use LexicalElement::*;
 
+    assert!(parser.has_token());
     let token = parser.get_token();
 
     Ok(match &token.value {

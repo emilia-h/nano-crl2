@@ -116,6 +116,10 @@ impl Parseable for StateFormula {
 /// [mCRL2 grammar on this]: https://www.mcrl2.org/web/user_manual/language_reference/mucalc.html#grammar-token-StateFrm
 pub fn parse_state_formula(parser: &mut Parser) -> Result<StateFormula, ParseError> {
     // => (associates to the right)
+    if !parser.has_token() {
+        return parser.end_of_input("a state formula");
+    }
+
     let loc = parser.get_loc();
     let lhs = parse_or_state_formula(parser)?;
 
@@ -132,6 +136,10 @@ pub fn parse_state_formula(parser: &mut Parser) -> Result<StateFormula, ParseErr
 
 fn parse_or_state_formula(parser: &mut Parser) -> Result<StateFormula, ParseError> {
     // || (associative, treat as if it associates to the right)
+    if !parser.has_token() {
+        return parser.end_of_input("a state formula");
+    }
+
     let loc = parser.get_loc();
     let lhs = parse_and_state_formula(parser)?;
 
@@ -150,6 +158,10 @@ fn parse_or_state_formula(parser: &mut Parser) -> Result<StateFormula, ParseErro
 
 fn parse_and_state_formula(parser: &mut Parser) -> Result<StateFormula, ParseError> {
     // && (associative, treat as if it associates to the right)
+    if !parser.has_token() {
+        return parser.end_of_input("a state formula");
+    }
+
     let loc = parser.get_loc();
     let lhs = parse_basic_state_formula(parser)?;
 
@@ -166,8 +178,7 @@ fn parse_and_state_formula(parser: &mut Parser) -> Result<StateFormula, ParseErr
 
 fn parse_basic_state_formula(parser: &mut Parser) -> Result<StateFormula, ParseError> {
     if !parser.has_token() {
-        let loc = parser.get_last_loc();
-        return Err(ParseError::end_of_input("a state formula", loc));
+        return parser.end_of_input("a state formula");
     }
 
     let token = parser.get_token();
