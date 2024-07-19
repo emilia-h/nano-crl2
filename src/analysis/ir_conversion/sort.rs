@@ -1,81 +1,63 @@
 
 use crate::analysis::context::AnalysisContext;
-use crate::analysis::ir_conversion::module::{ModuleIrMapping, SemanticError};
-use crate::core::syntax::Identifier;
-use crate::ir::decl::DeclId;
-use crate::ir::sort::{IrSort, SortId};
+use crate::analysis::ir_conversion::module::SemanticError;
+use crate::ir::module::IrModule;
+use crate::ir::sort::{IrSort, IrSortEnum, SortId};
 use crate::model::sort::{Sort, SortEnum};
 
-use std::collections::hash_map::HashMap;
 use std::sync::Arc;
 
 pub fn convert_ir_sort(
     context: &AnalysisContext,
-    id_map: &HashMap<Identifier, DeclId>,
-    sort: &Option<Arc<Sort>>,
-    result_id: SortId,
-    ir_mapping: &mut ModuleIrMapping,
-) -> Result<SortId, SemanticError> {
-    let ir_sort = match sort {
-        Some(ast_sort) => {
-            create_ir_sort(context, id_map, ast_sort)?
-        },
-        None => context.get_sorts().get_unit_sort(),
-    };
-
-    ir_mapping.sorts.insert(result_id, ir_sort);
-
-    Ok(result_id)
-}
-
-/// Constructs and returns the intermediate representation of a sort.
-fn create_ir_sort(
-    context: &AnalysisContext,
-    id_map: &HashMap<Identifier, DeclId>,
     sort: &Arc<Sort>,
-) -> Result<IrSort, SemanticError> {
-    Ok(match &sort.value {
-        SortEnum::Bool => context.get_sorts().get_bool_sort(),
-        SortEnum::Pos => context.get_sorts().get_pos_sort(),
-        SortEnum::Nat => context.get_sorts().get_nat_sort(),
-        SortEnum::Int => context.get_sorts().get_int_sort(),
-        SortEnum::Real => context.get_sorts().get_real_sort(),
+    result: &mut IrModule,
+) -> Result<SortId, SemanticError> {
+    let ir_sort_value = match &sort.value {
+        SortEnum::Bool => IrSortEnum::Bool,
+        SortEnum::Pos => IrSortEnum::Pos,
+        SortEnum::Nat => IrSortEnum::Nat,
+        SortEnum::Int => IrSortEnum::Int,
+        SortEnum::Real => IrSortEnum::Real,
         SortEnum::List { subsort } => {
-            let s = create_ir_sort(context, id_map, &subsort)?;
-            context.get_sorts().get_list_sort(&s)
+            let s = convert_ir_sort(context, subsort, result)?;
+            IrSortEnum::List { subsort: s }
         },
         SortEnum::Set { subsort } => {
-            let s = create_ir_sort(context, id_map, &subsort)?;
-            context.get_sorts().get_set_sort(&s)
+            let s = convert_ir_sort(context, subsort, result)?;
+            IrSortEnum::Set { subsort: s }
         },
         SortEnum::Bag { subsort } => {
-            let s = create_ir_sort(context, id_map, &subsort)?;
-            context.get_sorts().get_bag_sort(&s)
+            let s = convert_ir_sort(context, subsort, result)?;
+            IrSortEnum::Bag { subsort: s }
         },
         SortEnum::FSet { subsort } => {
-            let s = create_ir_sort(context, id_map, &subsort)?;
-            context.get_sorts().get_fset_sort(&s)
+            let s = convert_ir_sort(context, subsort, result)?;
+            IrSortEnum::FSet { subsort: s }
         },
         SortEnum::FBag { subsort } => {
-            let sort = create_ir_sort(context, id_map, &subsort)?;
-            context.get_sorts().get_fbag_sort(&sort)
+            let s = convert_ir_sort(context, subsort, result)?;
+            IrSortEnum::FBag { subsort: s }
         },
         SortEnum::Id { id } => {
-            let _ir_decl = id_map.get(&id);
-            todo!()
+            IrSortEnum::Name { id: id.clone() }
         },
-        SortEnum::Struct { constructors: _ } => {
+        SortEnum::Struct { constructors } => {
+            // should be desugared into named type
             todo!()
         },
         SortEnum::Carthesian { lhs, rhs } => {
-            let l = create_ir_sort(context, id_map, &lhs)?;
-            let r = create_ir_sort(context, id_map, &rhs)?;
-            context.get_sorts().get_carthesian_sort(&l, &r)
+            let l = convert_ir_sort(context, lhs, result)?;
+            let r = convert_ir_sort(context, rhs, result)?;
+            IrSortEnum::Carthesian { lhs: l, rhs: r }
         },
         SortEnum::Function { lhs, rhs } => {
-            let l = create_ir_sort(context, id_map, &lhs)?;
-            let r = create_ir_sort(context, id_map, &rhs)?;
-            context.get_sorts().get_function_sort(&l, &r)
+            let l = convert_ir_sort(context, lhs, result)?;
+            let r = convert_ir_sort(context, rhs, result)?;
+            IrSortEnum::Function { lhs: l, rhs: r }
         },
-    })
+    };
+
+    let sort_id = context.generate_sort_id(result.id);
+    result.sorts.insert(sort_id, IrSort { value: ir_sort_value });
+    Ok(sort_id)
 }

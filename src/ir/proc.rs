@@ -1,9 +1,11 @@
 
-use crate::core::syntax::SourceRange;
-use crate::ir::decl::DeclId;
+use crate::core::syntax::{Identifier, SourceRange};
+use crate::ir::decl::DefId;
 use crate::ir::expr::ExprId;
 use crate::ir::module::ModuleId;
 use crate::ir::sort::SortId;
+
+use std::fmt::{Debug, Formatter};
 
 /// A process in the intermediate representation.
 #[derive(Debug)]
@@ -15,10 +17,10 @@ pub struct IrProc {
 #[derive(Debug)]
 pub enum IrProcEnum {
     MultiAction {
-        actions: Vec<(DeclId, Vec<ExprId>)>,
+        actions: Vec<(Identifier, Vec<ExprId>)>,
     },
     Name {
-        id: DeclId,
+        id: Identifier,
         args: Vec<ExprId>,
     },
     Delta,
@@ -28,7 +30,8 @@ pub enum IrProcEnum {
         rhs: ProcId,
     },
     Sum {
-        variable: DeclId,
+        def_id: DefId,
+        id: Identifier,
         sort: SortId,
         proc: ProcId,
     },
@@ -53,8 +56,14 @@ pub enum IrProcEnum {
     // Time {},
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub struct ProcId {
     pub(crate) module: ModuleId,
     pub(crate) value: usize,
+}
+
+impl Debug for ProcId {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}.proc.{}", self.module, self.value)
+    }
 }

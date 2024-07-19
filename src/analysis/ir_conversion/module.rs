@@ -1,13 +1,12 @@
 
 use crate::analysis::context::AnalysisContext;
 use crate::analysis::ir_conversion::decl::convert_ir_decl;
-use crate::core::syntax::Identifier;
-use crate::ir::decl::{DeclId, IrDecl, IrDeclEnum};
-use crate::ir::expr::{ExprId, IrExpr};
-use crate::ir::proc::{IrProc, ProcId};
-use crate::ir::sort::{IrSort, SortId};
+use crate::core::syntax::{Identifier, SourceRange};
+use crate::ir::decl::DefId;
+use crate::ir::proc::ProcId;
+use crate::ir::sort::SortId;
 use crate::ir::module::{ModuleId, IrModule};
-use crate::model::decl::{Decl, DeclEnum};
+use crate::model::decl::DeclEnum;
 use crate::model::proc::Proc;
 use crate::model::sort::Sort;
 
@@ -19,6 +18,12 @@ pub enum SemanticError {
     IdentifierError {
         message: String,
         id: Identifier,
+        // id_loc: SourceRange,
+        // duplicate_loc: Option<SourceRange>,
+    },
+    InitialProcError {
+        message: String,
+        loc: SourceRange,
     },
     NodeKindError {
         message: String,
@@ -26,6 +31,27 @@ pub enum SemanticError {
     TypeError {
         message: String,
     },
+}
+
+/// A mapping of identifiers (both user-provided `Identifier`s and
+/// auto-generated IDs) within a module.
+pub struct ModuleAstMapping {
+    pub module: ModuleId,
+
+    /// Stores top-level identifiers from the code and maps them to
+    /// declarations in the IR.
+    pub id_map: HashMap<Identifier, DefId>,
+
+    /// Stores IDs of process declarations in this module and maps them to its
+    /// parameters in the AST and a `Proc` node in the AST.
+    pub ast_proc_map: HashMap<ProcId, (Vec<(Identifier, SortId)>, Arc<Proc>)>,
+
+    /// Stores IDs of sorts in this module and maps them to a node in the AST.
+    /// 
+    /// Note that if an ID is mapped to `None`, this means that the code did
+    /// not explicitly denote a sort. Most likely this means that a "unit" sort
+    /// is to be substituted.
+    pub ast_sort_map: HashMap<SortId, Option<Arc<Sort>>>,
 }
 
 /// Given an AST module, generates and returns a structure that stores node IDs
@@ -41,167 +67,74 @@ pub fn query_ir_module(
         return Arc::clone(result);
     }
 
-    let (name, ast_module) = context.get_ast_module(module);
-    let name = name.clone();
-    let decls = ast_module.decls.iter().map(|x| Arc::clone(x)).collect::<Vec<_>>();
+    let (_, ast_module) = context.get_ast_module(module);
+    let module_defs = query_module_defs(context, module);
 
-    // step 1: collect all top-level declarations, convert those to `IrDecl`s
-    // and store all necessary data in some maps
-    let mut mapping = ModuleAstMapping {
-        module,
-        id_map: HashMap::new(),
-        ast_proc_map: HashMap::new(),
-        ast_sort_map: HashMap::new(),
-    };
-    let mut ir_decls = HashMap::new();
-    for decl in &decls {
-        // TODO handle errors
-        add_decl_to_mapping(context, module, decl, &mut mapping, &mut ir_decls).unwrap();
+    let mut result = IrModule::new(module);
+    for decl in &ast_module.decls {
+        // TODO error handling
+        convert_ir_decl(context, &module_defs, decl, &mut result).unwrap();
     }
 
-    // step 2: convert the data for each declaration to IR
-    let mut ir_mapping = ModuleIrMapping {
-        module,
-        decls: ir_decls,
-        exprs: HashMap::new(),
-        procs: HashMap::new(),
-        sorts: HashMap::new(),
-    };
-    for (_, &decl_id) in &mapping.id_map {
-        convert_ir_decl(context, &mapping, decl_id, &mut ir_mapping);
-    }
-
-    let result = Arc::new(IrModule {
-        name,
-        decls: ir_mapping.decls,
-        exprs: ir_mapping.exprs,
-        procs: ir_mapping.procs,
-        rewrite_rules: Vec::new(),
-        top_level_symbols: mapping.id_map,
-    });
+    let result = Arc::new(result);
     context.ir_modules.borrow_mut().insert(module, Arc::clone(&result));
     result
 }
 
-/// Converts an AST `Decl` to an IR decl, then adds it to the `decls` map with
-/// a freshly generated ID. This does not yet convert the children of `decl` to
-/// IR.
-fn add_decl_to_mapping(
+/// Extracts all publically visible identifiers of a module and assigns fresh
+/// definition IDs for each of these identifiers.
+/// 
+/// Will error if an identifier is already .
+pub fn query_module_defs(
     context: &AnalysisContext,
     module: ModuleId,
-    decl: &Arc<Decl>,
-    mapping: &mut ModuleAstMapping,
-    decls: &mut HashMap<DeclId, IrDecl>,
-) -> Result<(), SemanticError> {
-    let mut add_ir_decl = |decls: &mut HashMap<DeclId, IrDecl>, id: &Identifier, ir_decl| {
-        let decl_id = context.generate_decl_id(module);
-        decls.insert(decl_id, IrDecl {
-            value: ir_decl,
-        });
-        mapping.id_map.insert(id.clone(), decl_id);
-    };
-
-    match &decl.value {
-        DeclEnum::Action { ids, sort } => {
-            let sort_id = context.generate_sort_id(module);
-            mapping.ast_sort_map.insert(sort_id, sort.clone());
-
-            for id in ids {
-                add_ir_decl(decls, id, IrDeclEnum::Action { sort: sort_id });
-            }
-        },
-        DeclEnum::Constructor { ids, sort } => {
-            let sort_id = context.generate_sort_id(module);
-            mapping.ast_sort_map.insert(sort_id, Some(Arc::clone(&sort)));
-
-            for id in ids {
-                add_ir_decl(decls, id, IrDeclEnum::Constructor { sort: sort_id });
-            }
-        },
-        DeclEnum::GlobalVariable { variables } => {
-            for variable_decl in variables {
-                let sort_id = context.generate_sort_id(module);
-                mapping.ast_sort_map.insert(sort_id, Some(Arc::clone(&variable_decl.sort)));
-
-                for id in &variable_decl.ids {
-                    add_ir_decl(decls, id, IrDeclEnum::GlobalVariable { sort: sort_id });
-                }
-            }
-        },
-        DeclEnum::Map { id, sort } => {
-            let sort_id = context.generate_sort_id(module);
-            mapping.ast_sort_map.insert(sort_id, Some(Arc::clone(&sort)));
-
-            add_ir_decl(decls, id, IrDeclEnum::Map { sort: sort_id });
-        },
-        DeclEnum::Process { id, params, proc } => {
-            let process_id = context.generate_proc_id(module);
-            let mut param_ids = Vec::new();
-            let mut param_mappings = Vec::new();
-            for variable_decl in params {
-                let sort_id = context.generate_sort_id(module);
-                mapping.ast_sort_map.insert(sort_id, Some(Arc::clone(&variable_decl.sort)));
-
-                for id in &variable_decl.ids {
-                    let param_id = context.generate_decl_id(module);
-                    decls.insert(param_id, IrDecl {
-                        value: IrDeclEnum::LocalVariable { sort: sort_id },
-                    });
-                    param_ids.push(param_id);
-                    param_mappings.push((id.clone(), sort_id));
-                }
-            }
-            mapping.ast_proc_map.insert(process_id, (param_mappings, Arc::clone(&proc)));
-
-            let proc = IrDeclEnum::Process { params: param_ids, proc: process_id };
-            add_ir_decl(decls, id, proc);
-        },
-        DeclEnum::Sort { ids, sort } => {
-            let sort_id = context.generate_sort_id(module);
-            if let Some(s) = sort {
-                mapping.ast_sort_map.insert(sort_id, Some(Arc::clone(&s)));
-            } else {
-                todo!("construct new structural type");
-            }
-
-            for id in ids {
-                add_ir_decl(decls, id, IrDeclEnum::Sort { sort: sort_id });
-            }
-        },
-        DeclEnum::EquationSet { .. } => {
-            todo!("equations");
-        },
-        DeclEnum::Initial { .. } => panic!(),
+) -> Arc<HashMap<Identifier, DefId>> {
+    if let Some(result) = context.module_defs.borrow().get(&module) {
+        return Arc::clone(result);
     }
 
-    Ok(())
-}
+    let (_, ast_module) = context.get_ast_module(module);
 
-/// A mapping of identifiers (both user-provided `Identifier`s and
-/// auto-generated IDs) within a module.
-pub struct ModuleAstMapping {
-    pub module: ModuleId,
+    let add_def = |result: &mut HashMap<Identifier, DefId>, id: &Identifier| {
+        let def_id = context.generate_def_id(module);
+        if result.insert(id.clone(), def_id).is_some() {
+            Err(SemanticError::IdentifierError {
+                message: "Module-level identifier already used by other declaration".to_owned(),
+                id: id.clone(),
+            })
+        } else {
+            Ok(())
+        }
+    };
 
-    /// Stores top-level identifiers from the code and maps them to
-    /// declarations in the IR.
-    pub id_map: HashMap<Identifier, DeclId>,
+    // TODO error handling
+    let mut result = HashMap::new();
+    for decl in &ast_module.decls {
+        match &decl.value {
+            DeclEnum::Action { ids, .. } |
+            DeclEnum::Constructor { ids, .. } |
+            DeclEnum::Sort { ids, .. } => {
+                for id in ids {
+                    add_def(&mut result, id).unwrap();
+                }
+            },
+            DeclEnum::GlobalVariable { variables } => {
+                for variable_decl in variables {
+                    for id in &variable_decl.ids {
+                        add_def(&mut result, id).unwrap();
+                    }
+                }
+            },
+            DeclEnum::Map { id, .. } |
+            DeclEnum::Process { id, .. } => {
+                add_def(&mut result, id).unwrap();
+            },
+            DeclEnum::EquationSet { .. } => {},
+            DeclEnum::Initial { .. } => {},
+        }
+    }
 
-    /// Stores IDs of process declarations in this module and maps them to its
-    /// parameters in the AST and a `Proc` node in the AST.
-    pub ast_proc_map: HashMap<ProcId, (Vec<(Identifier, SortId)>, Arc<Proc>)>,
-
-    /// Stores IDs of sorts in this module and maps them to a node in the AST.
-    /// 
-    /// Note that if an ID is mapped to `None`, this means that the code did
-    /// not explicitly denote a sort. Most likely this means that a "unit" sort
-    /// is to be substituted.
-    pub ast_sort_map: HashMap<SortId, Option<Arc<Sort>>>,
-}
-
-pub struct ModuleIrMapping {
-    pub module: ModuleId,
-    pub decls: HashMap<DeclId, IrDecl>,
-    pub exprs: HashMap<ExprId, IrExpr>,
-    pub procs: HashMap<ProcId, IrProc>,
-    pub sorts: HashMap<SortId, IrSort>,
+    let result = Arc::new(result);
+    context.module_defs.borrow_mut().insert(module, Arc::clone(&result));
+    result
 }

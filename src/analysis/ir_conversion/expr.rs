@@ -1,12 +1,10 @@
 
 use crate::analysis::context::AnalysisContext;
-use crate::analysis::ir_conversion::module::{ModuleIrMapping, SemanticError};
-use crate::core::syntax::Identifier;
+use crate::analysis::ir_conversion::module::SemanticError;
 use crate::model::expr::{Expr, ExprEnum};
-use crate::ir::decl::DeclId;
 use crate::ir::expr::{ExprId, IrExpr, IrExprEnum};
+use crate::ir::module::IrModule;
 
-use std::collections::hash_map::HashMap;
 use std::sync::Arc;
 
 /// Constructs the intermediate representation of a data expression.
@@ -18,26 +16,19 @@ use std::sync::Arc;
 /// Returns `result_id` for convenience.
 pub fn convert_ir_expr(
     context: &AnalysisContext,
-    id_map: &mut HashMap<Identifier, DeclId>,
     expr: &Arc<Expr>,
-    result_id: ExprId,
-    ir_mapping: &mut ModuleIrMapping,
+    module: &mut IrModule,
 ) -> Result<ExprId, SemanticError> {
+    let result_id = context.generate_expr_id(module.id);
     match &expr.value {
         ExprEnum::Id { id } => {
-            let Some(&decl_id) = id_map.get(id) else {
-                return Err(SemanticError::IdentifierError {
-                    message: format!("Unknown identifier {}", id),
-                    id: id.clone(),
-                })
-            };
-            ir_mapping.exprs.insert(result_id, IrExpr {
-                value: IrExprEnum::Name { id: decl_id },
+            module.exprs.insert(result_id, IrExpr {
+                value: IrExprEnum::Name { id: id.clone() },
                 loc: expr.loc,
             });
         },
         ExprEnum::Number { value } => {
-            ir_mapping.exprs.insert(result_id, IrExpr {
+            module.exprs.insert(result_id, IrExpr {
                 value: IrExprEnum::Number { value: *value },
                 loc: expr.loc,
             });
@@ -61,20 +52,12 @@ pub fn convert_ir_expr(
             todo!()
         },
         ExprEnum::Apply { callee, args } => {
-            let callee_id = convert_ir_expr(
-                context, id_map,
-                callee, context.generate_expr_id(ir_mapping.module),
-                ir_mapping,
-            )?;
+            let callee_id = convert_ir_expr(context, callee, module)?;
             let mut arg_ids = Vec::new();
             for arg in args {
-                arg_ids.push(convert_ir_expr(
-                    context, id_map,
-                    arg, context.generate_expr_id(ir_mapping.module),
-                    ir_mapping,
-                )?);
+                arg_ids.push(convert_ir_expr(context, arg, module)?);
             }
-            ir_mapping.exprs.insert(result_id, IrExpr {
+            module.exprs.insert(result_id, IrExpr {
                 value: IrExprEnum::Apply { callee: callee_id, args: arg_ids },
                 loc: expr.loc,
             });

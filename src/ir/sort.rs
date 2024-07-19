@@ -1,15 +1,15 @@
 
+use crate::core::syntax::Identifier;
 use crate::ir::module::ModuleId;
-use crate::util::hashing::HashByAddress;
 
-use std::sync::Arc;
+use std::fmt::{Debug, Formatter};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct IrSort {
-    pub value: HashByAddress<Arc<IrSortEnum>>,
+    pub value: IrSortEnum,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum IrSortEnum {
     Unit,
     Bool,
@@ -18,33 +18,44 @@ pub enum IrSortEnum {
     Int,
     Real,
     List {
-        subsort: IrSort,
+        subsort: SortId,
     },
     Set {
-        subsort: IrSort,
+        subsort: SortId,
     },
     FSet {
-        subsort: IrSort,
+        subsort: SortId,
     },
     Bag {
-        subsort: IrSort,
+        subsort: SortId,
     },
     FBag {
-        subsort: IrSort,
+        subsort: SortId,
     },
-    Struct,
+    Name {
+        id: Identifier,
+    },
+    Struct {
+
+    },
     Carthesian {
-        lhs: IrSort,
-        rhs: IrSort,
+        lhs: SortId,
+        rhs: SortId,
     },
     Function {
-        lhs: IrSort,
-        rhs: IrSort,
+        lhs: SortId,
+        rhs: SortId,
     },
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub struct SortId {
     pub(crate) module: ModuleId,
     pub(crate) value: usize,
+}
+
+impl Debug for SortId {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}.sort.{}", self.module, self.value)
+    }
 }

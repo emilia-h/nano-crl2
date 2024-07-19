@@ -1,15 +1,14 @@
 
 use crate::analysis::context::AnalysisContext;
 use crate::analysis::ir_conversion::expr::convert_ir_expr;
-use crate::analysis::ir_conversion::module::{ModuleIrMapping, SemanticError};
+use crate::analysis::ir_conversion::module::SemanticError;
 use crate::analysis::ir_conversion::sort::convert_ir_sort;
 use crate::core::syntax::Identifier;
-use crate::ir::decl::{DeclId, IrDeclEnum};
 use crate::ir::expr::ExprId;
+use crate::ir::module::IrModule;
 use crate::ir::proc::{IrProc, IrProcEnum, ProcId};
 use crate::model::proc::{Proc, ProcEnum};
 
-use std::collections::hash_map::HashMap;
 use std::sync::Arc;
 
 /// Constructs the intermediate representation of a process.
@@ -20,69 +19,35 @@ use std::sync::Arc;
 /// Returns `result_id` for convenience.
 pub fn convert_ir_proc(
     context: &AnalysisContext,
-    id_map: &mut HashMap<Identifier, DeclId>,
     proc: &Arc<Proc>,
-    result_id: ProcId,
-    ir_mapping: &mut ModuleIrMapping,
+    module: &mut IrModule,
 ) -> Result<ProcId, SemanticError> {
-    match &proc.value {
+    let add_result = |module: &mut IrModule, value: IrProcEnum| {
+        let proc_id = context.generate_proc_id(module.id);
+        module.procs.insert(proc_id, IrProc {
+            value,
+            loc: proc.loc,
+        });
+        proc_id
+    };
+
+    Ok(match &proc.value {
         ProcEnum::Action { value } => {
-            let decl_id = match id_map.get(&value.id) {
-                Some(&decl_id) => decl_id,
-                None => return Err(SemanticError::IdentifierError {
-                    message: "unknown identifier".to_owned(),
-                    id: value.id.clone(),
-                }),
-            };
-
-            let mut args = Vec::with_capacity(value.args.len());
+            let mut arg_ids = Vec::with_capacity(value.args.len());
             for arg in &value.args {
-                args.push(convert_ir_expr(
-                    context, id_map,
-                    arg, context.generate_expr_id(ir_mapping.module),
-                    ir_mapping,
-                )?);
+                arg_ids.push(convert_ir_expr(context, arg, module)?);
             }
 
-            let decl = ir_mapping.decls.get(&decl_id).unwrap();
-            match &decl.value {
-                IrDeclEnum::Action { .. } => {
-                    ir_mapping.procs.insert(result_id, IrProc {
-                        value: IrProcEnum::MultiAction { actions: vec![ (
-                            decl_id,
-                            args,
-                        ) ] },
-                        loc: proc.loc,
-                    });
-                },
-                IrDeclEnum::Process { .. } => {
-                    ir_mapping.procs.insert(result_id, IrProc {
-                        value: IrProcEnum::Name { id: decl_id, args },
-                        loc: proc.loc,
-                    });
-                },
-                IrDeclEnum::Constructor { .. } |
-                IrDeclEnum::GlobalVariable { .. } |
-                IrDeclEnum::LocalVariable { .. } |
-                IrDeclEnum::Map { .. } => return Err(SemanticError::NodeKindError {
-                    message: format!("expected an identifier referring to an action or process, but `{}` is data", value.id),
-                }),
-                IrDeclEnum::Sort { .. } => return Err(SemanticError::NodeKindError {
-                    message: format!("expected an identifier referring to an action or process, but `{}` is a sort", value.id),
-                }),
-            }
+            add_result(module, IrProcEnum::Name {
+                id: value.id.clone(),
+                args: arg_ids,
+            })
         },
         ProcEnum::Delta => {
-            ir_mapping.procs.insert(result_id, IrProc {
-                value: IrProcEnum::Delta,
-                loc: proc.loc,
-            });
+            add_result(module, IrProcEnum::Delta)
         },
         ProcEnum::Tau => {
-            ir_mapping.procs.insert(result_id, IrProc {
-                value: IrProcEnum::MultiAction { actions: Vec::new() },
-                loc: proc.loc,
-            });
+            add_result(module, IrProcEnum::MultiAction { actions: Vec::new() })
         },
         ProcEnum::Block { ids: _, proc: _ } => {
             todo!()
@@ -100,158 +65,87 @@ pub fn convert_ir_proc(
             todo!()
         },
         ProcEnum::Add { lhs, rhs } => {
-            add_binary_ir_proc(
-                context, id_map,
-                lhs, rhs, result_id,
-                ir_mapping,
-                |l, r| IrProc {
-                    value: IrProcEnum::Add { lhs: l, rhs: r },
-                    loc: proc.loc,
-                },
-            )?;
+            let l = convert_ir_proc(context, lhs, module)?;
+            let r = convert_ir_proc(context, rhs, module)?;        
+            add_result(module, IrProcEnum::Add { lhs: l, rhs: r })
         },
         ProcEnum::Sum { variables, proc } => {
-            for variable_decl in variables {
-                for id in &variable_decl.ids {
-                    let decl_id = context.generate_decl_id(ir_mapping.module);
-                    id_map.insert(id.clone(), decl_id);
-                }
-            }
-
             // NOTE: we assume that `variables` contains at least one variable
-            // TODO
-            let mut intermediate_id = convert_ir_proc(
-                context, id_map,
-                proc, context.generate_proc_id(ir_mapping.module),
-                ir_mapping,
-            )?;
-            // sum x: X, y: Y . z is equivalent to sum x: X . sum y: Y . z
-            // we work inside out here
-            for (i, variable_decl) in variables.iter().enumerate().rev() {
-                for (j, id) in variable_decl.ids.iter().enumerate().rev() {
-                    eprintln!("({}, {})", i, j);
-                    let next_id = if i == 0 && j == 0 {
-                        // the last generated IrProc has to be mapped to from result_id
-                        result_id
-                    } else {
-                        context.generate_proc_id(ir_mapping.module)
-                    };
-                    let variable = id_map.remove(id).unwrap();
-
-                    let sort_id = convert_ir_sort(
-                        context, id_map,
-                        &Some(Arc::clone(&variable_decl.sort)),
-                        context.generate_sort_id(ir_mapping.module),
-                        ir_mapping,
-                    )?;
-
-                    // intermediate := sum variable : sort . intermediate
-                    ir_mapping.procs.insert(next_id, IrProc {
+            // `sum x: X, y: Y . z` is syntactically a shorthand for
+            // `sum x: X . sum y: Y . z`
+            // we work inside out here (note the `rev()`)
+            let mut current_id = convert_ir_proc(context, proc, module)?;
+            for variable_decl in variables.iter().rev() {
+                for id in variable_decl.ids.iter().rev() {
+                    let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
+                    let next_id = context.generate_proc_id(module.id);
+                    let def_id = context.generate_def_id(module.id);
+                    module.procs.insert(next_id, IrProc {
                         value: IrProcEnum::Sum {
-                            variable,
+                            def_id,
+                            id: id.clone(),
                             sort: sort_id,
-                            proc: intermediate_id,
+                            proc: current_id,
                         },
                         loc: proc.loc,
                     });
-                    intermediate_id = next_id;
+                    current_id = next_id;
                 }
             }
+            current_id
         },
         ProcEnum::Parallel { lhs, rhs } => {
-            add_binary_ir_proc(
-                context, id_map,
-                lhs, rhs, result_id,
-                ir_mapping,
-                |l, r| IrProc {
-                    value: IrProcEnum::Parallel { lhs: l, rhs: r },
-                    loc: proc.loc,
-                },
-            )?;
+            let l = convert_ir_proc(context, lhs, module)?;
+            let r = convert_ir_proc(context, rhs, module)?;        
+            add_result(module, IrProcEnum::Parallel { lhs: l, rhs: r })
         },
         ProcEnum::RightParallel { lhs, rhs } => {
-            add_binary_ir_proc(
-                context, id_map,
-                lhs, rhs, result_id,
-                ir_mapping,
-                |l, r| IrProc {
-                    value: IrProcEnum::RightParallel { lhs: l, rhs: r },
-                    loc: proc.loc,
-                },
-            )?;
+            let l = convert_ir_proc(context, lhs, module)?;
+            let r = convert_ir_proc(context, rhs, module)?;        
+            add_result(module, IrProcEnum::RightParallel { lhs: l, rhs: r })
         },
         ProcEnum::Multi { lhs, rhs } => {
             // in the AST `|` is a binary operator, but in the IR we want it to
             // be a single vec, so we recursively collect all actions here
             let mut actions = Vec::new();
-            extract_actions(context, id_map, lhs, ir_mapping, &mut actions)?;
-            extract_actions(context, id_map, rhs, ir_mapping, &mut actions)?;
+            extract_actions(context, lhs, module, &mut actions)?;
+            extract_actions(context, rhs, module, &mut actions)?;
 
-            ir_mapping.procs.insert(result_id, IrProc {
-                value: IrProcEnum::MultiAction { actions },
-                loc: proc.loc,
-            });
+            add_result(module, IrProcEnum::MultiAction { actions })
         },
         ProcEnum::IfThenElse { condition, then_proc, else_proc } => {
-            let c = convert_ir_expr(
-                context, id_map,
-                condition, context.generate_expr_id(ir_mapping.module),
-                ir_mapping,
-            )?;
-
-            let t = convert_ir_proc(
-                context, id_map,
-                then_proc, context.generate_proc_id(ir_mapping.module),
-                ir_mapping,
-            )?;
-
+            let c = convert_ir_expr(context, condition, module)?;
+            let t = convert_ir_proc(context, then_proc, module)?;
             let e = if let Some(else_proc) = else_proc {
-                convert_ir_proc(
-                    context, id_map,
-                    else_proc, context.generate_proc_id(ir_mapping.module),
-                    ir_mapping,
-                )?
+                convert_ir_proc(context, else_proc, module)?
             } else {
                 // `a -> b` is equivalent to `a -> b <> delta`
-                let else_id = context.generate_proc_id(ir_mapping.module);
-                ir_mapping.procs.insert(else_id, IrProc {
+                let else_id = context.generate_proc_id(module.id);
+                module.procs.insert(else_id, IrProc {
                     value: IrProcEnum::Delta,
                     loc: proc.loc,
                 });
                 else_id
             };
 
-            ir_mapping.procs.insert(result_id, IrProc {
-                value: IrProcEnum::IfThenElse { condition: c, then_proc: t, else_proc: e },
-                loc: proc.loc,
-            });
+            add_result(module, IrProcEnum::IfThenElse {
+                condition: c,
+                then_proc: t,
+                else_proc: e,
+            })
         },
         ProcEnum::LeftShift { .. } => {
             unimplemented!()
         },
         ProcEnum::Concat { lhs, rhs } => {
-            let l = convert_ir_proc(
-                context, id_map,
-                lhs, context.generate_proc_id(ir_mapping.module),
-                ir_mapping,
-            )?;
-            let r = convert_ir_proc(
-                context, id_map,
-                rhs, context.generate_proc_id(ir_mapping.module),
-                ir_mapping,
-            )?;
-
-            ir_mapping.procs.insert(result_id, IrProc {
-                value: IrProcEnum::Concat { lhs: l, rhs: r },
-                loc: proc.loc,
-            });
+            let l = convert_ir_proc(context, lhs, module)?;
+            let r = convert_ir_proc(context, rhs, module)?;        
+            add_result(module, IrProcEnum::Concat { lhs: l, rhs: r })
         },
         ProcEnum::Time { .. } => {
             unimplemented!()
         },
-    }
-
-    Ok(result_id)
+    })
 }
 
 /// Adds all actions within a multi-action, or returns an error if the
@@ -259,32 +153,21 @@ pub fn convert_ir_proc(
 /// action.
 fn extract_actions(
     context: &AnalysisContext,
-    id_map: &mut HashMap<Identifier, DeclId>,
     proc: &Arc<Proc>,
-    ir_mapping: &mut ModuleIrMapping,
-    output: &mut Vec<(DeclId, Vec<ExprId>)>,
+    result: &mut IrModule,
+    output: &mut Vec<(Identifier, Vec<ExprId>)>,
 ) -> Result<(), SemanticError> {
     match &proc.value {
         ProcEnum::Action { value } => {
-            let Some(&decl_id) = id_map.get(&value.id) else {
-                return Err(SemanticError::IdentifierError {
-                    message: "Unrecognized identifier".to_owned(),
-                    id: value.id.clone(),
-                });
-            };
             let mut arg_ids = Vec::new();
             for arg in &value.args {
-                arg_ids.push(convert_ir_expr(
-                    context, id_map,
-                    arg, context.generate_expr_id(ir_mapping.module),
-                    ir_mapping,
-                )?);
+                arg_ids.push(convert_ir_expr(context, arg, result)?);
             }
-            output.push((decl_id, arg_ids));
+            output.push((value.id.clone(), arg_ids));
         },
         ProcEnum::Multi { lhs, rhs } => {
-            extract_actions(context, id_map, lhs, ir_mapping, output)?;
-            extract_actions(context, id_map, rhs, ir_mapping, output)?;
+            extract_actions(context, lhs, result, output)?;
+            extract_actions(context, rhs, result, output)?;
         },
         _ => {
             return Err(SemanticError::NodeKindError {
@@ -292,34 +175,6 @@ fn extract_actions(
             });
         },
     }
-
-    Ok(())
-}
-
-fn add_binary_ir_proc<F>(
-    context: &AnalysisContext,
-    id_map: &mut HashMap<Identifier, DeclId>,
-    lhs: &Arc<Proc>,
-    rhs: &Arc<Proc>,
-    result_id: ProcId,
-    ir_mapping: &mut ModuleIrMapping,
-    f: F,
-) -> Result<(), SemanticError>
-where
-    F: FnOnce(ProcId, ProcId) -> IrProc,
-{
-    let l = convert_ir_proc(
-        context, id_map,
-        lhs, context.generate_proc_id(ir_mapping.module),
-        ir_mapping,
-    )?;
-    let r = convert_ir_proc(
-        context, id_map,
-        rhs, context.generate_proc_id(ir_mapping.module),
-        ir_mapping,
-    )?;
-
-    ir_mapping.procs.insert(result_id, f(l, r));
 
     Ok(())
 }

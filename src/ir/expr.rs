@@ -1,8 +1,9 @@
 
 use crate::core::syntax::{Identifier, SourceRange};
-use crate::ir::decl::DeclId;
 use crate::ir::module::ModuleId;
 use crate::ir::sort::IrSort;
+
+use std::fmt::{Debug, Formatter};
 
 #[derive(Debug)]
 pub struct IrExpr {
@@ -13,7 +14,7 @@ pub struct IrExpr {
 #[derive(Debug)]
 pub enum IrExprEnum {
     Name {
-        id: DeclId,
+        id: Identifier,
     },
     Number {
         // TODO should actually allow arbitrary-size integers
@@ -42,8 +43,14 @@ pub struct IrRewriteRule {
     pub rhs: ExprId,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub struct ExprId {
     pub(crate) module: ModuleId,
     pub(crate) value: usize,
+}
+
+impl Debug for ExprId {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}.expr.{}", self.module, self.value)
+    }
 }
