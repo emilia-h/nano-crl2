@@ -1,6 +1,6 @@
 //! Implements data structures that assist in analysis in this library.
 
-use crate::ir::decl::{DeclId, DefId, ParamId};
+use crate::ir::decl::{DeclId, DefId};
 use crate::ir::expr::ExprId;
 use crate::ir::module::{IrModule, ModuleId};
 use crate::ir::proc::ProcId;
@@ -73,12 +73,6 @@ impl AnalysisContext {
         let value = self.id_counter.get();
         self.id_counter.set(value + 1);
         ExprId { module, value }
-    }
-
-    pub fn generate_param_id(&self, module: ModuleId) -> ParamId {
-        let value = self.id_counter.get();
-        self.id_counter.set(value + 1);
-        ParamId { module, value }
     }
 
     /// Returns a process ID that was not returned by this function before.

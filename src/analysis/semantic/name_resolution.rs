@@ -51,21 +51,19 @@ pub fn query_def_of_name(
             // there can be multiple actions with the same name but
             // with different signatures
             match &ir_module.get_proc(id).value {
-                IrProcEnum::Name { identifier, args } => {
-                    if let Some(parent) = ir_module.get_parent(node) {
-                        find_def_of_name(
-                            context,
-                            parent,
-                            &NameLookup::Proc { identifier },
-                            &ir_module,
-                        )
-                    } else {
-                        context.error();
-                        Err(())
-                    }
-                },
                 IrProcEnum::MultiAction { actions } => {
                     todo!()
+                    // if let Some(parent) = ir_module.get_parent(node) {
+                    //     find_def_of_name(
+                    //         context,
+                    //         parent,
+                    //         &NameLookup::Proc { identifier },
+                    //         &ir_module,
+                    //     )
+                    // } else {
+                    //     context.error();
+                    //     Err(())
+                    // }
                 },
                 _ => panic!("process {:?} is not a name", id),
             }
@@ -106,8 +104,7 @@ fn find_def_of_name(
             if let NameLookup::Expr { identifier } = name_lookup {
                 if let IrDeclEnum::Process { params, .. } = &decl.value {
                     let mut result = None;
-                    for param_id in params {
-                        let param = module.params.get(param_id).unwrap();
+                    for param in params {
                         if &param.identifier == *identifier {
                             if result.is_some() {
                                 context.error();

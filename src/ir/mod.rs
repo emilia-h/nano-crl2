@@ -4,6 +4,7 @@
 
 pub mod decl;
 pub mod expr;
+pub mod iterator;
 pub mod module;
 pub mod proc;
 pub mod sort;

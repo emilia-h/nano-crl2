@@ -16,12 +16,10 @@ pub struct IrProc {
 
 #[derive(Debug)]
 pub enum IrProcEnum {
+    /// This can be either a process name (defined by `proc A(params) = ...`)
+    /// or a multi-action (`a(args) | b(args)`, defined by `act a: Sorts`).
     MultiAction {
         actions: Vec<(Identifier, Vec<ExprId>)>,
-    },
-    Name {
-        identifier: Identifier,
-        args: Vec<ExprId>,
     },
     Delta,
     // TODO: block, allow, hide, rename, comm

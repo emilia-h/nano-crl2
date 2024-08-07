@@ -59,9 +59,8 @@ pub fn convert_ir_proc(
                 module.add_parent(arg_id.into(), proc_id.into());
             }
             module.procs.insert(proc_id, IrProc {
-                value: IrProcEnum::Name {
-                    identifier: value.id.clone(),
-                    args: arg_ids,
+                value: IrProcEnum::MultiAction {
+                    actions: vec![(value.id.clone(), arg_ids)],
                 },
                 loc: proc.loc,
             });
@@ -108,6 +107,7 @@ pub fn convert_ir_proc(
                     });
                     module.add_parent(sort_id.into(), next_id.into());
                     module.add_parent(current_id.into(), next_id.into());
+                    module.add_def_source(def_id, next_id.into());
                     current_id = next_id;
                 }
             }

@@ -50,6 +50,7 @@ pub fn convert_ir_expr(
                 });
                 module.add_parent(sort_id.into(), next_id.into());
                 module.add_parent(current_id.into(), next_id.into());
+                module.add_def_source(def_id, next_id.into());
                 current_id = next_id;
             }
         }
@@ -143,6 +144,7 @@ pub fn convert_ir_expr(
             });
             module.add_parent(sort_id.into(), expr_id.into());
             module.add_parent(condition_id.into(), expr_id.into());
+            module.add_def_source(def_id, expr_id.into());
             expr_id
         },
         ExprEnum::FunctionUpdate { function, lhs, rhs } => {

@@ -29,7 +29,7 @@ pub enum IrDeclEnum {
         sort: SortId,
     },
     Process {
-        params: Vec<ParamId>,
+        params: Vec<IrParam>,
         proc: ProcId,
     },
     /// A sort declaration of the form `sort A;`.
@@ -43,12 +43,16 @@ pub enum IrDeclEnum {
 
 /// A parameter node in the IR.
 /// 
-/// This is used in `proc` declarations.
+/// This is used in `proc` declarations. The reason a parameter is a node of
+/// its own in the IR graph with its own ID type is that it is useful to be
+/// able to refer to it using a [`NodeId`]. In particular, it is used when one
+/// wants to find the source node of a `DefId`, which could be a parameter.
+/// 
+/// [`NodeId`]: ../module/struct.NodeId.html
 #[derive(Debug)]
 pub struct IrParam {
     pub def_id: DefId,
     pub identifier: Identifier,
-    pub index: usize,
     pub sort: SortId,
 }
 
@@ -77,16 +81,17 @@ impl Debug for DeclId {
     }
 }
 
-/// A (nameless) identifier that identifies a parameter node.
+/// A (nameless) identifier that identifies a specific parameter of a
+/// declaration.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub struct ParamId {
-    pub(crate) module: ModuleId,
-    pub(crate) value: usize,
+    pub(crate) decl: DeclId,
+    pub(crate) index: usize,
 }
 
 impl Debug for ParamId {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}.param.{}", self.module, self.value)
+        write!(f, "{:?}.param.{}", self.decl, self.index)
     }
 }
 

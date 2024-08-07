@@ -3,7 +3,7 @@ use crate::analysis::context::AnalysisContext;
 use crate::analysis::ir_conversion::proc::convert_ir_proc;
 use crate::analysis::ir_conversion::sort::convert_ir_sort;
 use crate::core::syntax::Identifier;
-use crate::ir::decl::{IrDecl, IrDeclEnum, IrParam};
+use crate::ir::decl::{IrDecl, IrDeclEnum, IrParam, ParamId};
 use crate::ir::module::IrModule;
 use crate::ir::sort::SortId;
 use crate::model::decl::{Decl, DeclEnum};
@@ -40,7 +40,8 @@ pub fn convert_ir_decl(
             value,
             loc: decl.loc,
         });
-        (def_id, decl_id)
+        module.add_def_source(def_id, decl_id.into());
+        decl_id
     };
 
     match &decl.value {
@@ -69,12 +70,13 @@ pub fn convert_ir_decl(
                     },
                     loc: decl.loc,
                 });
+                module.add_def_source(def_id, decl_id.into());
             }
         },
         DeclEnum::Constructor { ids, sort } => {
             for identifier in ids {
                 let sort_id = convert_ir_sort(context, sort, module)?;
-                let (def_id, decl_id) = add_def(module, identifier, IrDeclEnum::Constructor {
+                let decl_id = add_def(module, identifier, IrDeclEnum::Constructor {
                     sort: sort_id,
                 });
                 module.add_parent(sort_id.into(), decl_id.into());
@@ -87,7 +89,7 @@ pub fn convert_ir_decl(
             for variable_decl in variables {
                 let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
                 for identifier in &variable_decl.ids {
-                    let (def_id, decl_id) = add_def(module, identifier, IrDeclEnum::GlobalVariable {
+                    let decl_id = add_def(module, identifier, IrDeclEnum::GlobalVariable {
                         sort: sort_id,
                     });
                     module.add_parent(sort_id.into(), decl_id.into());
@@ -108,7 +110,7 @@ pub fn convert_ir_decl(
         },
         DeclEnum::Map { id, sort } => {
             let sort_id = convert_ir_sort(context, sort, module)?;
-            let (def_id, decl_id) = add_def(module, id, IrDeclEnum::Map { sort: sort_id });
+            let decl_id = add_def(module, id, IrDeclEnum::Map { sort: sort_id });
             module.add_parent(sort_id.into(), decl_id.into());
         },
         DeclEnum::Sort { ids, sort } => {
@@ -116,41 +118,42 @@ pub fn convert_ir_decl(
                 // sort A = something;
                 assert_eq!(ids.len(), 1);
                 let sort_id = convert_ir_sort(context, sort, module)?;
-                let (def_id, decl_id) = add_def(module, &ids[0], IrDeclEnum::SortAlias { sort: sort_id });
+                let decl_id = add_def(module, &ids[0], IrDeclEnum::SortAlias { sort: sort_id });
                 module.add_parent(sort_id.into(), decl_id.into());
             } else {
                 // sort A_1, ..., A_n;
                 for identifier in ids {
-                    let (def_id, _) = add_def(module, identifier, IrDeclEnum::Sort);
+                    let _ = add_def(module, identifier, IrDeclEnum::Sort);
                 }
             }
         },
         DeclEnum::Process { id, params, proc } => {
             // convert parameters' sorts to IR
             let mut ir_params = Vec::new();
-            let mut index = 0;
             for variable_decl in params {
                 let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
                 for identifier in &variable_decl.ids {
-                    let param_id = context.generate_param_id(module.id);
                     let def_id = context.generate_def_id(module.id);
-                    module.params.insert(param_id, IrParam {
+                    ir_params.push(IrParam {
                         def_id,
                         identifier: identifier.clone(),
-                        index,
                         sort: sort_id,
                     });
-                    ir_params.push(param_id);
                 }
-                index += 1;
             }
 
             // cannot simply reuse `add_def` because of borrow checker issues
             let proc_id = convert_ir_proc(context, proc, module)?;
             let def_id = context.generate_def_id(module.id);
             let decl_id = context.generate_decl_id(module.id);
-            for param in &ir_params {
-                module.add_parent((*param).into(), decl_id.into());
+            for (index, param) in ir_params.iter().enumerate() {
+                let param_id = ParamId {
+                    decl: decl_id,
+                    index,
+                };
+                module.add_parent(param.sort.into(), param_id.into());
+                module.add_parent(param_id.into(), decl_id.into());
+                module.add_def_source(param.def_id, param_id.into());
             }
             module.decls.insert(decl_id, IrDecl {
                 def_id,
@@ -159,6 +162,7 @@ pub fn convert_ir_decl(
                 loc: decl.loc,
             });
             module.add_parent(proc_id.into(), decl_id.into());
+            module.add_def_source(def_id, decl_id.into());
         },
     }
     Ok(())
