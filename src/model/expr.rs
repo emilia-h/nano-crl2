@@ -62,7 +62,7 @@ pub enum ExprEnum {
     SetComprehension {
         id: Identifier,
         sort: Arc<Sort>,
-        expr: Arc<Expr>,
+        condition: Arc<Expr>,
     },
     FunctionUpdate {
         function: Arc<Expr>,
@@ -84,11 +84,11 @@ pub enum ExprEnum {
     },
     Forall {
         variables: Vec<VariableDecl>,
-        expr: Arc<Expr>,
+        condition: Arc<Expr>,
     },
     Exists {
         variables: Vec<VariableDecl>,
-        expr: Arc<Expr>,
+        condition: Arc<Expr>,
     },
     Lambda {
         variables: Vec<VariableDecl>,
@@ -262,7 +262,7 @@ fn parse_binder_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
             parser.expect_token(&LexicalElement::Period)?;
             let expr = Arc::new(parse_implies_expr(parser)?);
             Ok(Expr::new(
-                ExprEnum::Exists { variables, expr },
+                ExprEnum::Exists { variables, condition: expr },
                 parser.until_now(&loc),
             ))
         },
@@ -272,7 +272,7 @@ fn parse_binder_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
             parser.expect_token(&LexicalElement::Period)?;
             let expr = Arc::new(parse_implies_expr(parser)?);
             Ok(Expr::new(
-                ExprEnum::Forall { variables, expr },
+                ExprEnum::Forall { variables, condition: expr },
                 parser.until_now(&loc),
             ))
         },
@@ -538,10 +538,10 @@ pub fn parse_unit_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
                     parser.expect_token(&LexicalElement::Colon).unwrap();
                     let sort = Arc::new(parser.parse::<Sort>()?);
                     parser.expect_token(&LexicalElement::Pipe)?;
-                    let expr = Arc::new(parser.parse::<Expr>()?);
+                    let condition = Arc::new(parser.parse::<Expr>()?);
                     parser.expect_token(&LexicalElement::ClosingBrace)?;
                     Expr::new(
-                        ExprEnum::SetComprehension { id, sort, expr },
+                        ExprEnum::SetComprehension { id, sort, condition },
                         parser.until_now(&loc),
                     )
                 } else { // just a bag

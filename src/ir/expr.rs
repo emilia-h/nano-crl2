@@ -1,7 +1,8 @@
 
 use crate::core::syntax::{Identifier, SourceRange};
+use crate::ir::decl::DefId;
 use crate::ir::module::ModuleId;
-use crate::ir::sort::IrSort;
+use crate::ir::sort::{IrSort, SortId};
 
 use std::fmt::{Debug, Formatter};
 
@@ -14,30 +15,104 @@ pub struct IrExpr {
 #[derive(Debug)]
 pub enum IrExprEnum {
     Name {
-        id: Identifier,
+        identifier: Identifier,
     },
-    Number {
+    NumberLiteral {
         // TODO should actually allow arbitrary-size integers
         value: u64,
     },
-    // TODO many more
+    BoolLiteral {
+        value: bool,
+    },
+    ListLiteral {
+        values: Vec<ExprId>,
+    },
+    SetLiteral {
+        values: Vec<ExprId>,
+    },
+    BagLiteral {
+        values: Vec<(ExprId, ExprId)>,
+    },
+    FunctionUpdate {
+        function: ExprId,
+        lhs: ExprId,
+        rhs: ExprId,
+    },
     Apply {
         callee: ExprId,
         args: Vec<ExprId>,
     },
-    // TODO many more
-    Forall {
+    /// An expression of the form `<op> identifier: sort . expr` where <op> is
+    /// one of `exists`, `forall`, `lambda`, or `set` (of the form
+    /// `{ ... | ... }`).
+    Binder {
+        op: BinderExprOp,
+        def_id: DefId,
+        identifier: Identifier,
+        sort: SortId,
+        expr: ExprId,
+    },
+    Unary {
+        op: UnaryExprOp,
+        value: ExprId,
+    },
+    Binary {
+        op: BinaryExprOp,
+        lhs: ExprId,
+        rhs: ExprId,
+    },
+    If {
+        condition: ExprId,
+        then_expr: ExprId,
+        else_expr: ExprId,
+    },
+    Where {
 
     },
-    Exists {
+}
 
-    },
-    // TODO many more
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum UnaryExprOp {
+    LogicalNot,
+    Negate,
+    Count,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum BinderExprOp {
+    Forall,
+    Exists,
+    Lambda,
+    SetComprehension,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum BinaryExprOp {
+    Implies,
+    LogicalOr,
+    LogicalAnd,
+    Equals,
+    NotEquals,
+    LessThan,
+    LessThanEquals,
+    GreaterThan,
+    GreaterThanEquals,
+    In,
+    Cons,
+    Snoc,
+    Concat,
+    Add,
+    Subtract,
+    Divide,
+    IntegerDivide,
+    Mod,
+    Multiply,
+    Index,
 }
 
 #[derive(Debug)]
 pub struct IrRewriteRule {
-    pub variables: Vec<(Identifier, IrSort)>,
+    pub variables: Vec<(DefId, Identifier, IrSort)>,
     pub condition: ExprId,
     pub lhs: ExprId,
     pub rhs: ExprId,
@@ -52,5 +127,17 @@ pub struct ExprId {
 impl Debug for ExprId {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "{:?}.expr.{}", self.module, self.value)
+    }
+}
+
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+pub struct RewriteRuleId {
+    pub(crate) module: ModuleId,
+    pub(crate) value: usize,
+}
+
+impl Debug for RewriteRuleId {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}.rewriterule.{}", self.module, self.value)
     }
 }

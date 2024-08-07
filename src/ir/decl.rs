@@ -1,5 +1,5 @@
 
-use crate::core::syntax::Identifier;
+use crate::core::syntax::{Identifier, SourceRange};
 use crate::ir::module::ModuleId;
 use crate::ir::proc::ProcId;
 use crate::ir::sort::SortId;
@@ -9,13 +9,15 @@ use std::fmt::{Debug, Formatter};
 #[derive(Debug)]
 pub struct IrDecl {
     pub def_id: DefId,
+    pub identifier: Identifier,
     pub value: IrDeclEnum,
+    pub loc: SourceRange,
 }
 
 #[derive(Debug)]
 pub enum IrDeclEnum {
     Action {
-        sort: SortId,
+        sorts: Vec<SortId>,
     },
     Constructor {
         sort: SortId,
@@ -23,14 +25,11 @@ pub enum IrDeclEnum {
     GlobalVariable {
         sort: SortId,
     },
-    LocalVariable {
-        sort: SortId,
-    },
     Map {
         sort: SortId,
     },
     Process {
-        params: Vec<(DefId, Identifier, SortId)>,
+        params: Vec<ParamId>,
         proc: ProcId,
     },
     /// A sort declaration of the form `sort A;`.
@@ -40,6 +39,17 @@ pub enum IrDeclEnum {
     SortAlias {
         sort: SortId,
     },
+}
+
+/// A parameter node in the IR.
+/// 
+/// This is used in `proc` declarations.
+#[derive(Debug)]
+pub struct IrParam {
+    pub def_id: DefId,
+    pub identifier: Identifier,
+    pub index: usize,
+    pub sort: SortId,
 }
 
 /// A (nameless) identifier that, within a given analysis context, refers to a
@@ -55,9 +65,28 @@ pub struct DeclId {
     pub(crate) value: usize,
 }
 
+impl DeclId {
+    pub fn get_module_id(&self) -> ModuleId {
+        self.module
+    }
+}
+
 impl Debug for DeclId {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        write!(f, "{}.decl.{}", self.module.index, self.value)
+        write!(f, "{:?}.decl.{}", self.module, self.value)
+    }
+}
+
+/// A (nameless) identifier that identifies a parameter node.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+pub struct ParamId {
+    pub(crate) module: ModuleId,
+    pub(crate) value: usize,
+}
+
+impl Debug for ParamId {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}.param.{}", self.module, self.value)
     }
 }
 

@@ -12,7 +12,7 @@ fn parse_module(name: &str) -> Option<Module> {
     let module_string = read_resource_file(&file_path);
 
     let tokens = tokenize(&module_string).ok()?;
-    let ast = Parser::new(&tokens).parse::<Module>().unwrap();
+    let ast = Parser::new(&tokens).parse::<Module>().ok()?;
     Some(ast)
 }
 

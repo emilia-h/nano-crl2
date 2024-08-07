@@ -1,15 +1,14 @@
 
 use crate::analysis::context::AnalysisContext;
-use crate::analysis::ir_conversion::module::SemanticError;
 use crate::analysis::ir_conversion::proc::convert_ir_proc;
 use crate::analysis::ir_conversion::sort::convert_ir_sort;
 use crate::core::syntax::Identifier;
-use crate::ir::decl::{DefId, IrDecl, IrDeclEnum};
+use crate::ir::decl::{IrDecl, IrDeclEnum, IrParam};
 use crate::ir::module::IrModule;
-use crate::ir::sort::{IrSort, IrSortEnum};
+use crate::ir::sort::SortId;
 use crate::model::decl::{Decl, DeclEnum};
+use crate::model::sort::{Sort, SortEnum};
 
-use std::collections::hash_map::HashMap;
 use std::sync::Arc;
 
 /// Recursively converts the AST nodes that `decl` refers to to IR.
@@ -29,40 +28,56 @@ use std::sync::Arc;
 /// and also does not really make sense.
 pub fn convert_ir_decl(
     context: &AnalysisContext,
-    mapping: &HashMap<Identifier, DefId>,
     decl: &Arc<Decl>,
     module: &mut IrModule,
-) -> Result<(), SemanticError> {
+) -> Result<(), ()> {
+    let add_def = |module: &mut IrModule, id: &Identifier, value: IrDeclEnum| {
+        let def_id = context.generate_def_id(module.id);
+        let decl_id = context.generate_decl_id(module.id);
+        module.decls.insert(decl_id, IrDecl {
+            def_id,
+            identifier: id.clone(),
+            value,
+            loc: decl.loc,
+        });
+        (def_id, decl_id)
+    };
+
     match &decl.value {
         DeclEnum::Action { ids, sort } => {
-            for id in ids {
-                let def_id = *mapping.get(&id).unwrap();
-                let sort_id = match sort {
-                    Some(sort) => convert_ir_sort(context, sort, module)?,
+            for identifier in ids {
+                let sort_ids = match sort {
+                    Some(sort) => {
+                        let mut components = Vec::new();
+                        decompose_carthesian_sort(context, sort, module, &mut components)?;
+                        components
+                    },
                     None => {
-                        let generated = context.generate_sort_id(module.id);
-                        module.sorts.insert(generated, IrSort {
-                            value: IrSortEnum::Unit,
-                        });
-                        generated
+                        Vec::new()
                     },
                 };
+                let def_id = context.generate_def_id(module.id);
                 let decl_id = context.generate_decl_id(module.id);
+                for &sort_id in &sort_ids {
+                    module.add_parent(sort_id.into(), decl_id.into());
+                }
                 module.decls.insert(decl_id, IrDecl {
                     def_id,
-                    value: IrDeclEnum::Action { sort: sort_id },
+                    identifier: identifier.clone(),
+                    value: IrDeclEnum::Action {
+                        sorts: sort_ids,
+                    },
+                    loc: decl.loc,
                 });
             }
         },
         DeclEnum::Constructor { ids, sort } => {
-            for id in ids {
-                let def_id = *mapping.get(&id).unwrap();
+            for identifier in ids {
                 let sort_id = convert_ir_sort(context, sort, module)?;
-                let decl_id = context.generate_decl_id(module.id);
-                module.decls.insert(decl_id, IrDecl {
-                    def_id,
-                    value: IrDeclEnum::Action { sort: sort_id },
+                let (def_id, decl_id) = add_def(module, identifier, IrDeclEnum::Constructor {
+                    sort: sort_id,
                 });
+                module.add_parent(sort_id.into(), decl_id.into());
             }
         },
         DeclEnum::EquationSet { variables, equations } => {
@@ -71,77 +86,97 @@ pub fn convert_ir_decl(
         DeclEnum::GlobalVariable { variables } => {
             for variable_decl in variables {
                 let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
-                for id in &variable_decl.ids {
-                    let def_id = *mapping.get(&id).unwrap();
-                    let decl_id = context.generate_decl_id(module.id);
-                    module.decls.insert(decl_id, IrDecl {
-                        def_id,
-                        value: IrDeclEnum::GlobalVariable { sort: sort_id },
+                for identifier in &variable_decl.ids {
+                    let (def_id, decl_id) = add_def(module, identifier, IrDeclEnum::GlobalVariable {
+                        sort: sort_id,
                     });
+                    module.add_parent(sort_id.into(), decl_id.into());
                 }
             }
         },
         DeclEnum::Initial { value } => {
             let sort_id = convert_ir_proc(context, value, module)?;
             if module.initial.is_some() {
-                return Err(SemanticError::InitialProcError {
-                    message: "More than one `init` declaration".to_owned(),
-                    loc: decl.loc,
-                });
+                context.error();
+                // return Err(SemanticError::InitialProcError {
+                //     message: "More than one `init` declaration".to_owned(),
+                //     loc: decl.loc,
+                // });
+                return Err(());
             }
             module.initial = Some(sort_id);
         },
         DeclEnum::Map { id, sort } => {
-            let def_id = *mapping.get(&id).unwrap();
             let sort_id = convert_ir_sort(context, sort, module)?;
-            let decl_id = context.generate_decl_id(module.id);
-            module.decls.insert(decl_id, IrDecl {
-                def_id,
-                value: IrDeclEnum::Map { sort: sort_id },
-            });
+            let (def_id, decl_id) = add_def(module, id, IrDeclEnum::Map { sort: sort_id });
+            module.add_parent(sort_id.into(), decl_id.into());
         },
         DeclEnum::Sort { ids, sort } => {
             if let Some(sort) = sort {
                 // sort A = something;
                 assert_eq!(ids.len(), 1);
-                let def_id = *mapping.get(&ids[0]).unwrap();
                 let sort_id = convert_ir_sort(context, sort, module)?;
-                let decl_id = context.generate_decl_id(module.id);
-                module.decls.insert(decl_id, IrDecl {
-                    def_id,
-                    value: IrDeclEnum::SortAlias { sort: sort_id },
-                });
+                let (def_id, decl_id) = add_def(module, &ids[0], IrDeclEnum::SortAlias { sort: sort_id });
+                module.add_parent(sort_id.into(), decl_id.into());
             } else {
                 // sort A_1, ..., A_n;
-                for id in ids {
-                    let def_id = *mapping.get(id).unwrap();
-                    let decl_id = context.generate_decl_id(module.id);
-                    module.decls.insert(decl_id, IrDecl {
-                        def_id,
-                        value: IrDeclEnum::Sort,
-                    });
+                for identifier in ids {
+                    let (def_id, _) = add_def(module, identifier, IrDeclEnum::Sort);
                 }
             }
         },
         DeclEnum::Process { id, params, proc } => {
             // convert parameters' sorts to IR
             let mut ir_params = Vec::new();
+            let mut index = 0;
             for variable_decl in params {
                 let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
-                for id in &variable_decl.ids {
+                for identifier in &variable_decl.ids {
+                    let param_id = context.generate_param_id(module.id);
                     let def_id = context.generate_def_id(module.id);
-                    ir_params.push((def_id, id.clone(), sort_id));
+                    module.params.insert(param_id, IrParam {
+                        def_id,
+                        identifier: identifier.clone(),
+                        index,
+                        sort: sort_id,
+                    });
+                    ir_params.push(param_id);
                 }
+                index += 1;
             }
 
+            // cannot simply reuse `add_def` because of borrow checker issues
             let proc_id = convert_ir_proc(context, proc, module)?;
-            let def_id = *mapping.get(id).unwrap();
+            let def_id = context.generate_def_id(module.id);
             let decl_id = context.generate_decl_id(module.id);
+            for param in &ir_params {
+                module.add_parent((*param).into(), decl_id.into());
+            }
             module.decls.insert(decl_id, IrDecl {
                 def_id,
+                identifier: id.clone(),
                 value: IrDeclEnum::Process { params: ir_params, proc: proc_id },
+                loc: decl.loc,
             });
+            module.add_parent(proc_id.into(), decl_id.into());
         },
     }
+    Ok(())
+}
+
+fn decompose_carthesian_sort(
+    context: &AnalysisContext,
+    sort: &Arc<Sort>,
+    module: &mut IrModule,
+    result: &mut Vec<SortId>,
+) -> Result<(), ()> {
+    match &sort.value {
+        SortEnum::Carthesian { lhs, rhs } => {
+            decompose_carthesian_sort(context, lhs, module, result)?;
+            decompose_carthesian_sort(context, rhs, module, result)?;
+        },
+        _ => result.push(convert_ir_sort(context, sort, module)?),
+    }
+
     Ok(())
 }

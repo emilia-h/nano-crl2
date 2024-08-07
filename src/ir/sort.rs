@@ -1,12 +1,13 @@
 
-use crate::core::syntax::Identifier;
+use crate::core::syntax::{Identifier, SourceRange};
 use crate::ir::module::ModuleId;
 
 use std::fmt::{Debug, Formatter};
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IrSort {
     pub value: IrSortEnum,
+    pub loc: SourceRange,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -17,26 +18,15 @@ pub enum IrSortEnum {
     Nat,
     Int,
     Real,
-    List {
-        subsort: SortId,
-    },
-    Set {
-        subsort: SortId,
-    },
-    FSet {
-        subsort: SortId,
-    },
-    Bag {
-        subsort: SortId,
-    },
-    FBag {
+    Generic {
+        op: GenericSortOp,
         subsort: SortId,
     },
     Name {
-        id: Identifier,
+        identifier: Identifier,
     },
     Struct {
-
+        // TODO
     },
     Carthesian {
         lhs: SortId,
@@ -46,6 +36,15 @@ pub enum IrSortEnum {
         lhs: SortId,
         rhs: SortId,
     },
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum GenericSortOp {
+    List,
+    Set,
+    FSet,
+    Bag,
+    FBag,
 }
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]

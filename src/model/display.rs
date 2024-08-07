@@ -286,17 +286,17 @@ impl DisplayPretty for Expr {
                     write!(f, ")")?;
                 }
             },
-            Forall { variables, expr } => {
+            Forall { variables, condition } => {
                 write!(f, "forall ")?;
                 display_var_decl_list(variables, options, f)?;
                 write!(f, " . ")?;
-                expr.fmt(options, f)?;
+                condition.fmt(options, f)?;
             },
-            Exists { variables, expr } => {
+            Exists { variables, condition } => {
                 write!(f, "exists ")?;
                 display_var_decl_list(variables, options, f)?;
                 write!(f, " . ")?;
-                expr.fmt(options, f)?;
+                condition.fmt(options, f)?;
             },
             Lambda { variables, expr } => {
                 write!(f, "lambda ")?;

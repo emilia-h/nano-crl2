@@ -1,8 +1,9 @@
 
 use crate::analysis::context::AnalysisContext;
-use crate::analysis::ir_conversion::module::SemanticError;
+use crate::analysis::ir_conversion::sort::convert_ir_sort;
+use crate::model::decl::VariableDecl;
 use crate::model::expr::{Expr, ExprEnum};
-use crate::ir::expr::{ExprId, IrExpr, IrExprEnum};
+use crate::ir::expr::{BinaryExprOp, BinderExprOp, ExprId, IrExpr, IrExprEnum, UnaryExprOp};
 use crate::ir::module::IrModule;
 
 use std::sync::Arc;
@@ -18,38 +19,145 @@ pub fn convert_ir_expr(
     context: &AnalysisContext,
     expr: &Arc<Expr>,
     module: &mut IrModule,
-) -> Result<ExprId, SemanticError> {
-    let result_id = context.generate_expr_id(module.id);
-    match &expr.value {
+) -> Result<ExprId, ()> {
+    let add_expr = |module: &mut IrModule, value: IrExprEnum| {
+        let expr_id = context.generate_expr_id(module.id);
+        module.exprs.insert(expr_id, IrExpr {
+            value,
+            loc: expr.loc,
+        });
+        expr_id
+    };
+
+    let convert_multi_binder_expr = |
+        module: &mut IrModule,
+        op: BinderExprOp,
+        variables: &Vec<VariableDecl>,
+        sub_expr: &Arc<Expr>,
+    | -> Result<ExprId, ()> {
+        // similar to the conversion of `ProcEnum::Sum`
+        let mut current_id = convert_ir_expr(context, sub_expr, module)?;
+        for variable_decl in variables.iter().rev() {
+            for id in variable_decl.ids.iter().rev() {
+                let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
+                let def_id = context.generate_def_id(module.id);
+                let next_id = add_expr(module, IrExprEnum::Binder {
+                    op,
+                    def_id,
+                    identifier: id.clone(),
+                    sort: sort_id,
+                    expr: current_id,
+                });
+                module.add_parent(sort_id.into(), next_id.into());
+                module.add_parent(current_id.into(), next_id.into());
+                current_id = next_id;
+            }
+        }
+        Ok(current_id)
+    };
+
+    let convert_unary_expr = |
+        module: &mut IrModule,
+        op: UnaryExprOp,
+        value: &Arc<Expr>,
+    | -> Result<ExprId, ()> {
+        let value_id = convert_ir_expr(context, value, module)?;
+        let expr_id = add_expr(module, IrExprEnum::Unary {
+            op,
+            value: value_id,
+        });
+        module.add_parent(value_id.into(), expr_id.into());
+        Ok(expr_id)
+    };
+
+    let convert_binary_expr = |
+        module: &mut IrModule,
+        op: BinaryExprOp,
+        lhs: &Arc<Expr>,
+        rhs: &Arc<Expr>
+    | -> Result<ExprId, ()> {
+        let lhs_id = convert_ir_expr(context, lhs, module)?;
+        let rhs_id = convert_ir_expr(context, rhs, module)?;
+        let expr_id = add_expr(module, IrExprEnum::Binary {
+            op,
+            lhs: lhs_id,
+            rhs: rhs_id,
+        });
+        module.add_parent(lhs_id.into(), expr_id.into());
+        Ok(expr_id)
+    };
+
+    Ok(match &expr.value {
         ExprEnum::Id { id } => {
-            module.exprs.insert(result_id, IrExpr {
-                value: IrExprEnum::Name { id: id.clone() },
-                loc: expr.loc,
-            });
+            add_expr(module, IrExprEnum::Name { identifier: id.clone() })
         },
         ExprEnum::Number { value } => {
-            module.exprs.insert(result_id, IrExpr {
-                value: IrExprEnum::Number { value: *value },
-                loc: expr.loc,
-            });
+            add_expr(module, IrExprEnum::NumberLiteral { value: *value })
         },
         ExprEnum::Bool { value } => {
-            todo!()
+            add_expr(module, IrExprEnum::BoolLiteral { value: *value })
         },
         ExprEnum::List { values } => {
-            todo!()
+            let mut value_ids = Vec::new();
+            for value in values {
+                value_ids.push(convert_ir_expr(context, value, module)?);
+            }
+            let expr_id = context.generate_expr_id(module.id);
+            for &value_id in &value_ids {
+                module.add_parent(value_id.into(), expr_id.into());
+            }
+            module.exprs.insert(expr_id, IrExpr {
+                value: IrExprEnum::ListLiteral { values: value_ids },
+                loc: expr.loc,
+            });
+            expr_id
         },
         ExprEnum::Set { values } => {
+            let mut value_ids = Vec::new();
+            for value in values {
+                value_ids.push(convert_ir_expr(context, value, module)?);
+            }
+            let expr_id = context.generate_expr_id(module.id);
+            for &value_id in &value_ids {
+                module.add_parent(value_id.into(), expr_id.into());
+            }
+            module.exprs.insert(expr_id, IrExpr {
+                value: IrExprEnum::SetLiteral { values: value_ids },
+                loc: expr.loc,
+            });
+            expr_id
+        },
+        ExprEnum::Bag { values: _ } => {
             todo!()
         },
-        ExprEnum::Bag { values } => {
-            todo!()
-        },
-        ExprEnum::SetComprehension { id, sort, expr } => {
-            todo!()
+        ExprEnum::SetComprehension { id, sort, condition } => {
+            let sort_id = convert_ir_sort(context, sort, module)?;
+            let condition_id = convert_ir_expr(context, condition, module)?;
+            let def_id = context.generate_def_id(module.id);
+            let expr_id = add_expr(module, IrExprEnum::Binder {
+                op: BinderExprOp::SetComprehension,
+                def_id,
+                identifier: id.clone(),
+                sort: sort_id,
+                expr: condition_id,
+            });
+            module.add_parent(sort_id.into(), expr_id.into());
+            module.add_parent(condition_id.into(), expr_id.into());
+            expr_id
         },
         ExprEnum::FunctionUpdate { function, lhs, rhs } => {
-            todo!()
+            let function_id = convert_ir_expr(context, function, module)?;
+            let lhs_id = convert_ir_expr(context, lhs, module)?;
+            let rhs_id = convert_ir_expr(context, rhs, module)?;
+            let expr_id = add_expr(module, IrExprEnum::FunctionUpdate {
+                function: function_id,
+                lhs: lhs_id,
+                rhs: rhs_id,
+            });
+            module.add_parent(function_id.into(), expr_id.into());
+            module.add_parent(lhs_id.into(), expr_id.into());
+            module.add_parent(rhs_id.into(), expr_id.into());
+            expr_id
         },
         ExprEnum::Apply { callee, args } => {
             let callee_id = convert_ir_expr(context, callee, module)?;
@@ -57,96 +165,115 @@ pub fn convert_ir_expr(
             for arg in args {
                 arg_ids.push(convert_ir_expr(context, arg, module)?);
             }
-            module.exprs.insert(result_id, IrExpr {
-                value: IrExprEnum::Apply { callee: callee_id, args: arg_ids },
+            let expr_id = context.generate_expr_id(module.id);
+            for &arg_id in &arg_ids {
+                module.add_parent(arg_id.into(), expr_id.into());
+            }
+            module.exprs.insert(expr_id, IrExpr {
+                value: IrExprEnum::Apply {
+                    callee: callee_id,
+                    args: arg_ids,
+                },
                 loc: expr.loc,
             });
+            module.add_parent(callee_id.into(), expr_id.into());
+            expr_id
         },
         ExprEnum::LogicalNot { value } => {
-            todo!()
+            convert_unary_expr(module, UnaryExprOp::LogicalNot, value)?
         },
         ExprEnum::Negate { value } => {
-            todo!()
+            convert_unary_expr(module, UnaryExprOp::Negate, value)?
         },
         ExprEnum::Count { value } => {
-            todo!()
+            convert_unary_expr(module, UnaryExprOp::Count, value)?
         },
-        ExprEnum::Forall { variables, expr } => {
-            todo!()
+        ExprEnum::Forall { variables, condition } => {
+            convert_multi_binder_expr(module, BinderExprOp::Forall, variables, condition)?
         },
-        ExprEnum::Exists { variables, expr } => {
-            todo!()
+        ExprEnum::Exists { variables, condition } => {
+            convert_multi_binder_expr(module, BinderExprOp::Exists, variables, condition)?
         },
         ExprEnum::Lambda { variables, expr } => {
-            todo!()
+            convert_multi_binder_expr(module, BinderExprOp::Lambda, variables, expr)?
         },
         ExprEnum::Implies { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::Implies, lhs, rhs)?
         },
         ExprEnum::LogicalOr { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::LogicalOr, lhs, rhs)?
         },
         ExprEnum::LogicalAnd { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::LogicalAnd, lhs, rhs)?
         },
         ExprEnum::Equals { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::Equals, lhs, rhs)?
         },
         ExprEnum::NotEquals { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::NotEquals, lhs, rhs)?
         },
         ExprEnum::LessThan { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::LessThan, lhs, rhs)?
         },
         ExprEnum::LessThanEquals { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::LessThanEquals, lhs, rhs)?
         },
         ExprEnum::GreaterThan { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::GreaterThan, lhs, rhs)?
         },
         ExprEnum::GreaterThanEquals { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::GreaterThanEquals, lhs, rhs)?
         },
         ExprEnum::In { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::In, lhs, rhs)?
         },
         ExprEnum::Cons { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::Cons, lhs, rhs)?
         },
         ExprEnum::Snoc { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::Snoc, lhs, rhs)?
         },
         ExprEnum::Concat { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::Concat, lhs, rhs)?
         },
         ExprEnum::Add { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::Add, lhs, rhs)?
         },
         ExprEnum::Subtract { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::Subtract, lhs, rhs)?
         },
         ExprEnum::Divide { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::Divide, lhs, rhs)?
         },
         ExprEnum::IntegerDivide { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::IntegerDivide, lhs, rhs)?
         },
         ExprEnum::Mod { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::Mod, lhs, rhs)?
         },
         ExprEnum::Multiply { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::Multiply, lhs, rhs)?
         },
         ExprEnum::Index { lhs, rhs } => {
-            todo!()
+            convert_binary_expr(module, BinaryExprOp::Index, lhs, rhs)?
         },
         ExprEnum::If { condition, then_expr, else_expr } => {
+            let condition_id = convert_ir_expr(context, condition, module)?;
+            let then_id = convert_ir_expr(context, then_expr, module)?;
+            let else_id = convert_ir_expr(context, else_expr, module)?;
+            let expr_id = add_expr(module, IrExprEnum::If {
+                condition: condition_id,
+                then_expr: then_id,
+                else_expr: else_id,
+            });
+            module.add_parent(condition_id.into(), expr_id.into());
+            module.add_parent(then_id.into(), expr_id.into());
+            module.add_parent(else_id.into(), expr_id.into());
+            expr_id
+        },
+        ExprEnum::Where { expr, assignments: _ } => {
+            let _sub_expr_id = convert_ir_expr(context, expr, module)?;
             todo!()
         },
-        ExprEnum::Where { expr, assignments } => {
-            todo!()
-        },
-    }
-
-    Ok(result_id)
+    })
 }

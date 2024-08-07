@@ -1,7 +1,6 @@
 //! Implements data structures that assist in analysis in this library.
 
-use crate::core::syntax::Identifier;
-use crate::ir::decl::{DeclId, DefId};
+use crate::ir::decl::{DeclId, DefId, ParamId};
 use crate::ir::expr::ExprId;
 use crate::ir::module::{IrModule, ModuleId};
 use crate::ir::proc::ProcId;
@@ -10,6 +9,7 @@ use crate::model::module::Module;
 
 use std::cell::{Cell, RefCell};
 use std::collections::hash_map::HashMap;
+use std::hash::Hash;
 use std::sync::Arc;
 
 // my work is for a part based on the rustc compiler architecture:
@@ -24,8 +24,7 @@ use std::sync::Arc;
 /// queries that are cached to avoid computing the same result more than once.
 pub struct AnalysisContext {
     pub(crate) ast_modules: Vec<(String, Module)>,
-    pub(crate) module_defs: RefCell<HashMap<ModuleId, Arc<HashMap<Identifier, DefId>>>>,
-    pub(crate) ir_modules: RefCell<HashMap<ModuleId, Arc<IrModule>>>,
+    pub(crate) ir_modules: QueryHashMap<ModuleId, Result<Arc<IrModule>, ()>>,
     // pub(crate) sort_context: SortContext,
     id_counter: Cell<usize>,
 }
@@ -35,8 +34,7 @@ impl AnalysisContext {
     pub fn new() -> Self {
         AnalysisContext {
             ast_modules: Vec::new(),
-            ir_modules: RefCell::new(HashMap::new()),
-            module_defs: RefCell::new(HashMap::new()),
+            ir_modules: QueryHashMap::new(),
             // sort_context: SortContext::new(),
             id_counter: Cell::new(0),
         }
@@ -77,11 +75,10 @@ impl AnalysisContext {
         ExprId { module, value }
     }
 
-    /// Returns a sort ID that was not returned by this function before.
-    pub fn generate_sort_id(&self, module: ModuleId) -> SortId {
+    pub fn generate_param_id(&self, module: ModuleId) -> ParamId {
         let value = self.id_counter.get();
         self.id_counter.set(value + 1);
-        SortId { module, value }
+        ParamId { module, value }
     }
 
     /// Returns a process ID that was not returned by this function before.
@@ -91,10 +88,93 @@ impl AnalysisContext {
         ProcId { module, value }
     }
 
+    /// Returns a sort ID that was not returned by this function before.
+    pub fn generate_sort_id(&self, module: ModuleId) -> SortId {
+        let value = self.id_counter.get();
+        self.id_counter.set(value + 1);
+        SortId { module, value }
+    }
+
     /// Adds an error to the error list.
     pub fn error(&self, ) {
 
     }
+}
+
+/// A cache for queries.
+/// 
+/// This map uses interior mutability, so an immutable reference to it can be
+/// passed around and used to lock a key or insert a value for a key.
+pub struct QueryHashMap<K, V> {
+    map: RefCell<HashMap<K, Lockable<V>>>,
+}
+
+impl<K, V> QueryHashMap<K, V> {
+    pub fn new() -> Self {
+        QueryHashMap {
+            map: RefCell::new(HashMap::new())
+        }
+    }
+}
+
+impl<K, V> QueryHashMap<K, V>
+where
+    K: Clone + Eq + Hash,
+    V: Clone,
+{
+    /// Gives back the (cloned) value for the given key, or locks the key if
+    /// there was no value for that key.
+    /// 
+    /// If the key already had a value, then this returns a successful result.
+    /// 
+    /// if the key did not already have an associated value, then this locks
+    /// that key and returns a successful but empty value (`Ok(None)`).
+    /// 
+    /// If the key was already locked, then this returns an error, because that
+    /// indicates a cyclic query.
+    pub fn get_or_lock(&self, key: &K) -> Result<Option<V>, ()> {
+        let mut map = self.map.borrow_mut();
+        let value = map.get(key);
+        match value {
+            None => {
+                map.insert(key.clone(), Lockable::Locked);
+                Ok(None)
+            },
+            Some(Lockable::Locked) => Err(()),
+            Some(Lockable::Filled(v)) => Ok(Some(v.clone())),
+        }
+    }
+}
+
+impl<K, V> QueryHashMap<K, V>
+where
+    K: Hash + Eq,
+{
+    /// Inserts the value for a previously locked key.
+    /// 
+    /// # Panics
+    /// This function requires that the key was locked before calling this
+    /// function, and will panic if it wasn't. This is because this situation
+    /// indicates either an unhandled cyclic query error or a query that was
+    /// not cached while it should be.
+    /// 
+    /// It also requires that there was not a value for that key before, so it
+    /// will panic in that case as well.
+    pub fn unlock(&self, key: &K, value: V) {
+        let mut map = self.map.borrow_mut();
+        if let Some(v) = map.get_mut(key) {
+            assert!(matches!(v, Lockable::Locked), "already had a value");
+            *v = Lockable::Filled(value);
+        } else {
+            panic!("not locked");
+        }
+    }
+}
+
+#[derive(Debug)]
+enum Lockable<V> {
+    Locked,
+    Filled(V),
 }
 
 /// Stores the intermediate representation of sorts, which are cached/interned.

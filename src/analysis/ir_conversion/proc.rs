@@ -1,12 +1,11 @@
 
 use crate::analysis::context::AnalysisContext;
 use crate::analysis::ir_conversion::expr::convert_ir_expr;
-use crate::analysis::ir_conversion::module::SemanticError;
 use crate::analysis::ir_conversion::sort::convert_ir_sort;
 use crate::core::syntax::Identifier;
 use crate::ir::expr::ExprId;
 use crate::ir::module::IrModule;
-use crate::ir::proc::{IrProc, IrProcEnum, ProcId};
+use crate::ir::proc::{BinaryProcOp, IrProc, IrProcEnum, ProcId};
 use crate::model::proc::{Proc, ProcEnum};
 
 use std::sync::Arc;
@@ -21,8 +20,8 @@ pub fn convert_ir_proc(
     context: &AnalysisContext,
     proc: &Arc<Proc>,
     module: &mut IrModule,
-) -> Result<ProcId, SemanticError> {
-    let add_result = |module: &mut IrModule, value: IrProcEnum| {
+) -> Result<ProcId, ()> {
+    let add_proc = |module: &mut IrModule, value: IrProcEnum| {
         let proc_id = context.generate_proc_id(module.id);
         module.procs.insert(proc_id, IrProc {
             value,
@@ -31,23 +30,48 @@ pub fn convert_ir_proc(
         proc_id
     };
 
+    let convert_binary_proc = |
+        module: &mut IrModule,
+        op: BinaryProcOp,
+        lhs: &Arc<Proc>,
+        rhs: &Arc<Proc>,
+    | -> Result<ProcId, ()> {
+        let lhs_id = convert_ir_proc(context, lhs, module)?;
+        let rhs_id = convert_ir_proc(context, rhs, module)?;        
+        let proc_id = add_proc(module, IrProcEnum::Binary {
+            op,
+            lhs: lhs_id,
+            rhs: rhs_id,
+        });
+        module.add_parent(lhs_id.into(), proc_id.into());
+        module.add_parent(rhs_id.into(), proc_id.into());
+        Ok(proc_id)
+    };
+
     Ok(match &proc.value {
         ProcEnum::Action { value } => {
             let mut arg_ids = Vec::with_capacity(value.args.len());
             for arg in &value.args {
                 arg_ids.push(convert_ir_expr(context, arg, module)?);
             }
-
-            add_result(module, IrProcEnum::Name {
-                id: value.id.clone(),
-                args: arg_ids,
-            })
+            let proc_id = context.generate_proc_id(module.id);
+            for &arg_id in &arg_ids {
+                module.add_parent(arg_id.into(), proc_id.into());
+            }
+            module.procs.insert(proc_id, IrProc {
+                value: IrProcEnum::Name {
+                    identifier: value.id.clone(),
+                    args: arg_ids,
+                },
+                loc: proc.loc,
+            });
+            proc_id
         },
         ProcEnum::Delta => {
-            add_result(module, IrProcEnum::Delta)
+            add_proc(module, IrProcEnum::Delta)
         },
         ProcEnum::Tau => {
-            add_result(module, IrProcEnum::MultiAction { actions: Vec::new() })
+            add_proc(module, IrProcEnum::MultiAction { actions: Vec::new() })
         },
         ProcEnum::Block { ids: _, proc: _ } => {
             todo!()
@@ -65,12 +89,9 @@ pub fn convert_ir_proc(
             todo!()
         },
         ProcEnum::Add { lhs, rhs } => {
-            let l = convert_ir_proc(context, lhs, module)?;
-            let r = convert_ir_proc(context, rhs, module)?;        
-            add_result(module, IrProcEnum::Add { lhs: l, rhs: r })
+            convert_binary_proc(module, BinaryProcOp::Sum, lhs, rhs)?
         },
         ProcEnum::Sum { variables, proc } => {
-            // NOTE: we assume that `variables` contains at least one variable
             // `sum x: X, y: Y . z` is syntactically a shorthand for
             // `sum x: X . sum y: Y . z`
             // we work inside out here (note the `rev()`)
@@ -78,31 +99,25 @@ pub fn convert_ir_proc(
             for variable_decl in variables.iter().rev() {
                 for id in variable_decl.ids.iter().rev() {
                     let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
-                    let next_id = context.generate_proc_id(module.id);
                     let def_id = context.generate_def_id(module.id);
-                    module.procs.insert(next_id, IrProc {
-                        value: IrProcEnum::Sum {
-                            def_id,
-                            id: id.clone(),
-                            sort: sort_id,
-                            proc: current_id,
-                        },
-                        loc: proc.loc,
+                    let next_id = add_proc(module, IrProcEnum::Sum {
+                        def_id,
+                        identifier: id.clone(),
+                        sort: sort_id,
+                        proc: current_id,
                     });
+                    module.add_parent(sort_id.into(), next_id.into());
+                    module.add_parent(current_id.into(), next_id.into());
                     current_id = next_id;
                 }
             }
             current_id
         },
         ProcEnum::Parallel { lhs, rhs } => {
-            let l = convert_ir_proc(context, lhs, module)?;
-            let r = convert_ir_proc(context, rhs, module)?;        
-            add_result(module, IrProcEnum::Parallel { lhs: l, rhs: r })
+            convert_binary_proc(module, BinaryProcOp::Parallel, lhs, rhs)?
         },
         ProcEnum::RightParallel { lhs, rhs } => {
-            let l = convert_ir_proc(context, lhs, module)?;
-            let r = convert_ir_proc(context, rhs, module)?;        
-            add_result(module, IrProcEnum::RightParallel { lhs: l, rhs: r })
+            convert_binary_proc(module, BinaryProcOp::RightParallel, lhs, rhs)?
         },
         ProcEnum::Multi { lhs, rhs } => {
             // in the AST `|` is a binary operator, but in the IR we want it to
@@ -111,7 +126,7 @@ pub fn convert_ir_proc(
             extract_actions(context, lhs, module, &mut actions)?;
             extract_actions(context, rhs, module, &mut actions)?;
 
-            add_result(module, IrProcEnum::MultiAction { actions })
+            add_proc(module, IrProcEnum::MultiAction { actions })
         },
         ProcEnum::IfThenElse { condition, then_proc, else_proc } => {
             let c = convert_ir_expr(context, condition, module)?;
@@ -128,19 +143,17 @@ pub fn convert_ir_proc(
                 else_id
             };
 
-            add_result(module, IrProcEnum::IfThenElse {
+            add_proc(module, IrProcEnum::IfThenElse {
                 condition: c,
                 then_proc: t,
                 else_proc: e,
             })
         },
-        ProcEnum::LeftShift { .. } => {
-            unimplemented!()
+        ProcEnum::LeftShift { lhs, rhs } => {
+            convert_binary_proc(module, BinaryProcOp::LeftShift, lhs, rhs)?
         },
         ProcEnum::Concat { lhs, rhs } => {
-            let l = convert_ir_proc(context, lhs, module)?;
-            let r = convert_ir_proc(context, rhs, module)?;        
-            add_result(module, IrProcEnum::Concat { lhs: l, rhs: r })
+            convert_binary_proc(module, BinaryProcOp::Concat, lhs, rhs)?
         },
         ProcEnum::Time { .. } => {
             unimplemented!()
@@ -156,7 +169,7 @@ fn extract_actions(
     proc: &Arc<Proc>,
     result: &mut IrModule,
     output: &mut Vec<(Identifier, Vec<ExprId>)>,
-) -> Result<(), SemanticError> {
+) -> Result<(), ()> {
     match &proc.value {
         ProcEnum::Action { value } => {
             let mut arg_ids = Vec::new();
@@ -170,9 +183,11 @@ fn extract_actions(
             extract_actions(context, rhs, result, output)?;
         },
         _ => {
-            return Err(SemanticError::NodeKindError {
-                message: "The multi-action operator | can only be used between (multi-)actions".to_owned(),
-            });
+            context.error();
+            // return Err(SemanticError::NodeKindError {
+            //     message: "The multi-action operator | can only be used between (multi-)actions".to_owned(),
+            // });
+            return Err(());
         },
     }
 

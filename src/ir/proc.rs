@@ -20,40 +20,37 @@ pub enum IrProcEnum {
         actions: Vec<(Identifier, Vec<ExprId>)>,
     },
     Name {
-        id: Identifier,
+        identifier: Identifier,
         args: Vec<ExprId>,
     },
     Delta,
     // TODO: block, allow, hide, rename, comm
-    Add {
+    Binary {
+        op: BinaryProcOp,
         lhs: ProcId,
         rhs: ProcId,
     },
     Sum {
         def_id: DefId,
-        id: Identifier,
+        identifier: Identifier,
         sort: SortId,
         proc: ProcId,
-    },
-    Parallel {
-        lhs: ProcId,
-        rhs: ProcId,
-    },
-    RightParallel {
-        lhs: ProcId,
-        rhs: ProcId,
     },
     IfThenElse {
         condition: ExprId,
         then_proc: ProcId,
         else_proc: ProcId,
     },
-    // LeftShift {},
-    Concat {
-        lhs: ProcId,
-        rhs: ProcId,
-    },
     // Time {},
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum BinaryProcOp {
+    Sum,
+    Parallel,
+    RightParallel,
+    Concat,
+    LeftShift,
 }
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]

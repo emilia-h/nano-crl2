@@ -1,8 +1,7 @@
 
 use crate::analysis::context::AnalysisContext;
-use crate::analysis::ir_conversion::module::SemanticError;
 use crate::ir::module::IrModule;
-use crate::ir::sort::{IrSort, IrSortEnum, SortId};
+use crate::ir::sort::{GenericSortOp, IrSort, IrSortEnum, SortId};
 use crate::model::sort::{Sort, SortEnum};
 
 use std::sync::Arc;
@@ -10,54 +9,81 @@ use std::sync::Arc;
 pub fn convert_ir_sort(
     context: &AnalysisContext,
     sort: &Arc<Sort>,
-    result: &mut IrModule,
-) -> Result<SortId, SemanticError> {
-    let ir_sort_value = match &sort.value {
-        SortEnum::Bool => IrSortEnum::Bool,
-        SortEnum::Pos => IrSortEnum::Pos,
-        SortEnum::Nat => IrSortEnum::Nat,
-        SortEnum::Int => IrSortEnum::Int,
-        SortEnum::Real => IrSortEnum::Real,
+    module: &mut IrModule,
+) -> Result<SortId, ()> {
+    let add_sort = |module: &mut IrModule, value: IrSortEnum| {
+        let sort_id = context.generate_sort_id(module.id);
+        module.sorts.insert(sort_id, IrSort {
+            value,
+            loc: sort.loc,
+        });
+        sort_id
+    };
+
+    let convert_generic_sort = |
+        module: &mut IrModule,
+        op: GenericSortOp,
+        subsort: &Arc<Sort>,
+    | -> Result<SortId, ()> {
+        let subsort_id = convert_ir_sort(context, subsort, module)?;
+        let sort_id = add_sort(module, IrSortEnum::Generic {
+            op,
+            subsort: subsort_id,
+        });
+        Ok(sort_id)
+    };
+
+    Ok(match &sort.value {
+        SortEnum::Bool => add_sort(module, IrSortEnum::Bool),
+        SortEnum::Pos => add_sort(module, IrSortEnum::Pos),
+        SortEnum::Nat => add_sort(module, IrSortEnum::Nat),
+        SortEnum::Int => add_sort(module, IrSortEnum::Int),
+        SortEnum::Real => add_sort(module, IrSortEnum::Real),
         SortEnum::List { subsort } => {
-            let s = convert_ir_sort(context, subsort, result)?;
-            IrSortEnum::List { subsort: s }
+            convert_generic_sort(module, GenericSortOp::List, subsort)?
         },
         SortEnum::Set { subsort } => {
-            let s = convert_ir_sort(context, subsort, result)?;
-            IrSortEnum::Set { subsort: s }
+            convert_generic_sort(module, GenericSortOp::Set, subsort)?
         },
         SortEnum::Bag { subsort } => {
-            let s = convert_ir_sort(context, subsort, result)?;
-            IrSortEnum::Bag { subsort: s }
+            convert_generic_sort(module, GenericSortOp::Bag, subsort)?
         },
         SortEnum::FSet { subsort } => {
-            let s = convert_ir_sort(context, subsort, result)?;
-            IrSortEnum::FSet { subsort: s }
+            convert_generic_sort(module, GenericSortOp::FSet, subsort)?
         },
         SortEnum::FBag { subsort } => {
-            let s = convert_ir_sort(context, subsort, result)?;
-            IrSortEnum::FBag { subsort: s }
+            convert_generic_sort(module, GenericSortOp::FBag, subsort)?
         },
         SortEnum::Id { id } => {
-            IrSortEnum::Name { id: id.clone() }
+            add_sort(module, IrSortEnum::Name {
+                identifier: id.clone(),
+            })
         },
-        SortEnum::Struct { constructors } => {
+        SortEnum::Struct { constructors: _ } => {
             // should be desugared into named type
             todo!()
         },
         SortEnum::Carthesian { lhs, rhs } => {
-            let l = convert_ir_sort(context, lhs, result)?;
-            let r = convert_ir_sort(context, rhs, result)?;
-            IrSortEnum::Carthesian { lhs: l, rhs: r }
+            let lhs_id = convert_ir_sort(context, lhs, module)?;
+            let rhs_id = convert_ir_sort(context, rhs, module)?;
+            let sort_id = add_sort(module, IrSortEnum::Carthesian {
+                lhs: lhs_id,
+                rhs: rhs_id,
+            });
+            module.add_parent(lhs_id.into(), sort_id.into());
+            module.add_parent(rhs_id.into(), sort_id.into());
+            sort_id
         },
         SortEnum::Function { lhs, rhs } => {
-            let l = convert_ir_sort(context, lhs, result)?;
-            let r = convert_ir_sort(context, rhs, result)?;
-            IrSortEnum::Function { lhs: l, rhs: r }
+            let lhs_id = convert_ir_sort(context, lhs, module)?;
+            let rhs_id = convert_ir_sort(context, rhs, module)?;
+            let sort_id = add_sort(module, IrSortEnum::Function {
+                lhs: lhs_id,
+                rhs: rhs_id,
+            });
+            module.add_parent(lhs_id.into(), sort_id.into());
+            module.add_parent(rhs_id.into(), sort_id.into());
+            sort_id
         },
-    };
-
-    let sort_id = context.generate_sort_id(result.id);
-    result.sorts.insert(sort_id, IrSort { value: ir_sort_value });
-    Ok(sort_id)
+    })
 }
