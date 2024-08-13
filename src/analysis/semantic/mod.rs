@@ -11,3 +11,4 @@
 //! - typechecking: finding if types match correctly, emitting an error otherwise.
 
 pub mod name_resolution;
+pub mod sort_resolution;

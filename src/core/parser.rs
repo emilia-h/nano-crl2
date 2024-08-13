@@ -97,14 +97,14 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a single identifier.
-    pub fn parse_identifier(&mut self) -> Result<Identifier, ParseError> {
+    pub fn parse_identifier(&mut self) -> Result<(Identifier, SourceRange), ParseError> {
         if !self.has_token() {
             return self.end_of_input("an identifier");
         }
 
         let token = self.get_token();
         let result = if let LexicalElement::Identifier(value) = &token.value {
-            Ok(Identifier::new(value))
+            Ok((Identifier::new(value), token.loc))
         } else {
             Err(ParseError::expected("an identifier", &token))
         };
@@ -113,7 +113,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a list of identifiers, separated by commas.
-    pub fn parse_identifier_list(&mut self) -> Result<Vec<Identifier>, ParseError> {
+    pub fn parse_identifier_list(&mut self) -> Result<Vec<(Identifier, SourceRange)>, ParseError> {
         let mut ids = Vec::new();
         ids.push(self.parse_identifier()?);
         while self.skip_if_equal(&LexicalElement::Comma) {

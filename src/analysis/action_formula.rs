@@ -17,7 +17,7 @@ pub fn matches_action_formula(
             } else {
                 let mut same = true;
                 for i in 0 .. values.len() {
-                    if !matches_action(&multi_action[i], &values[i])? {
+                    if !matches_action(&multi_action[i], &values[i].0)? {
                         same = false;
                         break;
                     }

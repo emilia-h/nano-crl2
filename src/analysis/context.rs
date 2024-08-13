@@ -4,12 +4,12 @@ use crate::ir::decl::{DeclId, DefId};
 use crate::ir::expr::ExprId;
 use crate::ir::module::{IrModule, ModuleId};
 use crate::ir::proc::ProcId;
-use crate::ir::sort::SortId;
+use crate::ir::sort::{GenericSortOp, PrimitiveSort, ResolvedSort, SortId};
 use crate::model::module::Module;
+use crate::util::caching::{Interned, QueryHashMap};
 
 use std::cell::{Cell, RefCell};
 use std::collections::hash_map::HashMap;
-use std::hash::Hash;
 use std::sync::Arc;
 
 // my work is for a part based on the rustc compiler architecture:
@@ -23,9 +23,12 @@ use std::sync::Arc;
 /// Other data, such as intermediate representations (IRs), are computed using
 /// queries that are cached to avoid computing the same result more than once.
 pub struct AnalysisContext {
-    pub(crate) ast_modules: Vec<(String, Module)>,
+    /// The set of input modules, where each module has a name and an AST.
+    ast_modules: Vec<(String, Module)>,
+
     pub(crate) ir_modules: QueryHashMap<ModuleId, Result<Arc<IrModule>, ()>>,
-    // pub(crate) sort_context: SortContext,
+    pub(crate) sorts_of_expr: QueryHashMap<ExprId, Result<Interned<ResolvedSort>, ()>>,
+    resolved_sort_context: ResolvedSortContext,
     id_counter: Cell<usize>,
 }
 
@@ -35,7 +38,8 @@ impl AnalysisContext {
         AnalysisContext {
             ast_modules: Vec::new(),
             ir_modules: QueryHashMap::new(),
-            // sort_context: SortContext::new(),
+            sorts_of_expr: QueryHashMap::new(),
+            resolved_sort_context: ResolvedSortContext::new(),
             id_counter: Cell::new(0),
         }
     }
@@ -51,9 +55,9 @@ impl AnalysisContext {
         &self.ast_modules[id.index]
     }
 
-    // pub fn get_sorts(&self) -> &SortContext {
-    //     &self.sort_context
-    // }
+    pub fn get_resolved_sort_context(&self) -> &ResolvedSortContext {
+        &self.resolved_sort_context
+    }
 
     /// Returns a declaration ID that was not returned by this function before.
     pub fn generate_decl_id(&self, module: ModuleId) -> DeclId {
@@ -95,218 +99,150 @@ impl AnalysisContext {
     }
 }
 
-/// A cache for queries.
-/// 
-/// This map uses interior mutability, so an immutable reference to it can be
-/// passed around and used to lock a key or insert a value for a key.
-pub struct QueryHashMap<K, V> {
-    map: RefCell<HashMap<K, Lockable<V>>>,
-}
-
-impl<K, V> QueryHashMap<K, V> {
-    pub fn new() -> Self {
-        QueryHashMap {
-            map: RefCell::new(HashMap::new())
-        }
-    }
-}
-
-impl<K, V> QueryHashMap<K, V>
-where
-    K: Clone + Eq + Hash,
-    V: Clone,
-{
-    /// Gives back the (cloned) value for the given key, or locks the key if
-    /// there was no value for that key.
-    /// 
-    /// If the key already had a value, then this returns a successful result.
-    /// 
-    /// if the key did not already have an associated value, then this locks
-    /// that key and returns a successful but empty value (`Ok(None)`).
-    /// 
-    /// If the key was already locked, then this returns an error, because that
-    /// indicates a cyclic query.
-    pub fn get_or_lock(&self, key: &K) -> Result<Option<V>, ()> {
-        let mut map = self.map.borrow_mut();
-        let value = map.get(key);
-        match value {
-            None => {
-                map.insert(key.clone(), Lockable::Locked);
-                Ok(None)
-            },
-            Some(Lockable::Locked) => Err(()),
-            Some(Lockable::Filled(v)) => Ok(Some(v.clone())),
-        }
-    }
-}
-
-impl<K, V> QueryHashMap<K, V>
-where
-    K: Hash + Eq,
-{
-    /// Inserts the value for a previously locked key.
-    /// 
-    /// # Panics
-    /// This function requires that the key was locked before calling this
-    /// function, and will panic if it wasn't. This is because this situation
-    /// indicates either an unhandled cyclic query error or a query that was
-    /// not cached while it should be.
-    /// 
-    /// It also requires that there was not a value for that key before, so it
-    /// will panic in that case as well.
-    pub fn unlock(&self, key: &K, value: V) {
-        let mut map = self.map.borrow_mut();
-        if let Some(v) = map.get_mut(key) {
-            assert!(matches!(v, Lockable::Locked), "already had a value");
-            *v = Lockable::Filled(value);
-        } else {
-            panic!("not locked");
-        }
-    }
-}
-
-#[derive(Debug)]
-enum Lockable<V> {
-    Locked,
-    Filled(V),
-}
-
 /// Stores the intermediate representation of sorts, which are cached/interned.
 /// 
 /// This allows for constant-time equality checks and avoids creating too many
 /// objects that all look the same.
-pub struct SortContext;
-// pub struct SortContext {
-//     unit_sort: IrSort,
-//     bool_sort: IrSort,
-//     pos_sort: IrSort,
-//     nat_sort: IrSort,
-//     int_sort: IrSort,
-//     real_sort: IrSort,
-//     list_sorts: RefCell<HashMap<IrSort, IrSort>>,
-//     set_sorts: RefCell<HashMap<IrSort, IrSort>>,
-//     bag_sorts: RefCell<HashMap<IrSort, IrSort>>,
-//     fset_sorts: RefCell<HashMap<IrSort, IrSort>>,
-//     fbag_sorts: RefCell<HashMap<IrSort, IrSort>>,
-//     // alias_sorts: ,
-//     // struct_sorts: ,
-//     carthesian_sorts: RefCell<HashMap<(IrSort, IrSort), IrSort>>,
-//     function_sorts: RefCell<HashMap<(IrSort, IrSort), IrSort>>,
-// }
+pub struct ResolvedSortContext {
+    // TODO use an arena allocator instead of `Arc`
+    // pub(crate) resolved_sort_arena: ArenaAllocator<ResolvedSort>,
 
-// impl SortContext {
-//     fn new() -> Self {
-//         SortContext {
-//             unit_sort: IrSort { value: HashByAddress::new(Arc::new(IrSortEnum::Unit)) },
-//             bool_sort: IrSort { value: HashByAddress::new(Arc::new(IrSortEnum::Bool)) },
-//             pos_sort: IrSort { value: HashByAddress::new(Arc::new(IrSortEnum::Pos)) },
-//             nat_sort: IrSort { value: HashByAddress::new(Arc::new(IrSortEnum::Nat)) },
-//             int_sort: IrSort { value: HashByAddress::new(Arc::new(IrSortEnum::Int)) },
-//             real_sort: IrSort { value: HashByAddress::new(Arc::new(IrSortEnum::Real)) },
-//             list_sorts: RefCell::new(HashMap::new()),
-//             set_sorts: RefCell::new(HashMap::new()),
-//             bag_sorts: RefCell::new(HashMap::new()),
-//             fset_sorts: RefCell::new(HashMap::new()),
-//             fbag_sorts: RefCell::new(HashMap::new()),
-//             carthesian_sorts: RefCell::new(HashMap::new()),
-//             function_sorts: RefCell::new(HashMap::new()),
-//         }
-//     }
+    // primitive sorts
+    unit_sort: Interned<ResolvedSort>,
+    bool_sort: Interned<ResolvedSort>,
+    pos_sort: Interned<ResolvedSort>,
+    nat_sort: Interned<ResolvedSort>,
+    int_sort: Interned<ResolvedSort>,
+    real_sort: Interned<ResolvedSort>,
 
-//     pub fn get_unit_sort(&self) -> IrSort {
-//         self.unit_sort.clone()
-//     }
+    // generic sorts
+    list_sorts: RefCell<HashMap<
+        Interned<ResolvedSort>,
+        Interned<ResolvedSort>,
+    >>,
+    set_sorts: RefCell<HashMap<
+        Interned<ResolvedSort>,
+        Interned<ResolvedSort>,
+    >>,
+    bag_sorts: RefCell<HashMap<
+        Interned<ResolvedSort>,
+        Interned<ResolvedSort>,
+    >>,
+    fset_sorts: RefCell<HashMap<
+        Interned<ResolvedSort>,
+        Interned<ResolvedSort>,
+    >>,
+    fbag_sorts: RefCell<HashMap<
+        Interned<ResolvedSort>,
+        Interned<ResolvedSort>,
+    >>,
 
-//     pub fn get_bool_sort(&self) -> IrSort {
-//         self.bool_sort.clone()
-//     }
+    // binary sort operators
+    carthesian_sorts: RefCell<HashMap<
+        (Interned<ResolvedSort>, Interned<ResolvedSort>),
+        Interned<ResolvedSort>,
+    >>,
+    function_sorts: RefCell<HashMap<
+        (Interned<ResolvedSort>, Interned<ResolvedSort>),
+        Interned<ResolvedSort>,
+    >>,
 
-//     pub fn get_pos_sort(&self) -> IrSort {
-//         self.pos_sort.clone()
-//     }
+    // other
+    def_sorts: RefCell<HashMap<DefId, Interned<ResolvedSort>>>,
+}
 
-//     pub fn get_nat_sort(&self) -> IrSort {
-//         self.nat_sort.clone()
-//     }
+impl ResolvedSortContext {
+    pub fn new() -> Self {
+        ResolvedSortContext {
+            unit_sort: Interned::new(ResolvedSort::Primitive { sort: PrimitiveSort::Unit }),
+            bool_sort: Interned::new(ResolvedSort::Primitive { sort: PrimitiveSort::Bool }),
+            pos_sort: Interned::new(ResolvedSort::Primitive { sort: PrimitiveSort::Pos }),
+            nat_sort: Interned::new(ResolvedSort::Primitive { sort: PrimitiveSort::Nat }),
+            int_sort: Interned::new(ResolvedSort::Primitive { sort: PrimitiveSort::Int }),
+            real_sort: Interned::new(ResolvedSort::Primitive { sort: PrimitiveSort::Real }),
+            list_sorts: RefCell::new(HashMap::new()),
+            set_sorts: RefCell::new(HashMap::new()),
+            bag_sorts: RefCell::new(HashMap::new()),
+            fset_sorts: RefCell::new(HashMap::new()),
+            fbag_sorts: RefCell::new(HashMap::new()),
+            def_sorts: RefCell::new(HashMap::new()),
+            carthesian_sorts: RefCell::new(HashMap::new()),
+            function_sorts: RefCell::new(HashMap::new()),
+        }
+    }
 
-//     pub fn get_int_sort(&self) -> IrSort {
-//         self.int_sort.clone()
-//     }
+    pub fn get_primitive_sort(&self, sort: PrimitiveSort) -> Interned<ResolvedSort> {
+        match sort {
+            PrimitiveSort::Unit => Interned::clone(&self.unit_sort),
+            PrimitiveSort::Bool => Interned::clone(&self.bool_sort),
+            PrimitiveSort::Pos => Interned::clone(&self.pos_sort),
+            PrimitiveSort::Nat => Interned::clone(&self.nat_sort),
+            PrimitiveSort::Int => Interned::clone(&self.int_sort),
+            PrimitiveSort::Real => Interned::clone(&self.real_sort),
+        }
+    }
 
-//     pub fn get_real_sort(&self) -> IrSort {
-//         self.real_sort.clone()
-//     }
+    pub fn get_generic_sort(
+        &self,
+        op: GenericSortOp,
+        subsort: &Interned<ResolvedSort>,
+    ) -> Interned<ResolvedSort> {
+        let key = Interned::clone(subsort);
+        let mut borrowed_map = match op {
+            GenericSortOp::List => self.list_sorts.borrow_mut(),
+            GenericSortOp::Set => self.set_sorts.borrow_mut(),
+            GenericSortOp::FSet => self.fset_sorts.borrow_mut(),
+            GenericSortOp::Bag => self.bag_sorts.borrow_mut(),
+            GenericSortOp::FBag => self.fbag_sorts.borrow_mut(),
+        };
+        Interned::clone(borrowed_map.entry(key).or_insert_with(move || {
+            Interned::new(ResolvedSort::Generic {
+                op,
+                subsort: Interned::clone(subsort),
+            })
+        }))
+    }
 
-//     pub fn get_list_sort(&self, subsort: &IrSort) -> IrSort {
-//         Self::get_cached_sort(
-//             &mut self.list_sorts.borrow_mut(),
-//             subsort.clone(),
-//             || IrSortEnum::List { subsort: subsort.clone() },
-//         )
-//     }
+    pub fn get_carthesian_sort(
+        &self,
+        lhs: &Interned<ResolvedSort>,
+        rhs: &Interned<ResolvedSort>,
+    ) -> Interned<ResolvedSort> {
+        let key = (
+            Interned::clone(lhs),
+            Interned::clone(rhs),
+        );
+        let mut borrow = self.carthesian_sorts.borrow_mut();
+        Interned::clone(borrow.entry(key).or_insert_with(move || {
+            Interned::new(ResolvedSort::Carthesian {
+                lhs: Interned::clone(&lhs),
+                rhs: Interned::clone(&rhs),
+            })
+        }))
+    }
 
-//     pub fn get_set_sort(&self, subsort: &IrSort) -> IrSort {
-//         Self::get_cached_sort(
-//             &mut self.set_sorts.borrow_mut(),
-//             subsort.clone(),
-//             || IrSortEnum::Set { subsort: subsort.clone() },
-//         )
-//     }
+    pub fn get_function_sort(
+        &self,
+        lhs: &Interned<ResolvedSort>,
+        rhs: &Interned<ResolvedSort>,
+    ) -> Interned<ResolvedSort> {
+        let key = (
+            Interned::clone(lhs),
+            Interned::clone(rhs),
+        );
+        let mut borrow = self.function_sorts.borrow_mut();
+        Interned::clone(borrow.entry(key).or_insert_with(move || {
+            Interned::new(ResolvedSort::Function {
+                lhs: Interned::clone(&lhs),
+                rhs: Interned::clone(&rhs),
+            })
+        }))
+    }
 
-//     pub fn get_bag_sort(&self, subsort: &IrSort) -> IrSort {
-//         Self::get_cached_sort(
-//             &mut self.bag_sorts.borrow_mut(),
-//             subsort.clone(),
-//             || IrSortEnum::Bag { subsort: subsort.clone() },
-//         )
-//     }
-
-//     pub fn get_fset_sort(&self, subsort: &IrSort) -> IrSort {
-//         Self::get_cached_sort(
-//             &mut self.fset_sorts.borrow_mut(),
-//             subsort.clone(),
-//             || IrSortEnum::FSet { subsort: subsort.clone() },
-//         )
-//     }
-
-//     pub fn get_fbag_sort(&self, subsort: &IrSort) -> IrSort {
-//         Self::get_cached_sort(
-//             &mut self.fbag_sorts.borrow_mut(),
-//             subsort.clone(),
-//             || IrSortEnum::FBag { subsort: subsort.clone() },
-//         )
-//     }
-
-//     pub fn get_struct_sort(&self) -> IrSort {
-//         todo!()
-//     }
-
-//     pub fn get_carthesian_sort(&self, lhs: &IrSort, rhs: &IrSort) -> IrSort {
-//         Self::get_cached_sort(
-//             &mut self.carthesian_sorts.borrow_mut(),
-//             (lhs.clone(), rhs.clone()),
-//             || IrSortEnum::Carthesian { lhs: lhs.clone(), rhs: rhs.clone() },
-//         )
-//     }
-
-//     pub fn get_function_sort(&self, lhs: &IrSort, rhs: &IrSort) -> IrSort {
-//         Self::get_cached_sort(
-//             &mut self.function_sorts.borrow_mut(),
-//             (lhs.clone(), rhs.clone()),
-//             || IrSortEnum::Function { lhs: lhs.clone(), rhs: rhs.clone() },
-//         )
-//     }
-
-//     fn get_cached_sort<'a, T: Hash + Eq, F>(
-//         sorts: &'a mut HashMap<T, IrSort>,
-//         key: T,
-//         value: F,
-//     ) -> IrSort
-//     where
-//         F: Fn() -> IrSortEnum,
-//     {
-//         sorts.entry(key)
-//             .or_insert_with(|| IrSort { value: HashByAddress::new(Arc::new(value())) })
-//             .clone()
-//     }
-// }
+    pub fn get_def_sort(&self, def_id: DefId) -> Interned<ResolvedSort> {
+        let mut borrow = self.def_sorts.borrow_mut();
+        Interned::clone(borrow.entry(def_id).or_insert_with(move || {
+            Interned::new(ResolvedSort::Def { id: def_id })
+        }))
+    }
+}

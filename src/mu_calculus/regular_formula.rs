@@ -12,7 +12,7 @@ use crate::core::syntax::SourceRange;
 use crate::mu_calculus::action_formula::ActionFormula;
 
 use std::fmt::{Debug, Formatter};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// A regular formula that can be used within the box (`[...]`) or diamond
 /// (`<...>`) operator.
@@ -38,21 +38,21 @@ impl Debug for RegularFormula {
 #[derive(Debug)]
 pub enum RegularFormulaEnum {
     ActionFormula {
-        value: Rc<ActionFormula>,
+        value: Arc<ActionFormula>,
     },
     Add {
-        lhs: Rc<RegularFormula>,
-        rhs: Rc<RegularFormula>,
+        lhs: Arc<RegularFormula>,
+        rhs: Arc<RegularFormula>,
     },
     Concat {
-        lhs: Rc<RegularFormula>,
-        rhs: Rc<RegularFormula>,
+        lhs: Arc<RegularFormula>,
+        rhs: Arc<RegularFormula>,
     },
     Star {
-        value: Rc<RegularFormula>,
+        value: Arc<RegularFormula>,
     },
     Plus {
-        value: Rc<RegularFormula>,
+        value: Arc<RegularFormula>,
     },
 }
 
@@ -81,7 +81,7 @@ fn parse_regular_formula(parser: &mut Parser) -> Result<RegularFormula, ParseErr
 
     let loc = parser.get_loc();
 
-    let value = Rc::new(parser.parse::<ActionFormula>()?);
+    let value = Arc::new(parser.parse::<ActionFormula>()?);
     // TODO other regular formulas
     Ok(RegularFormula::new(
         RegularFormulaEnum::ActionFormula { value },

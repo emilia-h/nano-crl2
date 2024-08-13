@@ -54,7 +54,10 @@ pub fn parse_aldebaran_lts(input: &str) -> Result<Lts, LtsParseError> {
             Err(error) => return Err(parser.error(error.message)),
         };
         let multi_action = match parse_multi_action(&mut Parser::new(&tokens)) {
-            Ok(multi_action) => multi_action,
+            Ok(multi_action) => {
+                // remove source location information, because we don't care
+                multi_action.into_iter().map(|(a, _)| a).collect()
+            },
             Err(error) => return Err(parser.error(error.message)),
         };
         nodes[start_state].adj.push(LtsEdge { target: end_state, label: multi_action });

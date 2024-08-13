@@ -168,18 +168,9 @@ impl<'a> Iterator for IrIterator<'a> {
                 IrIteratorItem::Node(NodeId::Sort(id)) => {
                     let sort = self.module.get_sort(id);
                     match &sort.value {
-                        IrSortEnum::Unit |
-                        IrSortEnum::Bool |
-                        IrSortEnum::Pos |
-                        IrSortEnum::Nat |
-                        IrSortEnum::Int |
-                        IrSortEnum::Real => {},
+                        IrSortEnum::Primitive { .. } => {},
                         IrSortEnum::Generic { subsort, .. } => {
                             self.push_node(*subsort);
-                        },
-                        IrSortEnum::Name { .. } => {},
-                        IrSortEnum::Struct {  } => {
-
                         },
                         IrSortEnum::Carthesian { lhs, rhs } => {
                             self.push_node(*lhs);
@@ -188,6 +179,10 @@ impl<'a> Iterator for IrIterator<'a> {
                         IrSortEnum::Function { lhs, rhs } => {
                             self.push_node(*lhs);
                             self.push_node(*rhs);
+                        },
+                        IrSortEnum::Name { .. } => {},
+                        IrSortEnum::Struct {  } => {
+
                         },
                     }
                 },

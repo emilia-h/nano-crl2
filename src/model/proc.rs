@@ -50,7 +50,8 @@ impl Display for Proc {
 #[derive(Debug)]
 pub enum ProcEnum {
     Action {
-        value: Action,
+        id: Identifier,
+        args: Vec<Arc<Expr>>,
     },
     // NOTE: at parse time, it's not really possible to distinguish between
     // actions and named processes
@@ -61,15 +62,15 @@ pub enum ProcEnum {
     Delta,
     Tau,
     Block {
-        ids: Vec<Identifier>,
+        ids: Vec<(Identifier, SourceRange)>,
         proc: Arc<Proc>,
     },
     Allow {
-        multi_ids: Vec<Vec<Identifier>>,
+        multi_ids: Vec<Vec<(Identifier, SourceRange)>>,
         proc: Arc<Proc>,
     },
     Hide {
-        ids: Vec<Identifier>,
+        ids: Vec<(Identifier, SourceRange)>,
         proc: Arc<Proc>,
     },
     Rename {
@@ -128,14 +129,17 @@ pub struct Action {
 
 #[derive(Debug)]
 pub struct CommMapping {
-    pub lhs: Vec<Identifier>,
+    pub lhs: Vec<(Identifier, SourceRange)>,
     pub rhs: Identifier,
+    pub rhs_loc: SourceRange,
 }
 
 #[derive(Debug)]
 pub struct RenameMapping {
     pub lhs: Identifier,
+    pub lhs_loc: SourceRange,
     pub rhs: Identifier,
+    pub rhs_loc: SourceRange,
 }
 
 impl Parseable for Proc {
@@ -170,7 +174,7 @@ pub fn parse_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
 /// The [mCRL2 grammar on this].
 /// 
 /// [mCRL2 grammar on this]: https://www.mcrl2.org/web/user_manual/language_reference/mucalc.html#grammar-token-MultAct
-pub fn parse_multi_action(parser: &mut Parser) -> Result<Vec<Action>, ParseError> {
+pub fn parse_multi_action(parser: &mut Parser) -> Result<Vec<(Action, SourceRange)>, ParseError> {
     if !parser.has_token() {
         return parser.end_of_input("a multi-action");
     }
@@ -181,7 +185,7 @@ pub fn parse_multi_action(parser: &mut Parser) -> Result<Vec<Action>, ParseError
     } else {
         let mut actions = Vec::new();
         while {
-            let id = parser.parse_identifier()?;
+            let (id, id_loc) = parser.parse_identifier()?;
 
             let args = if parser.skip_if_equal(&LexicalElement::OpeningParen) {
                 let a = parser.parse::<Vec<Arc<Expr>>>()?;
@@ -191,7 +195,7 @@ pub fn parse_multi_action(parser: &mut Parser) -> Result<Vec<Action>, ParseError
                 Vec::new()
             };
 
-            actions.push(Action { id, args });
+            actions.push((Action { id, args }, id_loc));
 
             parser.skip_if_equal(&LexicalElement::Pipe)
         } {}
@@ -303,7 +307,7 @@ fn parse_basic_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
                 Vec::new()
             };
             Proc::new(
-                ProcEnum::Action { value: Action { id, args } },
+                ProcEnum::Action { id, args },
                 parser.until_now(&loc),
             )
         },
@@ -352,10 +356,10 @@ fn parse_basic_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
                     // a -> b, c -> d, ..., e -> f
                     let mut mappings = Vec::new();
                     while {
-                        let lhs = parser.parse_identifier()?;
+                        let (lhs, lhs_loc) = parser.parse_identifier()?;
                         parser.expect_token(&LexicalElement::Arrow)?;
-                        let rhs = parser.parse_identifier()?;
-                        mappings.push(RenameMapping { lhs, rhs });
+                        let (rhs, rhs_loc) = parser.parse_identifier()?;
+                        mappings.push(RenameMapping { lhs, lhs_loc, rhs, rhs_loc });
 
                         parser.skip_if_equal(&LexicalElement::Comma)
                     } {}
@@ -378,7 +382,7 @@ fn parse_basic_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
                         let loc = parser.get_loc();
                         let lhs = parse_multi_id(parser)?;
                         parser.expect_token(&LexicalElement::Arrow)?;
-                        let rhs = parser.parse_identifier()?;
+                        let (rhs, rhs_loc) = parser.parse_identifier()?;
 
                         if lhs.len() < 2 {
                             let mut message = String::new();
@@ -388,7 +392,7 @@ fn parse_basic_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
                             return Err(ParseError::new(message, loc));
                         }
 
-                        mappings.push(CommMapping { lhs, rhs });
+                        mappings.push(CommMapping { lhs, rhs, rhs_loc });
 
                         parser.skip_if_equal(&LexicalElement::Comma)
                     } {}
@@ -421,7 +425,7 @@ fn parse_basic_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
     })
 }
 
-fn parse_multi_id(parser: &mut Parser) -> Result<Vec<Identifier>, ParseError> {
+fn parse_multi_id(parser: &mut Parser) -> Result<Vec<(Identifier, SourceRange)>, ParseError> {
     let mut ids = Vec::new();
     ids.push(parser.parse_identifier()?);
     while parser.skip_if_equal(&LexicalElement::Pipe) {
@@ -594,10 +598,10 @@ mod tests {
         let neg = unwrap_pattern!(&condition.value, ExprEnum::Negate { value } => value);
         let b = unwrap_pattern!(&neg.value, ExprEnum::Id { id } => id);
         assert_eq!(b.get_value(), "b");
-        let c = unwrap_pattern!(&then_proc2.value, ProcEnum::Action { value } => value);
-        assert_eq!(c.id.get_value(), "c");
-        let d = unwrap_pattern!(&else_proc2.as_ref().unwrap().value, ProcEnum::Action { value } => value);
-        assert_eq!(d.id.get_value(), "d");
+        let ProcEnum::Action { id: c_id, .. } = &then_proc2.value else { panic!(); };
+        assert_eq!(c_id.get_value(), "c");
+        let ProcEnum::Action { id: d_id, .. } = &else_proc2.as_ref().unwrap().value else { panic!(); };
+        assert_eq!(d_id.get_value(), "d");
 
         // should be parsed as `a -> (b -> c <> d) <> e`
         let (_, then_proc, else_proc) = parse_ite("a -> b -> c <> d <> e").unwrap();
@@ -605,12 +609,12 @@ mod tests {
             &then_proc.value,
             ProcEnum::IfThenElse { condition: _, then_proc, else_proc } => (then_proc, else_proc)
         );
-        let c = unwrap_pattern!(&then_proc2.value, ProcEnum::Action { value } => value);
-        assert_eq!(c.id.get_value(), "c");
-        let d = unwrap_pattern!(&else_proc2.as_ref().unwrap().value, ProcEnum::Action { value } => value);
-        assert_eq!(d.id.get_value(), "d");
-        let e = unwrap_pattern!(&else_proc.as_ref().unwrap().value, ProcEnum::Action { value } => value);
-        assert_eq!(e.id.get_value(), "e");
+        let ProcEnum::Action { id: c_id, .. } = &then_proc2.value else { panic!(); };
+        assert_eq!(c_id.get_value(), "c");
+        let ProcEnum::Action { id: d_id, .. } = &else_proc2.as_ref().unwrap().value else { panic!(); };
+        assert_eq!(d_id.get_value(), "d");
+        let ProcEnum::Action { id: e_id, .. } = &else_proc.unwrap().value else { panic!(); };
+        assert_eq!(e_id.get_value(), "e");
 
         // should be parsed as `a -> (b -> c <> (d -> e))`
         let (_, then_proc, else_proc) = parse_ite("a -> b -> c <> d -> e").unwrap();
@@ -622,15 +626,15 @@ mod tests {
         );
         let b = unwrap_pattern!(&condition.value, ExprEnum::Id { id } => id);
         assert_eq!(b.get_value(), "b");
-        let c = unwrap_pattern!(&then_proc2.value, ProcEnum::Action { value } => value);
-        assert_eq!(c.id.get_value(), "c");
+        let ProcEnum::Action { id: c_id, .. } = &then_proc2.value else { panic!(); };
+        assert_eq!(c_id.get_value(), "c");
 
         let (then_proc3, else_proc3) = unwrap_pattern!(
             &else_proc2.as_ref().unwrap().value,
             ProcEnum::IfThenElse { then_proc, else_proc, .. } => (then_proc, else_proc)
         );
-        let e = unwrap_pattern!(&then_proc3.value, ProcEnum::Action { value } => value);
-        assert_eq!(e.id.get_value(), "e");
+        let ProcEnum::Action { id: e_id, .. } = &then_proc3.value else { panic!(); };
+        assert_eq!(e_id.get_value(), "e");
         assert!(else_proc3.is_none());
     }
 }

@@ -61,6 +61,7 @@ pub enum ExprEnum {
     },
     SetComprehension {
         id: Identifier,
+        id_loc: SourceRange,
         sort: Arc<Sort>,
         condition: Arc<Expr>,
     },
@@ -181,7 +182,7 @@ pub enum ExprEnum {
     },
     Where {
         expr: Arc<Expr>,
-        assignments: Vec<(Identifier, Arc<Expr>)>,
+        assignments: Vec<(Identifier, SourceRange, Arc<Expr>)>,
     },
 }
 
@@ -230,10 +231,10 @@ pub fn parse_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
     if parser.skip_if_equal(&LexicalElement::Whr) {
         let mut assignments = Vec::new();
         while { // do-while
-            let id = parser.parse_identifier()?;
+            let (id, id_loc) = parser.parse_identifier()?;
             parser.expect_token(&LexicalElement::Equals)?;
             let value = Arc::new(parser.parse::<Expr>()?);
-            assignments.push((id, value));
+            assignments.push((id, id_loc, value));
 
             parser.skip_if_equal(&LexicalElement::Comma)
         } {}
@@ -534,14 +535,14 @@ pub fn parse_unit_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
                     }
                 } {
                     // in this case, it's a set comprehension; otherwise, just a bag
-                    let id = parser.parse_identifier()?;
+                    let (id, id_loc) = parser.parse_identifier()?;
                     parser.expect_token(&LexicalElement::Colon).unwrap();
                     let sort = Arc::new(parser.parse::<Sort>()?);
                     parser.expect_token(&LexicalElement::Pipe)?;
                     let condition = Arc::new(parser.parse::<Expr>()?);
                     parser.expect_token(&LexicalElement::ClosingBrace)?;
                     Expr::new(
-                        ExprEnum::SetComprehension { id, sort, condition },
+                        ExprEnum::SetComprehension { id, id_loc, sort, condition },
                         parser.until_now(&loc),
                     )
                 } else { // just a bag

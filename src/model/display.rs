@@ -80,7 +80,7 @@ impl DisplayPretty for Decl {
                 write!(f, "act ")?;
                 display_separated(
                     ids, ", ",
-                    &|id, f| write!(f, "{}", id),
+                    &|(id, _), f| write!(f, "{}", id),
                     f,
                 )?;
                 if let Some(sort) = sort {
@@ -93,7 +93,7 @@ impl DisplayPretty for Decl {
                 write!(f, "cons ")?;
                 display_separated(
                     ids, ", ",
-                    &|id, f| write!(f, "{}", id),
+                    &|(id, _), f| write!(f, "{}", id),
                     f,
                 )?;
                 write!(f, ": ")?;
@@ -112,7 +112,7 @@ impl DisplayPretty for Decl {
 
                         display_separated(
                             &variable_decl.ids, ", ",
-                            &|id, f| write!(f, "{}", id),
+                            &|(id, _), f| write!(f, "{}", id),
                             f,
                         )?;
                         write!(f, ": ")?;
@@ -149,12 +149,12 @@ impl DisplayPretty for Decl {
                 value.fmt(&options.indent(1), f)?;
                 write!(f, ";\n")?;
             },
-            Map { id, sort } => {
+            Map { id, sort, .. } => {
                 write!(f, "map {}: ", id)?;
                 sort.fmt(options, f)?;
                 write!(f, ";\n")?;
             },
-            Process { id, params, proc: process } => {
+            Process { id, params, proc: process, .. } => {
                 let new_options = options.indent(1);
                 write!(f, "proc {}", id)?;
                 if params.len() > 0 {
@@ -172,7 +172,7 @@ impl DisplayPretty for Decl {
                 write!(f, "sort ")?;
                 display_separated(
                     ids, ", ",
-                    &|id, f| write!(f, "{}", id),
+                    &|(id, _), f| write!(f, "{}", id),
                     f,
                 )?;
                 if let Some(value) = value {
@@ -379,10 +379,12 @@ impl DisplayPretty for Expr {
                 }
                 expr.fmt(&options.with_precedence(Precedence::Where), f)?;
                 write!(f, " whr\n")?;
-                for assignment in assignments {
-                    // TODO fix: comma-separated
+                for (i, assignment) in assignments.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
                     write!(f, "{} = ", assignment.0)?;
-                    assignment.1.fmt(&options.with_precedence(Precedence::Where), f)?;
+                    assignment.2.fmt(&options.with_precedence(Precedence::Where), f)?;
                 }
                 if options.precedence <= Precedence::Where {
                     write!(f, ")")?;
@@ -421,11 +423,11 @@ impl DisplayPretty for Proc {
         use ProcEnum::*;
 
         match &self.value {
-            Action { value } => {
-                if value.args.len() == 0 {
-                    write!(f, "{}(", value.id)?;
+            Action { id, args } => {
+                if args.len() == 0 {
+                    write!(f, "{}(", id)?;
                     display_separated(
-                        &value.args, ", ",
+                        &args, ", ",
                         &|arg, f| {
                             arg.fmt(&options.indent(1), f)
                         },
@@ -433,7 +435,7 @@ impl DisplayPretty for Proc {
                     )?;
                     write!(f, ")")?;
                 } else {
-                    write!(f, "{}", value.id)?;
+                    write!(f, "{}", id)?;
                 }
             },
             Delta => {
@@ -445,7 +447,7 @@ impl DisplayPretty for Proc {
             Block { ids, proc } => {
                 display_unary_process_operator(
                     "block", &ids, proc,
-                    &|item, f| write!(f, "{}", item),
+                    &|(item, _), f| write!(f, "{}", item),
                     options, f,
                 )?;
             },
@@ -454,7 +456,7 @@ impl DisplayPretty for Proc {
                     "allow", &multi_ids, proc,
                     &|item, f| display_separated(
                         item, " | ",
-                        &|id, f| write!(f, "{}", id),
+                        &|(id, _), f| write!(f, "{}", id),
                         f,
                     ),
                     options, f,
@@ -463,7 +465,7 @@ impl DisplayPretty for Proc {
             Hide { ids, proc } => {
                 display_unary_process_operator(
                     "hide", &ids, proc,
-                    &|item, f| write!(f, "{}", item),
+                    &|(item, _), f| write!(f, "{}", item),
                     options, f,
                 )?;
             },
@@ -480,7 +482,7 @@ impl DisplayPretty for Proc {
                     &|item, f| {
                         display_separated(
                             &item.lhs, " | ",
-                            &|id, f| write!(f, "{}", id),
+                            &|(id, _), f| write!(f, "{}", id),
                             f,
                         )?;
                         write!(f, " -> {}", item.rhs)
@@ -651,7 +653,7 @@ fn display_var_decl_list(
         }
         display_separated(
             &variable_decl.ids, ", ",
-            &|id, f| write!(f, "{}", id),
+            &|(id, _), f| write!(f, "{}", id),
             f,
         )?;
         write!(f, ": ")?;
@@ -711,7 +713,7 @@ fn display_constructor(
         display_separated(
             &constructor.properties, ", ",
             &|(projector, sort), f| {
-                if let Some(p) = projector {
+                if let Some((p, _)) = projector {
                     write!(f, "{}: ", p)?;
                 }
                 sort.fmt(&new_options, f)
@@ -720,7 +722,7 @@ fn display_constructor(
         )?;
         write!(f, ")")?;
     }
-    if let Some(id) = &constructor.recognizer_function_id {
+    if let Some((id, _)) = &constructor.recognizer_function_id {
         write!(f, " ? {}", id)?;
     }
     Ok(())

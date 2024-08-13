@@ -12,7 +12,7 @@ use crate::model::expr::Expr;
 use crate::model::proc::{Action, parse_multi_action};
 
 use std::fmt::{Debug, Formatter};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// A formula that tests a single action, that can be used within a regular
 /// formula and thus inside a box (`[...]`) or diamond (`<...>`) operator.
@@ -42,39 +42,39 @@ impl Debug for ActionFormula {
 #[derive(Debug)]
 pub enum ActionFormulaEnum {
     Val {
-        value: Rc<Expr>,
+        value: Arc<Expr>,
     },
     MultiAction {
-        values: Vec<Action>,
+        values: Vec<(Action, SourceRange)>,
     },
     True,
     False,
     Forall {
         ids: Vec<VariableDecl>,
-        action_formula: Rc<ActionFormula>,
+        action_formula: Arc<ActionFormula>,
     },
     Exists {
         ids: Vec<VariableDecl>,
-        action_formula: Rc<ActionFormula>,
+        action_formula: Arc<ActionFormula>,
     },
     Implies {
-        lhs: Rc<ActionFormula>,
-        rhs: Rc<ActionFormula>,
+        lhs: Arc<ActionFormula>,
+        rhs: Arc<ActionFormula>,
     },
     Or {
-        lhs: Rc<ActionFormula>,
-        rhs: Rc<ActionFormula>,
+        lhs: Arc<ActionFormula>,
+        rhs: Arc<ActionFormula>,
     },
     And {
-        lhs: Rc<ActionFormula>,
-        rhs: Rc<ActionFormula>,
+        lhs: Arc<ActionFormula>,
+        rhs: Arc<ActionFormula>,
     },
     Not {
-        value: Rc<ActionFormula>,
+        value: Arc<ActionFormula>,
     },
     Time {
-        action_formula: Rc<ActionFormula>,
-        time: Rc<Expr>,
+        action_formula: Arc<ActionFormula>,
+        time: Arc<Expr>,
     },
 }
 
@@ -101,7 +101,7 @@ pub fn parse_action_formula(parser: &mut Parser) -> Result<ActionFormula, ParseE
     if parser.skip_if_equal(&LexicalElement::Forall) {
         let ids = parser.parse::<Vec<VariableDecl>>()?;
         parser.expect_token(&LexicalElement::Period)?;
-        let action_formula = Rc::new(parser.parse::<ActionFormula>()?);
+        let action_formula = Arc::new(parser.parse::<ActionFormula>()?);
         Ok(ActionFormula::new(
             ActionFormulaEnum::Forall { ids, action_formula },
             parser.until_now(&loc),
@@ -109,7 +109,7 @@ pub fn parse_action_formula(parser: &mut Parser) -> Result<ActionFormula, ParseE
     } else if parser.skip_if_equal(&LexicalElement::Exists) {
         let ids = parser.parse::<Vec<VariableDecl>>()?;
         parser.expect_token(&LexicalElement::Period)?;
-        let action_formula = Rc::new(parser.parse::<ActionFormula>()?);
+        let action_formula = Arc::new(parser.parse::<ActionFormula>()?);
         Ok(ActionFormula::new(
             ActionFormulaEnum::Exists { ids, action_formula },
             parser.until_now(&loc),
@@ -129,9 +129,9 @@ fn parse_implies_action_formula(parser: &mut Parser) -> Result<ActionFormula, Pa
     let lhs = parse_or_action_formula(parser)?;
 
     if parser.skip_if_equal(&LexicalElement::ThickArrow) {
-        let rhs = Rc::new(parser.parse::<ActionFormula>()?);
+        let rhs = Arc::new(parser.parse::<ActionFormula>()?);
         Ok(ActionFormula::new(
-            ActionFormulaEnum::Implies { lhs: Rc::new(lhs), rhs },
+            ActionFormulaEnum::Implies { lhs: Arc::new(lhs), rhs },
             parser.until_now(&loc),
         ))
     } else {
@@ -149,9 +149,9 @@ fn parse_or_action_formula(parser: &mut Parser) -> Result<ActionFormula, ParseEr
     let lhs = parse_and_action_formula(parser)?;
 
     if parser.skip_if_equal(&LexicalElement::DoublePipe) {
-        let rhs = Rc::new(parse_or_action_formula(parser)?);
+        let rhs = Arc::new(parse_or_action_formula(parser)?);
         Ok(ActionFormula::new(
-            ActionFormulaEnum::Or { lhs: Rc::new(lhs), rhs },
+            ActionFormulaEnum::Or { lhs: Arc::new(lhs), rhs },
             parser.until_now(&loc),
         ))
     } else {
@@ -169,9 +169,9 @@ fn parse_and_action_formula(parser: &mut Parser) -> Result<ActionFormula, ParseE
     let lhs = parse_time_action_formula(parser)?;
 
     if parser.skip_if_equal(&LexicalElement::DoubleAmpersand) {
-        let rhs = Rc::new(parse_and_action_formula(parser)?);
+        let rhs = Arc::new(parse_and_action_formula(parser)?);
         Ok(ActionFormula::new(
-            ActionFormulaEnum::And { lhs: Rc::new(lhs), rhs },
+            ActionFormulaEnum::And { lhs: Arc::new(lhs), rhs },
             parser.until_now(&loc),
         ))
     } else {
@@ -189,10 +189,10 @@ fn parse_time_action_formula(parser: &mut Parser) -> Result<ActionFormula, Parse
     let mut result = parse_basic_action_formula(parser)?;
 
     while parser.skip_if_equal(&LexicalElement::AtSign) {
-        let time = Rc::new(parser.parse::<Expr>()?);
+        let time = Arc::new(parser.parse::<Expr>()?);
         result = ActionFormula::new(
             ActionFormulaEnum::Time {
-                action_formula: Rc::new(result),
+                action_formula: Arc::new(result),
                 time,
             },
             parser.until_now(&loc),
@@ -214,7 +214,7 @@ fn parse_basic_action_formula(parser: &mut Parser) -> Result<ActionFormula, Pars
         LexicalElement::Val => {
             parser.skip_token();
             parser.expect_token(&LexicalElement::OpeningParen)?;
-            let value = Rc::new(parser.parse::<Expr>()?);
+            let value = Arc::new(parser.parse::<Expr>()?);
             parser.expect_token(&LexicalElement::ClosingParen)?;
             ActionFormula::new(ActionFormulaEnum::Val { value }, parser.until_now(&loc))
         },
@@ -248,7 +248,7 @@ fn parse_basic_action_formula(parser: &mut Parser) -> Result<ActionFormula, Pars
         },
         LexicalElement::ExclamationMark => {
             parser.skip_token();
-            let value = Rc::new(parse_basic_action_formula(parser)?);
+            let value = Arc::new(parse_basic_action_formula(parser)?);
             ActionFormula::new(
                 ActionFormulaEnum::Not { value },
                 parser.until_now(&loc),

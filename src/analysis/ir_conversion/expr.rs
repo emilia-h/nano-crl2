@@ -38,13 +38,13 @@ pub fn convert_ir_expr(
         // similar to the conversion of `ProcEnum::Sum`
         let mut current_id = convert_ir_expr(context, sub_expr, module)?;
         for variable_decl in variables.iter().rev() {
-            for id in variable_decl.ids.iter().rev() {
+            for (identifier, identifier_loc) in variable_decl.ids.iter().rev() {
                 let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
                 let def_id = context.generate_def_id(module.id);
                 let next_id = add_expr(module, IrExprEnum::Binder {
                     op,
                     def_id,
-                    identifier: id.clone(),
+                    identifier: identifier.clone(),
                     sort: sort_id,
                     expr: current_id,
                 });
@@ -131,7 +131,7 @@ pub fn convert_ir_expr(
         ExprEnum::Bag { values: _ } => {
             todo!()
         },
-        ExprEnum::SetComprehension { id, sort, condition } => {
+        ExprEnum::SetComprehension { id, id_loc, sort, condition } => {
             let sort_id = convert_ir_sort(context, sort, module)?;
             let condition_id = convert_ir_expr(context, condition, module)?;
             let def_id = context.generate_def_id(module.id);

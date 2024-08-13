@@ -12,7 +12,7 @@ use crate::mu_calculus::state_formula::{StateFormula, StateFormulaEnum};
 
 use std::collections::hash_map::HashMap;
 use std::collections::hash_set::HashSet;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// An error in the semantics of the formula.
 /// 
@@ -125,11 +125,11 @@ enum IrStateFormulaEquation {
         sub_index: usize,
     },
     Box {
-        action_formula: Rc<ActionFormula>,
+        action_formula: Arc<ActionFormula>,
         sub_index: usize,
     },
     Diamond {
-        action_formula: Rc<ActionFormula>,
+        action_formula: Arc<ActionFormula>,
         sub_index: usize,
     },
 }
@@ -357,13 +357,13 @@ fn rewrite_state_formula_impl<'a>(
         Yaled { .. } => {
             unimplemented!()
         },
-        Mu { id, formula } => {
+        Mu { id, formula, .. } => {
             rewrite_fixpoint_formula(
                 FixpointParity::Mu, id, &formula,
                 id_map, enclosing_parity, equations,
             )?
         },
-        Nu { id, formula } => {
+        Nu { id, formula, .. } => {
             rewrite_fixpoint_formula(
                 FixpointParity::Nu, id, &formula,
                 id_map, enclosing_parity, equations,
@@ -421,7 +421,7 @@ fn rewrite_state_formula_impl<'a>(
 
             equations.push((
                 IrStateFormulaEquation::Box {
-                    action_formula: Rc::clone(action_formula),
+                    action_formula: Arc::clone(action_formula),
                     sub_index,
                 },
                 id_set.is_empty(),
@@ -441,7 +441,7 @@ fn rewrite_state_formula_impl<'a>(
 
             equations.push((
                 IrStateFormulaEquation::Diamond {
-                    action_formula: Rc::clone(action_formula),
+                    action_formula: Arc::clone(action_formula),
                     sub_index,
                 },
                 id_set.is_empty(),

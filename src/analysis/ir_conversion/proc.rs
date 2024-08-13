@@ -49,9 +49,9 @@ pub fn convert_ir_proc(
     };
 
     Ok(match &proc.value {
-        ProcEnum::Action { value } => {
-            let mut arg_ids = Vec::with_capacity(value.args.len());
-            for arg in &value.args {
+        ProcEnum::Action { id, args } => {
+            let mut arg_ids = Vec::with_capacity(args.len());
+            for arg in args {
                 arg_ids.push(convert_ir_expr(context, arg, module)?);
             }
             let proc_id = context.generate_proc_id(module.id);
@@ -60,7 +60,7 @@ pub fn convert_ir_proc(
             }
             module.procs.insert(proc_id, IrProc {
                 value: IrProcEnum::MultiAction {
-                    actions: vec![(value.id.clone(), arg_ids)],
+                    actions: vec![(id.clone(), arg_ids)],
                 },
                 loc: proc.loc,
             });
@@ -96,7 +96,7 @@ pub fn convert_ir_proc(
             // we work inside out here (note the `rev()`)
             let mut current_id = convert_ir_proc(context, proc, module)?;
             for variable_decl in variables.iter().rev() {
-                for id in variable_decl.ids.iter().rev() {
+                for (id, id_loc) in variable_decl.ids.iter().rev() {
                     let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
                     let def_id = context.generate_def_id(module.id);
                     let next_id = add_proc(module, IrProcEnum::Sum {
@@ -171,12 +171,12 @@ fn extract_actions(
     output: &mut Vec<(Identifier, Vec<ExprId>)>,
 ) -> Result<(), ()> {
     match &proc.value {
-        ProcEnum::Action { value } => {
+        ProcEnum::Action { id, args } => {
             let mut arg_ids = Vec::new();
-            for arg in &value.args {
+            for arg in args {
                 arg_ids.push(convert_ir_expr(context, arg, result)?);
             }
-            output.push((value.id.clone(), arg_ids));
+            output.push((id.clone(), arg_ids));
         },
         ProcEnum::Multi { lhs, rhs } => {
             extract_actions(context, lhs, result, output)?;

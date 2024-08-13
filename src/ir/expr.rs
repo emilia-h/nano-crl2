@@ -42,8 +42,8 @@ pub enum IrExprEnum {
         callee: ExprId,
         args: Vec<ExprId>,
     },
-    /// An expression of the form `<op> identifier: sort . expr` where <op> is
-    /// one of `exists`, `forall`, `lambda`, or `set` (of the form
+    /// An expression of the form `<op> identifier: sort . expr` where \<op\>
+    /// is one of `exists`, `forall`, `lambda`, or `set` (of the form
     /// `{ ... | ... }`).
     Binder {
         op: BinderExprOp,

@@ -50,11 +50,11 @@ impl Display for Decl {
 #[derive(Debug)]
 pub enum DeclEnum {
     Action {
-        ids: Vec<Identifier>,
+        ids: Vec<(Identifier, SourceRange)>,
         sort: Option<Arc<Sort>>,
     },
     Constructor {
-        ids: Vec<Identifier>,
+        ids: Vec<(Identifier, SourceRange)>,
         sort: Arc<Sort>,
     },
     EquationSet {
@@ -69,6 +69,7 @@ pub enum DeclEnum {
     },
     Map {
         id: Identifier,
+        id_loc: SourceRange,
         sort: Arc<Sort>,
     },
     /// Represents a process declaration of the form `proc Name(params) =
@@ -79,12 +80,13 @@ pub enum DeclEnum {
     /// the complicated data representation of the parameters.
     Process {
         id: Identifier,
+        id_loc: SourceRange,
         params: Vec<VariableDecl>,
         proc: Arc<Proc>,
     },
     Sort {
         // can be either "sort a1, ..., aN;" or "sort a = S;"
-        ids: Vec<Identifier>,
+        ids: Vec<(Identifier, SourceRange)>,
         sort: Option<Arc<Sort>>,
     },
 }
@@ -96,7 +98,7 @@ pub enum DeclEnum {
 /// equations for `map`s.
 #[derive(Debug)]
 pub struct VariableDecl {
-    pub ids: Vec<Identifier>,
+    pub ids: Vec<(Identifier, SourceRange)>,
     pub sort: Arc<Sort>,
 }
 
@@ -324,13 +326,13 @@ fn parse_map_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     let loc = parser.get_loc();
     parser.skip_if_equal(&LexicalElement::Map);
 
-    let id = parser.parse_identifier()?;
+    let (id, id_loc) = parser.parse_identifier()?;
     parser.expect_token(&LexicalElement::Colon)?;
     let sort = Arc::new(parser.parse::<Sort>()?);
     parser.expect_token(&LexicalElement::Semicolon)?;
 
     Ok(Decl::new(
-        DeclEnum::Map { id, sort },
+        DeclEnum::Map { id, id_loc, sort },
         parser.until_now(&loc),
     ))
 }
@@ -341,7 +343,7 @@ fn parse_process_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     let loc = parser.get_loc();
     parser.skip_if_equal(&LexicalElement::Proc);
 
-    let id = parser.parse_identifier()?;
+    let (id, id_loc) = parser.parse_identifier()?;
 
     let mut params = Vec::new();
     if parser.skip_if_equal(&LexicalElement::OpeningParen) {
@@ -364,7 +366,7 @@ fn parse_process_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     parser.expect_token(&LexicalElement::Semicolon)?;
 
     Ok(Decl::new(
-        DeclEnum::Process { id, params, proc: process },
+        DeclEnum::Process { id, id_loc, params, proc: process },
         parser.until_now(&loc),
     ))
 }
@@ -421,16 +423,22 @@ mod tests {
         let decl = Parser::new(&tokens).parse::<Vec<Decl>>().unwrap();
         assert_eq!(decl.len(), 1);
 
-        let (variables, equations) = unwrap_pattern!(&decl[0].value,
-            DeclEnum::EquationSet { variables, equations } => (variables, equations)
-        );
+        let DeclEnum::EquationSet { variables, equations } = &decl[0].value else {
+            panic!();
+        };
 
         assert_eq!(variables.len(), 2);
         assert_eq!(equations.len(), 2);
 
-        assert_eq!(&variables[0].ids, &vec![Identifier::new("y"), Identifier::new("z"), Identifier::new("a")]);
-        unwrap_pattern!(&variables[0].sort.value, &SortEnum::Nat => ());
-        assert_eq!(&variables[1].ids, &vec![Identifier::new("b")]);
+        assert_eq!(&variables[0].ids, &vec![
+            (Identifier::new("y"), SourceRange::new(1, 16, 1, 17)),
+            (Identifier::new("z"), SourceRange::new(1, 19, 1, 20)),
+            (Identifier::new("a"), SourceRange::new(1, 22, 1, 23)),
+        ]);
+        assert!(matches!(&variables[0].sort.value, &SortEnum::Nat));
+        assert_eq!(&variables[1].ids, &vec![
+            (Identifier::new("b"), SourceRange::new(2, 16, 2, 17)),
+        ]);
 
         // first equation
         let EquationDecl { condition, lhs, rhs } = &equations[0];

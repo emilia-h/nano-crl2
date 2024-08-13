@@ -46,7 +46,7 @@ pub fn convert_ir_decl(
 
     match &decl.value {
         DeclEnum::Action { ids, sort } => {
-            for identifier in ids {
+            for (identifier, identifier_loc) in ids {
                 let sort_ids = match sort {
                     Some(sort) => {
                         let mut components = Vec::new();
@@ -74,7 +74,7 @@ pub fn convert_ir_decl(
             }
         },
         DeclEnum::Constructor { ids, sort } => {
-            for identifier in ids {
+            for (identifier, identifier_loc) in ids {
                 let sort_id = convert_ir_sort(context, sort, module)?;
                 let decl_id = add_def(module, identifier, IrDeclEnum::Constructor {
                     sort: sort_id,
@@ -88,7 +88,7 @@ pub fn convert_ir_decl(
         DeclEnum::GlobalVariable { variables } => {
             for variable_decl in variables {
                 let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
-                for identifier in &variable_decl.ids {
+                for (identifier, identifier_loc) in &variable_decl.ids {
                     let decl_id = add_def(module, identifier, IrDeclEnum::GlobalVariable {
                         sort: sort_id,
                     });
@@ -108,7 +108,7 @@ pub fn convert_ir_decl(
             }
             module.initial = Some(sort_id);
         },
-        DeclEnum::Map { id, sort } => {
+        DeclEnum::Map { id, id_loc, sort } => {
             let sort_id = convert_ir_sort(context, sort, module)?;
             let decl_id = add_def(module, id, IrDeclEnum::Map { sort: sort_id });
             module.add_parent(sort_id.into(), decl_id.into());
@@ -118,21 +118,21 @@ pub fn convert_ir_decl(
                 // sort A = something;
                 assert_eq!(ids.len(), 1);
                 let sort_id = convert_ir_sort(context, sort, module)?;
-                let decl_id = add_def(module, &ids[0], IrDeclEnum::SortAlias { sort: sort_id });
+                let decl_id = add_def(module, &ids[0].0, IrDeclEnum::SortAlias { sort: sort_id });
                 module.add_parent(sort_id.into(), decl_id.into());
             } else {
                 // sort A_1, ..., A_n;
-                for identifier in ids {
+                for (identifier, identifier_loc) in ids {
                     let _ = add_def(module, identifier, IrDeclEnum::Sort);
                 }
             }
         },
-        DeclEnum::Process { id, params, proc } => {
+        DeclEnum::Process { id, id_loc, params, proc } => {
             // convert parameters' sorts to IR
             let mut ir_params = Vec::new();
             for variable_decl in params {
                 let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
-                for identifier in &variable_decl.ids {
+                for (identifier, identifier_loc) in &variable_decl.ids {
                     let def_id = context.generate_def_id(module.id);
                     ir_params.push(IrParam {
                         def_id,

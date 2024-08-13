@@ -18,7 +18,7 @@ use crate::model::expr::Expr;
 use crate::mu_calculus::regular_formula::RegularFormula;
 
 use std::fmt::{Debug, Formatter};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// A mu-calculus formula that describes a property of an LTS or mCRL2 model.
 pub struct StateFormula {
@@ -48,51 +48,53 @@ pub enum StateFormulaEnum {
         id: Identifier,
     },
     Delay {
-        expr: Rc<Expr>,
+        expr: Arc<Expr>,
     },
     Yaled {
-        expr: Rc<Expr>,
+        expr: Arc<Expr>,
     },
     Mu {
         id: Identifier,
+        id_loc: SourceRange,
         // TODO data
-        formula: Rc<StateFormula>,
+        formula: Arc<StateFormula>,
     },
     Nu {
         id: Identifier,
+        id_loc: SourceRange,
         // TODO data
-        formula: Rc<StateFormula>,
+        formula: Arc<StateFormula>,
     },
     Forall {
-        ids: Vec<(Identifier, Rc<StateFormula>)>,
-        formula: Rc<StateFormula>,
+        ids: Vec<(Identifier, SourceRange, Arc<StateFormula>)>,
+        formula: Arc<StateFormula>,
     },
     Exists {
-        ids: Vec<(Identifier, Rc<StateFormula>)>,
-        formula: Rc<StateFormula>,
+        ids: Vec<(Identifier, SourceRange, Arc<StateFormula>)>,
+        formula: Arc<StateFormula>,
     },
     Implies {
-        lhs: Rc<StateFormula>,
-        rhs: Rc<StateFormula>,
+        lhs: Arc<StateFormula>,
+        rhs: Arc<StateFormula>,
     },
     Or {
-        lhs: Rc<StateFormula>,
-        rhs: Rc<StateFormula>,
+        lhs: Arc<StateFormula>,
+        rhs: Arc<StateFormula>,
     },
     And {
-        lhs: Rc<StateFormula>,
-        rhs: Rc<StateFormula>,
+        lhs: Arc<StateFormula>,
+        rhs: Arc<StateFormula>,
     },
     Not {
-        value: Rc<StateFormula>,
+        value: Arc<StateFormula>,
     },
     Box {
-        regular_formula: Rc<RegularFormula>,
-        formula: Rc<StateFormula>,
+        regular_formula: Arc<RegularFormula>,
+        formula: Arc<StateFormula>,
     },
     Diamond {
-        regular_formula: Rc<RegularFormula>,
-        formula: Rc<StateFormula>,
+        regular_formula: Arc<RegularFormula>,
+        formula: Arc<StateFormula>,
     },
 }
 
@@ -124,9 +126,9 @@ pub fn parse_state_formula(parser: &mut Parser) -> Result<StateFormula, ParseErr
     let lhs = parse_or_state_formula(parser)?;
 
     if parser.skip_if_equal(&LexicalElement::ThickArrow) {
-        let rhs = Rc::new(parse_state_formula(parser)?);
+        let rhs = Arc::new(parse_state_formula(parser)?);
         Ok(StateFormula::new(
-            StateFormulaEnum::Implies { lhs: Rc::new(lhs), rhs },
+            StateFormulaEnum::Implies { lhs: Arc::new(lhs), rhs },
             parser.until_now(&loc),
         ))
     } else {
@@ -144,9 +146,9 @@ fn parse_or_state_formula(parser: &mut Parser) -> Result<StateFormula, ParseErro
     let lhs = parse_and_state_formula(parser)?;
 
     if parser.skip_if_equal(&LexicalElement::DoublePipe) {
-        let rhs = Rc::new(parse_or_state_formula(parser)?);
+        let rhs = Arc::new(parse_or_state_formula(parser)?);
         Ok(StateFormula::new(
-            StateFormulaEnum::Or { lhs: Rc::new(lhs), rhs },
+            StateFormulaEnum::Or { lhs: Arc::new(lhs), rhs },
             parser.until_now(&loc),
         ))
     } else {
@@ -166,9 +168,9 @@ fn parse_and_state_formula(parser: &mut Parser) -> Result<StateFormula, ParseErr
     let lhs = parse_basic_state_formula(parser)?;
 
     if parser.skip_if_equal(&LexicalElement::DoubleAmpersand) {
-        let rhs = Rc::new(parse_and_state_formula(parser)?);
+        let rhs = Arc::new(parse_and_state_formula(parser)?);
         Ok(StateFormula::new(
-            StateFormulaEnum::And { lhs: Rc::new(lhs), rhs },
+            StateFormulaEnum::And { lhs: Arc::new(lhs), rhs },
             parser.until_now(&loc),
         ))
     } else {
@@ -200,9 +202,9 @@ fn parse_basic_state_formula(parser: &mut Parser) -> Result<StateFormula, ParseE
         },
         LexicalElement::OpeningBracket => {
             parser.skip_token();
-            let regular_formula = Rc::new(parser.parse::<RegularFormula>()?);
+            let regular_formula = Arc::new(parser.parse::<RegularFormula>()?);
             parser.expect_token(&LexicalElement::ClosingBracket)?;
-            let formula = Rc::new(parse_basic_state_formula(parser)?);
+            let formula = Arc::new(parse_basic_state_formula(parser)?);
             Ok(StateFormula::new(
                 StateFormulaEnum::Box { regular_formula, formula },
                 parser.until_now(&loc),
@@ -210,9 +212,9 @@ fn parse_basic_state_formula(parser: &mut Parser) -> Result<StateFormula, ParseE
         },
         LexicalElement::LessThan => {
             parser.skip_token();
-            let regular_formula = Rc::new(parser.parse::<RegularFormula>()?);
+            let regular_formula = Arc::new(parser.parse::<RegularFormula>()?);
             parser.expect_token(&LexicalElement::GreaterThan)?;
-            let formula = Rc::new(parse_basic_state_formula(parser)?);
+            let formula = Arc::new(parse_basic_state_formula(parser)?);
             Ok(StateFormula::new(
                 StateFormulaEnum::Diamond { regular_formula, formula },
                 parser.until_now(&loc),
@@ -220,21 +222,21 @@ fn parse_basic_state_formula(parser: &mut Parser) -> Result<StateFormula, ParseE
         },
         LexicalElement::Mu => {
             parser.skip_token();
-            let id = parser.parse_identifier()?;
+            let (id, id_loc) = parser.parse_identifier()?;
             parser.expect_token(&LexicalElement::Period)?;
-            let formula = Rc::new(parse_basic_state_formula(parser)?);
+            let formula = Arc::new(parse_basic_state_formula(parser)?);
             Ok(StateFormula::new(
-                StateFormulaEnum::Mu { id, formula },
+                StateFormulaEnum::Mu { id, id_loc, formula },
                 parser.until_now(&loc),
             ))
         },
         LexicalElement::Nu => {
             parser.skip_token();
-            let id = parser.parse_identifier()?;
+            let (id, id_loc) = parser.parse_identifier()?;
             parser.expect_token(&LexicalElement::Period)?;
-            let formula = Rc::new(parse_basic_state_formula(parser)?);
+            let formula = Arc::new(parse_basic_state_formula(parser)?);
             Ok(StateFormula::new(
-                StateFormulaEnum::Nu { id, formula },
+                StateFormulaEnum::Nu { id, id_loc, formula },
                 parser.until_now(&loc),
             ))
         },
@@ -265,7 +267,9 @@ mod tests {
                 if id == "tau" {
                     values.len() == 0
                 } else {
-                    values.len() == 1 && values[0].args.len() == 0 && values[0].id.get_value() == id
+                    values.len() == 1 &&
+                    values[0].0.args.len() == 0 &&
+                    values[0].0.id.get_value() == id
                 }
             } else {
                 false
@@ -284,22 +288,22 @@ mod tests {
 
         let (and_lhs, and_rhs) = unwrap_pattern!(&or_lhs.value, StateFormulaEnum::And { lhs, rhs } => (lhs, rhs));
 
-        let (box_regular_formula, box_formula) =
-            unwrap_pattern!(&and_lhs.value, StateFormulaEnum::Box { regular_formula, formula } => (regular_formula, formula));
+        let StateFormulaEnum::Box { regular_formula: box_regular_formula, formula: box_formula } =
+            &and_lhs.value else { panic!() };
         assert!(is_single_action(&box_regular_formula, "aa"));
         unwrap_pattern!(&box_formula.value, StateFormulaEnum::False => ());
 
-        let (mu_id, mu_formula) = unwrap_pattern!(&and_rhs.value, StateFormulaEnum::Mu { id, formula } => (id, formula));
+        let StateFormulaEnum::Mu { id: mu_id, formula: mu_formula, .. } = &and_rhs.value else { panic!() };
         assert_eq!(mu_id.get_value(), "X");
 
-        let (diamond_regular_formula, diamond_formula) =
-            unwrap_pattern!(&mu_formula.value, StateFormulaEnum::Diamond { regular_formula, formula } => (regular_formula, formula));
+        let StateFormulaEnum::Diamond { regular_formula: diamond_regular_formula, formula: diamond_formula } =
+            &mu_formula.value else { panic!() };
         assert!(is_single_action(&diamond_regular_formula, "a"));
 
         let x = unwrap_pattern!(&diamond_formula.value, StateFormulaEnum::Id { id } => id);
         assert_eq!(x.get_value(), "X");
 
-        let (nu_id, nu_formula) = unwrap_pattern!(&or_rhs.value, StateFormulaEnum::Nu { id, formula } => (id, formula));
+        let StateFormulaEnum::Nu { id: nu_id, formula: nu_formula, .. } = &or_rhs.value else { panic!() };
         assert_eq!(nu_id.get_value(), "Y");
         let (diamond_regular_formula, diamond_formula) =
             unwrap_pattern!(&nu_formula.value, StateFormulaEnum::Diamond { regular_formula, formula } => (regular_formula, formula));

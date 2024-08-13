@@ -1,6 +1,8 @@
 
 use crate::core::syntax::{Identifier, SourceRange};
+use crate::ir::decl::DefId;
 use crate::ir::module::ModuleId;
+use crate::util::caching::Interned;
 
 use std::fmt::{Debug, Formatter};
 
@@ -12,21 +14,12 @@ pub struct IrSort {
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum IrSortEnum {
-    Unit,
-    Bool,
-    Pos,
-    Nat,
-    Int,
-    Real,
+    Primitive {
+        sort: PrimitiveSort,
+    },
     Generic {
         op: GenericSortOp,
         subsort: SortId,
-    },
-    Name {
-        identifier: Identifier,
-    },
-    Struct {
-        // TODO
     },
     Carthesian {
         lhs: SortId,
@@ -36,6 +29,44 @@ pub enum IrSortEnum {
         lhs: SortId,
         rhs: SortId,
     },
+    Name {
+        identifier: Identifier,
+    },
+    Struct {
+        // TODO
+    },
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum ResolvedSort {
+    Primitive {
+        sort: PrimitiveSort,
+    },
+    Generic {
+        op: GenericSortOp,
+        subsort: Interned<ResolvedSort>,
+    },
+    Carthesian {
+        lhs: Interned<ResolvedSort>,
+        rhs: Interned<ResolvedSort>,
+    },
+    Function {
+        lhs: Interned<ResolvedSort>,
+        rhs: Interned<ResolvedSort>,
+    },
+    Def {
+        id: DefId,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum PrimitiveSort {
+    Unit,
+    Bool,
+    Pos,
+    Nat,
+    Int,
+    Real,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

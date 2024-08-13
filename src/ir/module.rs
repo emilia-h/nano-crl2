@@ -10,14 +10,11 @@ use std::fmt::{Debug, Formatter};
 /// Essentially a single file of mCRL2 code.
 /// 
 /// It can optionally contain an "initial" process, which is where the model
-/// begins execution. An IR module belongs to a [`TranslationUnit`], which it
-/// holds a weak pointer to.
+/// begins execution.
 /// 
 /// This type has some functions for mutating it, but these should in principle
 /// only be used during construction. After that, the struct can be considered
 /// immutable.
-/// 
-/// [`TranslationUnit`]: ../../translation_unit/struct.TranslationUnit.html
 #[derive(Debug)]
 pub struct IrModule {
     pub id: ModuleId,

@@ -1,7 +1,7 @@
 
 use crate::analysis::context::AnalysisContext;
 use crate::ir::module::IrModule;
-use crate::ir::sort::{GenericSortOp, IrSort, IrSortEnum, SortId};
+use crate::ir::sort::{GenericSortOp, IrSort, IrSortEnum, PrimitiveSort, SortId};
 use crate::model::sort::{Sort, SortEnum};
 
 use std::sync::Arc;
@@ -34,11 +34,21 @@ pub fn convert_ir_sort(
     };
 
     Ok(match &sort.value {
-        SortEnum::Bool => add_sort(module, IrSortEnum::Bool),
-        SortEnum::Pos => add_sort(module, IrSortEnum::Pos),
-        SortEnum::Nat => add_sort(module, IrSortEnum::Nat),
-        SortEnum::Int => add_sort(module, IrSortEnum::Int),
-        SortEnum::Real => add_sort(module, IrSortEnum::Real),
+        SortEnum::Bool => {
+            add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Bool })
+        },
+        SortEnum::Pos => {
+            add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Pos })
+        },
+        SortEnum::Nat => {
+            add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Nat })
+        },
+        SortEnum::Int => {
+            add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Int })
+        },
+        SortEnum::Real => {
+            add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Real })
+        },
         SortEnum::List { subsort } => {
             convert_generic_sort(module, GenericSortOp::List, subsort)?
         },

@@ -84,8 +84,9 @@ pub enum SortEnum {
 #[derive(Debug)]
 pub struct Constructor {
     pub id: Identifier,
-    pub properties: Vec<(Option<Identifier>, Arc<Sort>)>,
-    pub recognizer_function_id: Option<Identifier>,
+    pub id_loc: SourceRange,
+    pub properties: Vec<(Option<(Identifier, SourceRange)>, Arc<Sort>)>,
+    pub recognizer_function_id: Option<(Identifier, SourceRange)>,
 }
 
 impl Parseable for Sort {
@@ -249,7 +250,7 @@ fn parse_constructor_list(parser: &mut Parser) -> Result<Vec<Constructor>, Parse
 }
 
 fn parse_constructor(parser: &mut Parser) -> Result<Constructor, ParseError> {
-    let id = parser.parse_identifier()?;
+    let (id, id_loc) = parser.parse_identifier()?;
 
     let mut properties = Vec::new();
     if parser.skip_if_equal(&LexicalElement::OpeningParen) {
@@ -277,7 +278,7 @@ fn parse_constructor(parser: &mut Parser) -> Result<Constructor, ParseError> {
         None
     };
 
-    Ok(Constructor { id, properties, recognizer_function_id })
+    Ok(Constructor { id, id_loc, properties, recognizer_function_id })
 }
 
 #[cfg(test)]
@@ -298,7 +299,10 @@ mod tests {
         assert!(constructors[0].recognizer_function_id.is_none());
 
         assert_eq!(constructors[1].id.get_value(), "x");
-        assert_eq!(constructors[1].properties[0].0, Some(Identifier::new("g")));
+        assert_eq!(
+            constructors[1].properties[0].0,
+            Some((Identifier::new("g"), SourceRange::new(0, 13, 0, 14))),
+        );
     }
 
     #[test]
