@@ -10,6 +10,7 @@ use std::fmt::{Debug, Formatter};
 pub struct IrDecl {
     pub def_id: DefId,
     pub identifier: Identifier,
+    pub identifier_loc: SourceRange,
     pub value: IrDeclEnum,
     pub loc: SourceRange,
 }
@@ -53,6 +54,7 @@ pub enum IrDeclEnum {
 pub struct IrParam {
     pub def_id: DefId,
     pub identifier: Identifier,
+    pub identifier_loc: SourceRange,
     pub sort: SortId,
 }
 

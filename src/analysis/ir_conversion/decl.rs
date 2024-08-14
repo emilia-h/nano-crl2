@@ -2,7 +2,7 @@
 use crate::analysis::context::AnalysisContext;
 use crate::analysis::ir_conversion::proc::convert_ir_proc;
 use crate::analysis::ir_conversion::sort::convert_ir_sort;
-use crate::core::syntax::Identifier;
+use crate::core::syntax::{Identifier, SourceRange};
 use crate::ir::decl::{IrDecl, IrDeclEnum, IrParam, ParamId};
 use crate::ir::module::IrModule;
 use crate::ir::sort::SortId;
@@ -31,12 +31,13 @@ pub fn convert_ir_decl(
     decl: &Arc<Decl>,
     module: &mut IrModule,
 ) -> Result<(), ()> {
-    let add_def = |module: &mut IrModule, id: &Identifier, value: IrDeclEnum| {
+    let add_def = |module: &mut IrModule, id: &Identifier, id_loc: SourceRange, value: IrDeclEnum| {
         let def_id = context.generate_def_id(module.id);
         let decl_id = context.generate_decl_id(module.id);
         module.decls.insert(decl_id, IrDecl {
             def_id,
             identifier: id.clone(),
+            identifier_loc: id_loc,
             value,
             loc: decl.loc,
         });
@@ -65,6 +66,7 @@ pub fn convert_ir_decl(
                 module.decls.insert(decl_id, IrDecl {
                     def_id,
                     identifier: identifier.clone(),
+                    identifier_loc: *identifier_loc,
                     value: IrDeclEnum::Action {
                         sorts: sort_ids,
                     },
@@ -76,9 +78,10 @@ pub fn convert_ir_decl(
         DeclEnum::Constructor { ids, sort } => {
             for (identifier, identifier_loc) in ids {
                 let sort_id = convert_ir_sort(context, sort, module)?;
-                let decl_id = add_def(module, identifier, IrDeclEnum::Constructor {
+                let value = IrDeclEnum::Constructor {
                     sort: sort_id,
-                });
+                };
+                let decl_id = add_def(module, identifier, *identifier_loc, value);
                 module.add_parent(sort_id.into(), decl_id.into());
             }
         },
@@ -89,9 +92,10 @@ pub fn convert_ir_decl(
             for variable_decl in variables {
                 let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
                 for (identifier, identifier_loc) in &variable_decl.ids {
-                    let decl_id = add_def(module, identifier, IrDeclEnum::GlobalVariable {
+                    let value = IrDeclEnum::GlobalVariable {
                         sort: sort_id,
-                    });
+                    };
+                    let decl_id = add_def(module, identifier, *identifier_loc, value);
                     module.add_parent(sort_id.into(), decl_id.into());
                 }
             }
@@ -110,7 +114,8 @@ pub fn convert_ir_decl(
         },
         DeclEnum::Map { id, id_loc, sort } => {
             let sort_id = convert_ir_sort(context, sort, module)?;
-            let decl_id = add_def(module, id, IrDeclEnum::Map { sort: sort_id });
+            let value = IrDeclEnum::Map { sort: sort_id };
+            let decl_id = add_def(module, id, *id_loc, value);
             module.add_parent(sort_id.into(), decl_id.into());
         },
         DeclEnum::Sort { ids, sort } => {
@@ -118,12 +123,13 @@ pub fn convert_ir_decl(
                 // sort A = something;
                 assert_eq!(ids.len(), 1);
                 let sort_id = convert_ir_sort(context, sort, module)?;
-                let decl_id = add_def(module, &ids[0].0, IrDeclEnum::SortAlias { sort: sort_id });
+                let value = IrDeclEnum::SortAlias { sort: sort_id };
+                let decl_id = add_def(module, &ids[0].0, ids[0].1, value);
                 module.add_parent(sort_id.into(), decl_id.into());
             } else {
                 // sort A_1, ..., A_n;
                 for (identifier, identifier_loc) in ids {
-                    let _ = add_def(module, identifier, IrDeclEnum::Sort);
+                    let _ = add_def(module, identifier, *identifier_loc, IrDeclEnum::Sort);
                 }
             }
         },
@@ -137,6 +143,7 @@ pub fn convert_ir_decl(
                     ir_params.push(IrParam {
                         def_id,
                         identifier: identifier.clone(),
+                        identifier_loc: *identifier_loc,
                         sort: sort_id,
                     });
                 }
@@ -158,6 +165,7 @@ pub fn convert_ir_decl(
             module.decls.insert(decl_id, IrDecl {
                 def_id,
                 identifier: id.clone(),
+                identifier_loc: *id_loc,
                 value: IrDeclEnum::Process { params: ir_params, proc: proc_id },
                 loc: decl.loc,
             });

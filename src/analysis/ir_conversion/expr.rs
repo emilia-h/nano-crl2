@@ -45,6 +45,7 @@ pub fn convert_ir_expr(
                     op,
                     def_id,
                     identifier: identifier.clone(),
+                    identifier_loc: *identifier_loc,
                     sort: sort_id,
                     expr: current_id,
                 });
@@ -139,6 +140,7 @@ pub fn convert_ir_expr(
                 op: BinderExprOp::SetComprehension,
                 def_id,
                 identifier: id.clone(),
+                identifier_loc: *id_loc,
                 sort: sort_id,
                 expr: condition_id,
             });

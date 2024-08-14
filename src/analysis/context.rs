@@ -1,5 +1,6 @@
 //! Implements data structures that assist in analysis in this library.
 
+use crate::core::lexer::Token;
 use crate::ir::decl::{DeclId, DefId};
 use crate::ir::expr::ExprId;
 use crate::ir::module::{IrModule, ModuleId};
@@ -23,12 +24,17 @@ use std::sync::Arc;
 /// Other data, such as intermediate representations (IRs), are computed using
 /// queries that are cached to avoid computing the same result more than once.
 pub struct AnalysisContext {
-    /// The set of input modules, where each module has a name and an AST.
-    ast_modules: Vec<(String, Module)>,
+    /// The set of input modules, where each module has a name and an input
+    /// string (usually this is just the contents of the file).
+    model_inputs: HashMap<ModuleId, (String, String)>,
 
+    pub(crate) ast_modules: QueryHashMap<ModuleId, Result<Arc<Module>, ()>>,
     pub(crate) ir_modules: QueryHashMap<ModuleId, Result<Arc<IrModule>, ()>>,
     pub(crate) sorts_of_expr: QueryHashMap<ExprId, Result<Interned<ResolvedSort>, ()>>,
+    pub(crate) token_lists: QueryHashMap<ModuleId, Result<Arc<Vec<Token>>, ()>>,
+
     resolved_sort_context: ResolvedSortContext,
+    module_id_counter: Cell<usize>,
     id_counter: Cell<usize>,
 }
 
@@ -36,23 +42,48 @@ impl AnalysisContext {
     /// Constructs a new empty context, with no inputs.
     pub fn new() -> Self {
         AnalysisContext {
-            ast_modules: Vec::new(),
+            model_inputs: HashMap::new(),
+
+            ast_modules: QueryHashMap::new(),
             ir_modules: QueryHashMap::new(),
             sorts_of_expr: QueryHashMap::new(),
+            token_lists: QueryHashMap::new(),
+
             resolved_sort_context: ResolvedSortContext::new(),
+            module_id_counter: Cell::new(0),
             id_counter: Cell::new(0),
         }
     }
 
     /// Adds the AST of a module as a new input to the context, and returns the
     /// ID that it is given internally.
-    pub fn add_ast_module(&mut self, name: String, module: Module) -> ModuleId {
-        self.ast_modules.push((name, module));
-        ModuleId { index: self.ast_modules.len() - 1 }
+    /// 
+    /// Note that multiple inputs with the same module name should in general
+    /// not be added without removing them first, because this may lead to
+    /// strange results if semantic analysis is performed.
+    pub fn add_model_input(&mut self, module_name: String, input: String) -> ModuleId {
+        let next = self.module_id_counter.get();
+        self.module_id_counter.set(next + 1);
+        let module_id = ModuleId { index: next };
+        self.model_inputs.insert(module_id, (module_name, input));
+        module_id
     }
 
-    pub fn get_ast_module(&self, id: ModuleId) -> &(String, Module) {
-        &self.ast_modules[id.index]
+    /// # Panics
+    /// If the given module ID does not exist, this function will panic.
+    pub fn get_model_input(&self, id: ModuleId) -> &(String, String) {
+        self.model_inputs.get(&id).unwrap()
+    }
+
+    /// # Panics
+    /// If the given module ID does not exist, this function will panic.
+    pub fn remove_model_input(&mut self, id: ModuleId) {
+        self.model_inputs.remove(&id).unwrap();
+        // we don't have to invalidate every query hash map!
+        self.ast_modules = QueryHashMap::new();
+        self.ir_modules = QueryHashMap::new();
+        self.sorts_of_expr = QueryHashMap::new();
+        self.token_lists.invalidate(&id);
     }
 
     pub fn get_resolved_sort_context(&self) -> &ResolvedSortContext {

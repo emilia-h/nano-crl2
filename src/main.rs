@@ -24,7 +24,7 @@ Where <tool> is one of:
 ";
 
 const HELP_STRING_CHECK_INPUT: &'static str = "
-check-model: a checker for well-formedness of mCRL2 files. Usage:
+check-input: a checker for well-formedness of mCRL2 files. Usage:
 
 $ nanocrl2 check-input <options...>
 

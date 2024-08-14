@@ -137,6 +137,14 @@ where
             panic!("not locked");
         }
     }
+
+    /// Will remove a cached entry from the map.
+    /// 
+    /// If the entry was locked, this will also remove it.
+    pub fn invalidate(&self, key: &K) {
+        let mut map = self.map.borrow_mut();
+        map.remove(key);
+    }
 }
 
 #[derive(Debug)]

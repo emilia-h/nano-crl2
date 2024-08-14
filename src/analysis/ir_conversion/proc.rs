@@ -96,12 +96,13 @@ pub fn convert_ir_proc(
             // we work inside out here (note the `rev()`)
             let mut current_id = convert_ir_proc(context, proc, module)?;
             for variable_decl in variables.iter().rev() {
-                for (id, id_loc) in variable_decl.ids.iter().rev() {
+                for (identifier, identifier_loc) in variable_decl.ids.iter().rev() {
                     let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
                     let def_id = context.generate_def_id(module.id);
                     let next_id = add_proc(module, IrProcEnum::Sum {
                         def_id,
-                        identifier: id.clone(),
+                        identifier: identifier.clone(),
+                        identifier_loc: *identifier_loc,
                         sort: sort_id,
                         proc: current_id,
                     });

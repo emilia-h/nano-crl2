@@ -49,6 +49,7 @@ pub enum IrExprEnum {
         op: BinderExprOp,
         def_id: DefId,
         identifier: Identifier,
+        identifier_loc: SourceRange,
         sort: SortId,
         expr: ExprId,
     },

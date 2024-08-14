@@ -1,6 +1,7 @@
 
 use crate::analysis::context::AnalysisContext;
 use crate::analysis::ir_conversion::decl::convert_ir_decl;
+use crate::analysis::parsing::query_ast_module;
 use crate::core::syntax::{Identifier, SourceRange};
 use crate::ir::module::{IrModule, ModuleId};
 
@@ -40,7 +41,7 @@ pub fn query_ir_module(
         return result;
     }
 
-    let (_, ast_module) = context.get_ast_module(module);
+    let ast_module = query_ast_module(context, module)?;
 
     let mut result = IrModule::new(module);
     let mut error = false;

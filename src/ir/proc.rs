@@ -31,6 +31,7 @@ pub enum IrProcEnum {
     Sum {
         def_id: DefId,
         identifier: Identifier,
+        identifier_loc: SourceRange,
         sort: SortId,
         proc: ProcId,
     },

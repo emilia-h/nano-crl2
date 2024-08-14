@@ -1,11 +1,7 @@
 
-use crate::try_into;
 use crate::analysis::context::AnalysisContext;
 use crate::analysis::ir_conversion::module::query_ir_module;
 use crate::core::error::Mcrl2Error;
-use crate::core::lexer::tokenize;
-use crate::core::parser::Parser;
-use crate::model::module::Module;
 use crate::tools::cli::CliOptions;
 
 use std::fs::read_to_string;
@@ -18,9 +14,6 @@ pub fn check_input(options: &CliOptions) -> Result<(), Mcrl2Error> {
     let mut module_ids = Vec::new();
     for input_file in input_files {
         let input = read_to_string(input_file)?;
-
-        let tokens = try_into!(tokenize(&input));
-        let ast_module = try_into!(Parser::new(&tokens).parse::<Module>());
 
         // derive module name from path
         let module_name_os = match Path::new(input_file).file_stem() {
@@ -38,7 +31,7 @@ pub fn check_input(options: &CliOptions) -> Result<(), Mcrl2Error> {
             }),
         };
 
-        module_ids.push(context.add_ast_module(module_name.to_owned(), ast_module));
+        module_ids.push(context.add_model_input(module_name.to_owned(), input));
     }
 
     for module_id in module_ids {
