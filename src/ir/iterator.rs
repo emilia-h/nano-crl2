@@ -4,20 +4,15 @@
 use crate::ir::decl::{DefId, IrDeclEnum, ParamId};
 use crate::ir::expr::IrExprEnum;
 use crate::ir::module::{IrModule, NodeId};
-use crate::ir::proc::IrProcEnum;
+use crate::ir::proc::{ActionId, IrProcEnum};
 use crate::ir::sort::IrSortEnum;
-
-use super::proc::ActionId;
 
 impl<'a> IntoIterator for &'a IrModule {
     type IntoIter = IrIterator<'a>;
     type Item = IrIteratorItem;
 
     fn into_iter(self) -> Self::IntoIter {
-        IrIterator {
-            module: self,
-            stack: vec![IrIteratorItem::Node(self.id.into())],
-        }
+        IrIterator::new(self, self.id.into())
     }
 }
 
@@ -36,6 +31,13 @@ pub struct IrIterator<'a> {
 }
 
 impl<'a> IrIterator<'a> {
+    pub fn new(module: &'a IrModule, starting_node: NodeId) -> Self {
+        IrIterator {
+            module,
+            stack: vec![IrIteratorItem::Node(starting_node)],
+        }
+    }
+
     /// Convenience function for the iterator.
     fn push_node<T>(&mut self, id: T)
     where

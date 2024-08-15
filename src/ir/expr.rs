@@ -125,6 +125,12 @@ pub struct ExprId {
     pub(crate) value: usize,
 }
 
+impl ExprId {
+    pub fn get_module_id(&self) -> ModuleId {
+        self.module
+    }
+}
+
 impl Debug for ExprId {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "{:?}.expr.{}", self.module, self.value)
@@ -135,6 +141,12 @@ impl Debug for ExprId {
 pub struct RewriteRuleId {
     pub(crate) module: ModuleId,
     pub(crate) value: usize,
+}
+
+impl RewriteRuleId {
+    pub fn get_module_id(&self) -> ModuleId {
+        self.module
+    }
 }
 
 impl Debug for RewriteRuleId {

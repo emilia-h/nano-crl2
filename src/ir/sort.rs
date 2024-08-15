@@ -84,6 +84,12 @@ pub struct SortId {
     pub(crate) value: usize,
 }
 
+impl SortId {
+    pub fn get_module_id(&self) -> ModuleId {
+        self.module
+    }
+}
+
 impl Debug for SortId {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "{:?}.sort.{}", self.module, self.value)

@@ -117,6 +117,12 @@ pub struct DefId {
     pub(crate) value: usize,
 }
 
+impl DefId {
+    pub fn get_module_id(&self) -> ModuleId {
+        self.module
+    }
+}
+
 impl Debug for DefId {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "{:?}.def.{}", self.module, self.value)
