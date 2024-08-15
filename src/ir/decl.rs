@@ -91,6 +91,12 @@ pub struct ParamId {
     pub(crate) index: usize,
 }
 
+impl ParamId {
+    pub fn get_module_id(&self) -> ModuleId {
+        self.decl.module
+    }
+}
+
 impl Debug for ParamId {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "{:?}.param.{}", self.decl, self.index)

@@ -22,6 +22,12 @@ pub fn query_def_of_name(
     // note that there are three separate name spaces, namely one for
     // expressions, one for processes, and one for sorts
     match node {
+        NodeId::Action(_) => {
+            // for processes, name lookup is slightly annoying because
+            // there can be multiple actions with the same name but
+            // with different signatures
+            todo!()
+        },
         NodeId::Decl(_) => panic!("a declaration is not a name"),
         NodeId::Expr(id) => {
             match &ir_module.get_expr(id).value {
@@ -46,28 +52,7 @@ pub fn query_def_of_name(
         },
         NodeId::Module(_) => panic!("a module is not a name"),
         NodeId::Param(_) => panic!("a parameter is not a name"),
-        NodeId::Proc(id) => {
-            // for processes, name lookup is slightly annoying because
-            // there can be multiple actions with the same name but
-            // with different signatures
-            match &ir_module.get_proc(id).value {
-                IrProcEnum::MultiAction { actions } => {
-                    todo!()
-                    // if let Some(parent) = ir_module.get_parent(node) {
-                    //     find_def_of_name(
-                    //         context,
-                    //         parent,
-                    //         &NameLookup::Proc { identifier },
-                    //         &ir_module,
-                    //     )
-                    // } else {
-                    //     context.error();
-                    //     Err(())
-                    // }
-                },
-                _ => panic!("process {:?} is not a name", id),
-            }
-        },
+        NodeId::Proc(_) => panic!("a process is not a name"),
         NodeId::RewriteRule(_) => panic!("a rewrite rule is not a name"),
         NodeId::Sort(id) => {
             match &ir_module.get_sort(id).value {
@@ -99,6 +84,7 @@ fn find_def_of_name(
     module: &IrModule,
 ) -> Result<DefId, ()> {
     match node {
+        NodeId::Action(_) => {},
         NodeId::Decl(id) => {
             let decl = module.decls.get(&id).unwrap();
             if let NameLookup::Expr { identifier } = name_lookup {

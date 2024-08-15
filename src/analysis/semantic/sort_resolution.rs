@@ -177,6 +177,7 @@ pub fn query_sort_of_def(
     let ir_module = query_ir_module(context, def.module)?;
     let def_source = ir_module.get_def_source(def);
     match def_source {
+        NodeId::Action(_) => panic!("an action cannot define something"),
         NodeId::Decl(id) => {
             let decl = ir_module.get_decl(id);
             match &decl.value {

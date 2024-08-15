@@ -1,11 +1,13 @@
 
 use crate::ir::decl::{DeclId, DefId, IrDecl, IrDeclEnum, IrParam, ParamId};
 use crate::ir::expr::{ExprId, IrExpr, IrRewriteRule, RewriteRuleId};
-use crate::ir::proc::{IrProc, ProcId};
+use crate::ir::proc::{ActionId, IrProc, IrProcEnum, ProcId};
 use crate::ir::sort::{IrSort, SortId};
 
 use std::collections::hash_map::HashMap;
 use std::fmt::{Debug, Formatter};
+
+use super::proc::IrAction;
 
 /// Essentially a single file of mCRL2 code.
 /// 
@@ -103,6 +105,18 @@ impl IrModule {
         *self.def_source_map.get(&def_id).unwrap()
     }
 
+    pub fn get_action(&self, node: ActionId) -> &IrAction {
+        assert_eq!(node.get_module_id(), self.id);
+        let proc = self.procs.get(&node.proc).unwrap();
+        match &proc.value {
+            IrProcEnum::MultiAction { actions } => {
+                assert!(node.index < actions.len());
+                &actions[node.index]
+            },
+            _ => panic!("node {:?} does not have actions", node.proc),
+        }
+    }
+
     pub fn get_decl(&self, node: DeclId) -> &IrDecl {
         assert_eq!(node.get_module_id(), self.id);
         self.decls.get(&node).unwrap()
@@ -147,6 +161,7 @@ impl Debug for ModuleId {
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub enum NodeId {
+    Action(ActionId),
     Decl(DeclId),
     Expr(ExprId),
     Module(ModuleId),
@@ -163,6 +178,7 @@ impl NodeId {
     pub fn get_module_id(&self) -> ModuleId {
         match self {
             Self::Module(id) => *id,
+            Self::Action(id) => id.proc.module,
             Self::Decl(id) => id.module,
             Self::Expr(id) => id.module,
             Self::Param(id) => id.decl.module,
@@ -176,6 +192,7 @@ impl NodeId {
 impl Debug for NodeId {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
         match self {
+            Self::Action(id) => write!(f, "{:?}", id),
             Self::Decl(id) => write!(f, "{:?}", id),
             Self::Expr(id) => write!(f, "{:?}", id),
             Self::Module(id) => write!(f, "{:?}", id),
@@ -184,6 +201,12 @@ impl Debug for NodeId {
             Self::RewriteRule(id) => write!(f, "{:?}", id),
             Self::Sort(id) => write!(f, "{:?}", id),
         }
+    }
+}
+
+impl From<ActionId> for NodeId {
+    fn from(value: ActionId) -> Self {
+        Self::Action(value)
     }
 }
 

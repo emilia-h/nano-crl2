@@ -7,6 +7,8 @@ use crate::ir::module::{IrModule, NodeId};
 use crate::ir::proc::IrProcEnum;
 use crate::ir::sort::IrSortEnum;
 
+use super::proc::ActionId;
+
 impl<'a> IntoIterator for &'a IrModule {
     type IntoIter = IrIterator<'a>;
     type Item = IrIteratorItem;
@@ -53,6 +55,12 @@ impl<'a> Iterator for IrIterator<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(iterator_item) = self.stack.pop() {
             match iterator_item {
+                IrIteratorItem::Node(NodeId::Action(id)) => {
+                    let action = self.module.get_action(id);
+                    for &arg in &action.args {
+                        self.push_node(arg);
+                    }
+                },
                 IrIteratorItem::Node(NodeId::Decl(id)) => {
                     let decl = self.module.get_decl(id);
                     self.push_def(decl.def_id);
@@ -152,7 +160,9 @@ impl<'a> Iterator for IrIterator<'a> {
                             self.push_node(*else_proc);
                         },
                         IrProcEnum::MultiAction { actions } => {
-                            todo!()
+                            for index in 0 .. actions.len() {
+                                self.push_node(ActionId { proc: id, index });
+                            }
                         },
                         IrProcEnum::Sum { def_id, sort, proc, .. } => {
                             self.push_def(*def_id);

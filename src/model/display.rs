@@ -423,7 +423,7 @@ impl DisplayPretty for Proc {
         use ProcEnum::*;
 
         match &self.value {
-            Action { id, args } => {
+            Action { id, args, .. } => {
                 if args.len() == 0 {
                     write!(f, "{}(", id)?;
                     display_separated(

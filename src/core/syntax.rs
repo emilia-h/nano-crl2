@@ -32,7 +32,14 @@ impl Display for Identifier {
     }
 }
 
-/// A location in a text file.
+/// A character position `(line, character)` in a text file.
+/// 
+/// These character positions are lexicographically ordered, i.e. `(l1, c1) <
+/// (l2, c2)` is true iff `l1 < l2 || (l1 == l2 && c1 < c2)`.
+/// 
+/// Note that the position of a character is different from the position of the
+/// cursor in an editor! A cursor is positioned in between two characters, so
+/// be careful not to mix up these two concepts.
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct SourcePos {
     line: u32,
@@ -70,8 +77,13 @@ impl PartialOrd for SourcePos {
     }
 }
 
-/// A selection in a source file, i.e. an inclusive interval over two `(line,
-/// char)` coordinates.
+/// A selection in a source file, i.e. a start-inclusive end-exclusive interval
+/// over two `(line, char)` coordinates.
+/// 
+/// Note that this represents a selection, so the start and end positions are
+/// cursor positions and not character positions (a character position is
+/// represented using `SourcePos`). This is why it is an inclusive-exclusive
+/// interval.
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct SourceRange {
     start_line: u32,
@@ -82,18 +94,25 @@ pub struct SourceRange {
 
 impl SourceRange {
     /// Creates a new `SourceRange` spanning `(start_line, start_char)` to
-    /// `(end_line, end_char)`.
+    /// `(end_line, end_char)` exclusive.
+    /// 
+    /// # Panics
+    /// The starting position must come before the ending position, or this function will panic.
     pub const fn new(
         start_line: u32,
         start_char: u32,
         end_line: u32,
         end_char: u32,
     ) -> Self {
+        assert!(start_line <= end_line);
+        assert!(start_line != end_line || start_char <= end_char);
         SourceRange { start_line, start_char, end_line, end_char }
     }
 
-    pub const fn get_start(&self) -> SourcePos {
-        SourcePos::new(self.start_line, self.start_char)
+    /// See the `SourceRange` documentation for an explanation of why this does
+    /// not return a `SourcePos`.
+    pub const fn get_start(&self) -> (u32, u32) {
+        (self.start_line, self.start_char)
     }
 
     pub const fn get_start_line(&self) -> u32 {
@@ -104,8 +123,8 @@ impl SourceRange {
         self.start_char
     }
 
-    pub const fn get_end(&self) -> SourcePos {
-        SourcePos::new(self.end_line, self.end_char)
+    pub const fn get_end(&self) -> (u32, u32) {
+        (self.end_line, self.end_char)
     }
 
     pub const fn get_end_line(&self) -> u32 {
@@ -127,6 +146,14 @@ impl SourceRange {
             end_line: u32::max(self.end_line, other.end_line),
             end_char: u32::max(self.end_char, other.end_char),
         }
+    }
+
+    /// Returns whether or not the given character position `pos` is within
+    /// this selection.
+    pub const fn contains(&self, pos: SourcePos) -> bool {
+        self.start_line <= pos.line && pos.line <= self.end_line &&
+        (self.start_line != pos.line || self.start_char <= pos.character) &&
+        (pos.line != self.end_line || pos.character < self.end_char)
     }
 }
 

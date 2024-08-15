@@ -2,10 +2,8 @@
 use crate::analysis::context::AnalysisContext;
 use crate::analysis::ir_conversion::expr::convert_ir_expr;
 use crate::analysis::ir_conversion::sort::convert_ir_sort;
-use crate::core::syntax::Identifier;
-use crate::ir::expr::ExprId;
 use crate::ir::module::IrModule;
-use crate::ir::proc::{BinaryProcOp, IrProc, IrProcEnum, ProcId};
+use crate::ir::proc::{ActionId, BinaryProcOp, IrAction, IrProc, IrProcEnum, ProcId};
 use crate::model::proc::{Proc, ProcEnum};
 
 use std::sync::Arc;
@@ -49,18 +47,24 @@ pub fn convert_ir_proc(
     };
 
     Ok(match &proc.value {
-        ProcEnum::Action { id, args } => {
+        ProcEnum::Action { id, id_loc, args } => {
             let mut arg_ids = Vec::with_capacity(args.len());
             for arg in args {
                 arg_ids.push(convert_ir_expr(context, arg, module)?);
             }
             let proc_id = context.generate_proc_id(module.id);
+            let action_id = ActionId { proc: proc_id, index: 0 };
             for &arg_id in &arg_ids {
-                module.add_parent(arg_id.into(), proc_id.into());
+                module.add_parent(arg_id.into(), action_id.into());
             }
+            module.add_parent(action_id.into(), proc_id.into());
             module.procs.insert(proc_id, IrProc {
                 value: IrProcEnum::MultiAction {
-                    actions: vec![(id.clone(), arg_ids)],
+                    actions: vec![IrAction {
+                        identifier: id.clone(),
+                        identifier_loc: *id_loc,
+                        args: arg_ids,
+                    }],
                 },
                 loc: proc.loc,
             });
@@ -127,7 +131,19 @@ pub fn convert_ir_proc(
             extract_actions(context, lhs, module, &mut actions)?;
             extract_actions(context, rhs, module, &mut actions)?;
 
-            add_proc(module, IrProcEnum::MultiAction { actions })
+            let proc_id = context.generate_proc_id(module.id);
+            for (index, action) in actions.iter().enumerate() {
+                let action_id = ActionId { proc: proc_id, index };
+                module.add_parent(action_id.into(), proc_id.into());
+                for &arg_id in &action.args {
+                    module.add_parent(arg_id.into(), action_id.into());
+                }
+            }
+            module.procs.insert(proc_id, IrProc {
+                value: IrProcEnum::MultiAction { actions },
+                loc: proc.loc,
+            });
+            proc_id
         },
         ProcEnum::IfThenElse { condition, then_proc, else_proc } => {
             let c = convert_ir_expr(context, condition, module)?;
@@ -169,15 +185,19 @@ fn extract_actions(
     context: &AnalysisContext,
     proc: &Arc<Proc>,
     result: &mut IrModule,
-    output: &mut Vec<(Identifier, Vec<ExprId>)>,
+    output: &mut Vec<IrAction>,
 ) -> Result<(), ()> {
     match &proc.value {
-        ProcEnum::Action { id, args } => {
+        ProcEnum::Action { id, id_loc, args } => {
             let mut arg_ids = Vec::new();
             for arg in args {
                 arg_ids.push(convert_ir_expr(context, arg, result)?);
             }
-            output.push((id.clone(), arg_ids));
+            output.push(IrAction {
+                identifier: id.clone(),
+                identifier_loc: *id_loc,
+                args: arg_ids,
+            });
         },
         ProcEnum::Multi { lhs, rhs } => {
             extract_actions(context, lhs, result, output)?;

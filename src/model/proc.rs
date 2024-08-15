@@ -51,6 +51,7 @@ impl Display for Proc {
 pub enum ProcEnum {
     Action {
         id: Identifier,
+        id_loc: SourceRange,
         args: Vec<Arc<Expr>>,
     },
     // NOTE: at parse time, it's not really possible to distinguish between
@@ -307,7 +308,7 @@ fn parse_basic_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
                 Vec::new()
             };
             Proc::new(
-                ProcEnum::Action { id, args },
+                ProcEnum::Action { id, id_loc: loc, args },
                 parser.until_now(&loc),
             )
         },
