@@ -1,13 +1,14 @@
 
 use crate::ir::decl::{DeclId, DefId, IrDecl, IrDeclEnum, IrParam, ParamId};
-use crate::ir::expr::{ExprId, IrExpr, IrRewriteRule, RewriteRuleId};
-use crate::ir::proc::{ActionId, IrProc, IrProcEnum, ProcId};
+use crate::ir::expr::{
+    ExprId, IrExpr, IrRewriteRule, IrRewriteSet, IrRewriteVar, RewriteRuleId,
+    RewriteSetId, RewriteVarId,
+};
+use crate::ir::proc::{ActionId, IrAction, IrProc, IrProcEnum, ProcId};
 use crate::ir::sort::{IrSort, SortId};
 
 use std::collections::hash_map::HashMap;
 use std::fmt::{Debug, Formatter};
-
-use super::proc::IrAction;
 
 /// Essentially a single file of mCRL2 code.
 /// 
@@ -21,9 +22,9 @@ use super::proc::IrAction;
 pub struct IrModule {
     pub id: ModuleId,
     pub(crate) decls: HashMap<DeclId, IrDecl>,
+    pub(crate) rewrite_sets: HashMap<RewriteSetId, IrRewriteSet>,
     pub(crate) exprs: HashMap<ExprId, IrExpr>,
     pub(crate) procs: HashMap<ProcId, IrProc>,
-    pub(crate) rewrite_rules: HashMap<RewriteRuleId, IrRewriteRule>,
     pub(crate) sorts: HashMap<SortId, IrSort>,
     pub initial: Option<ProcId>,
     parent_map: HashMap<NodeId, NodeId>,
@@ -36,9 +37,9 @@ impl IrModule {
         IrModule {
             id,
             decls: HashMap::new(),
+            rewrite_sets: HashMap::new(),
             exprs: HashMap::new(),
             procs: HashMap::new(),
-            rewrite_rules: HashMap::new(),
             sorts: HashMap::new(),
             initial: None,
             parent_map: HashMap::new(),
@@ -123,6 +124,7 @@ impl IrModule {
     }
 
     pub fn get_expr(&self, node: ExprId) -> &IrExpr {
+        assert_eq!(node.get_module_id(), self.id);
         self.exprs.get(&node).unwrap()
     }
 
@@ -138,10 +140,29 @@ impl IrModule {
     }
 
     pub fn get_proc(&self, node: ProcId) -> &IrProc {
+        assert_eq!(node.get_module_id(), self.id);
         self.procs.get(&node).unwrap()
     }
 
+    pub fn get_rewrite_rule(&self, node: RewriteRuleId) -> &IrRewriteRule {
+        let rewrite_set = self.rewrite_sets.get(&node.rewrite_set).unwrap();
+        assert!(node.index < rewrite_set.rules.len());
+        &rewrite_set.rules[node.index]
+    }
+
+    pub fn get_rewrite_set(&self, node: RewriteSetId) -> &IrRewriteSet {
+        assert_eq!(node.get_module_id(), self.id);
+        self.rewrite_sets.get(&node).unwrap()
+    }
+
+    pub fn get_rewrite_var(&self, node: RewriteVarId) -> &IrRewriteVar {
+        let rewrite_set = self.rewrite_sets.get(&node.rewrite_set).unwrap();
+        assert!(node.index < rewrite_set.rules.len());
+        &rewrite_set.variables[node.index]
+    }
+
     pub fn get_sort(&self, node: SortId) -> &IrSort {
+        assert_eq!(node.get_module_id(), self.id);
         self.sorts.get(&node).unwrap()
     }
 }
@@ -168,6 +189,8 @@ pub enum NodeId {
     Param(ParamId),
     Proc(ProcId),
     RewriteRule(RewriteRuleId),
+    RewriteSet(RewriteSetId),
+    RewriteVar(RewriteVarId),
     Sort(SortId),
 }
 
@@ -183,7 +206,9 @@ impl NodeId {
             Self::Expr(id) => id.module,
             Self::Param(id) => id.decl.module,
             Self::Proc(id) => id.module,
-            Self::RewriteRule(id) => id.module,
+            Self::RewriteRule(id) => id.rewrite_set.module,
+            Self::RewriteSet(id) => id.module,
+            Self::RewriteVar(id) => id.rewrite_set.module,
             Self::Sort(id) => id.module,
         }
     }
@@ -199,6 +224,8 @@ impl Debug for NodeId {
             Self::Param(id) => write!(f, "{:?}", id),
             Self::Proc(id) => write!(f, "{:?}", id),
             Self::RewriteRule(id) => write!(f, "{:?}", id),
+            Self::RewriteSet(id) => write!(f, "{:?}", id),
+            Self::RewriteVar(id) => write!(f, "{:?}", id),
             Self::Sort(id) => write!(f, "{:?}", id),
         }
     }
@@ -243,6 +270,18 @@ impl From<ProcId> for NodeId {
 impl From<RewriteRuleId> for NodeId {
     fn from(value: RewriteRuleId) -> Self {
         Self::RewriteRule(value)
+    }
+}
+
+impl From<RewriteSetId> for NodeId {
+    fn from(value: RewriteSetId) -> Self {
+        Self::RewriteSet(value)
+    }
+}
+
+impl From<RewriteVarId> for NodeId {
+    fn from(value: RewriteVarId) -> Self {
+        Self::RewriteVar(value)
     }
 }
 

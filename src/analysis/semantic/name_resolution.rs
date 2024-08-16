@@ -53,7 +53,9 @@ pub fn query_def_of_name(
         NodeId::Module(_) => panic!("a module is not a name"),
         NodeId::Param(_) => panic!("a parameter is not a name"),
         NodeId::Proc(_) => panic!("a process is not a name"),
+        NodeId::RewriteSet(_) => panic!("a rewrite set is not a name"),
         NodeId::RewriteRule(_) => panic!("a rewrite rule is not a name"),
+        NodeId::RewriteVar(_) => panic!("a rewrite var is not a name"),
         NodeId::Sort(id) => {
             match &ir_module.get_sort(id).value {
                 IrSortEnum::Name { identifier } => {
@@ -199,15 +201,19 @@ fn find_def_of_name(
                 }
             }
         },
-        NodeId::RewriteRule(id) => {
+        NodeId::RewriteRule(_) => {},
+        NodeId::RewriteSet(id) => {
             if let NameLookup::Expr { identifier } = name_lookup {
-                let rewrite_rule = module.rewrite_rules.get(&id).unwrap();
-                for (def_id, i2, _) in &rewrite_rule.variables {
-                    if *identifier == i2 {
-                        return Ok(*def_id);
+                let rewrite_set = module.get_rewrite_set(id);
+                for variable in &rewrite_set.variables {
+                    if *identifier == &variable.identifier {
+                        return Ok(variable.def_id);
                     }
                 }
             }
+        },
+        NodeId::RewriteVar(_) => {
+            // this case should never be encountered for `NameLookup::Expr`
         },
         NodeId::Sort(_) => {},
     }

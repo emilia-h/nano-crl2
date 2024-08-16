@@ -2,7 +2,7 @@
 //! the intermediate representation (IR).
 
 use crate::ir::decl::{DefId, IrDeclEnum, ParamId};
-use crate::ir::expr::IrExprEnum;
+use crate::ir::expr::{IrExprEnum, RewriteRuleId, RewriteVarId};
 use crate::ir::module::{IrModule, NodeId};
 use crate::ir::proc::{ActionId, IrProcEnum};
 use crate::ir::sort::IrSortEnum;
@@ -143,9 +143,13 @@ impl<'a> Iterator for IrIterator<'a> {
                     for (&decl_id, _) in &self.module.decls {
                         self.push_node(decl_id);
                     }
+                    for (&rewrite_set_id, _) in &self.module.rewrite_sets {
+                        self.push_node(rewrite_set_id);
+                    }
                 },
                 IrIteratorItem::Node(NodeId::Param(id)) => {
                     let param = self.module.get_param(id);
+                    self.push_def(param.def_id);
                     self.push_node(param.sort);
                 },
                 IrIteratorItem::Node(NodeId::Proc(id)) => {
@@ -174,8 +178,26 @@ impl<'a> Iterator for IrIterator<'a> {
                     }
                 },
                 IrIteratorItem::Node(NodeId::RewriteRule(id)) => {
-                    let rewrite_rule = self.module.rewrite_rules.get(&id).unwrap();
-                    todo!()
+                    let rewrite_rule = self.module.get_rewrite_rule(id);
+                    if let Some(condition) = rewrite_rule.condition {
+                        self.push_node(condition);
+                    }
+                    self.push_node(rewrite_rule.lhs);
+                    self.push_node(rewrite_rule.rhs);
+                },
+                IrIteratorItem::Node(NodeId::RewriteSet(id)) => {
+                    let rewrite_set = self.module.get_rewrite_set(id);
+                    for index in 0 .. rewrite_set.variables.len() {
+                        self.push_node(RewriteVarId { rewrite_set: id, index });
+                    }
+                    for index in 0 .. rewrite_set.rules.len() {
+                        self.push_node(RewriteRuleId { rewrite_set: id, index });
+                    }
+                },
+                IrIteratorItem::Node(NodeId::RewriteVar(id)) => {
+                    let rewrite_var = self.module.get_rewrite_var(id);
+                    self.push_def(rewrite_var.def_id);
+                    self.push_node(rewrite_var.sort);
                 },
                 IrIteratorItem::Node(NodeId::Sort(id)) => {
                     let sort = self.module.get_sort(id);
@@ -200,6 +222,7 @@ impl<'a> Iterator for IrIterator<'a> {
                 },
                 IrIteratorItem::Def(_) => {},
             }
+
             Some(iterator_item)
         } else {
             None

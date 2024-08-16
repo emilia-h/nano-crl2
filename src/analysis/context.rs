@@ -2,7 +2,7 @@
 
 use crate::core::lexer::Token;
 use crate::ir::decl::{DeclId, DefId};
-use crate::ir::expr::ExprId;
+use crate::ir::expr::{ExprId, RewriteSetId};
 use crate::ir::module::{IrModule, ModuleId};
 use crate::ir::proc::ProcId;
 use crate::ir::sort::{GenericSortOp, PrimitiveSort, ResolvedSort, SortId};
@@ -115,6 +115,12 @@ impl AnalysisContext {
         let value = self.id_counter.get();
         self.id_counter.set(value + 1);
         ProcId { module, value }
+    }
+
+    pub fn generate_rewrite_set_id(&self, module: ModuleId) -> RewriteSetId {
+        let value = self.id_counter.get();
+        self.id_counter.set(value + 1);
+        RewriteSetId { module, value }
     }
 
     /// Returns a sort ID that was not returned by this function before.

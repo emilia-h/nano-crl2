@@ -21,7 +21,7 @@ pub struct Sort {
 }
 
 impl Sort {
-    /// Creates a new sort with `parent` set to `None`.
+    /// Creates a new sort.
     pub fn new(value: SortEnum, loc: SourceRange) -> Self {
         Sort { value, loc }
     }
@@ -207,11 +207,9 @@ fn parse_basic_sort(parser: &mut Parser) -> Result<Sort, ParseError> {
             Ok(Sort::new(SortEnum::FBag { subsort }, parser.until_now(&loc)))
         },
         LexicalElement::Identifier(id) => {
-            let s = Ok(Sort::new(
-                SortEnum::Id { id: Identifier::new(id) },
-                parser.until_now(&loc),
-            ));
+            let id = Identifier::new(id);
             parser.skip_token();
+            let s = Ok(Sort::new(SortEnum::Id { id }, loc));
             s
         },
         LexicalElement::OpeningParen => {
@@ -284,6 +282,7 @@ fn parse_constructor(parser: &mut Parser) -> Result<Constructor, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::module::Module;
     use crate::unwrap_pattern;
     use crate::core::lexer::tokenize;
 
@@ -314,5 +313,33 @@ mod tests {
         let tokens = tokenize("struct a()").unwrap();
         let result = Parser::new(&tokens).parse::<Sort>();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_test() {
+        let tokens = tokenize("
+act a: Nat;
+
+proc Main = delta;
+
+init a(2) . Main;
+
+glob g1: Test;
+
+map f: Nat # Nat -> Bool;
+
+var
+    x: Test;
+eqn
+    f(x, x) = false;
+
+map x1: Nat;
+
+sort Test = Nat;
+"
+        ).unwrap();
+        eprintln!("{:#?}", tokens);
+        let result = Parser::new(&tokens).parse::<Module>();
+        eprintln!("{:#?}", result);
     }
 }

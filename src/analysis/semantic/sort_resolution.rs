@@ -197,7 +197,12 @@ pub fn query_sort_of_def(
         NodeId::Module(_) => todo!(),
         NodeId::Param(_) => todo!(),
         NodeId::Proc(_) => todo!(),
+        NodeId::RewriteSet(_) => todo!(),
         NodeId::RewriteRule(_) => todo!(),
+        NodeId::RewriteVar(id) => {
+            let rewrite_var = ir_module.get_rewrite_var(id);
+            query_resolved_sort(context, rewrite_var.sort)
+        },
         NodeId::Sort(_) => todo!(),
     }
 }

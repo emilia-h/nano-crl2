@@ -1,9 +1,11 @@
 
 use crate::analysis::context::AnalysisContext;
+use crate::analysis::ir_conversion::expr::convert_ir_expr;
 use crate::analysis::ir_conversion::proc::convert_ir_proc;
 use crate::analysis::ir_conversion::sort::convert_ir_sort;
 use crate::core::syntax::{Identifier, SourceRange};
 use crate::ir::decl::{IrDecl, IrDeclEnum, IrParam, ParamId};
+use crate::ir::expr::{IrRewriteRule, IrRewriteSet, IrRewriteVar, RewriteRuleId, RewriteVarId};
 use crate::ir::module::IrModule;
 use crate::ir::sort::SortId;
 use crate::model::decl::{Decl, DeclEnum};
@@ -48,15 +50,12 @@ pub fn convert_ir_decl(
     match &decl.value {
         DeclEnum::Action { ids, sort } => {
             for (identifier, identifier_loc) in ids {
-                let sort_ids = match sort {
-                    Some(sort) => {
-                        let mut components = Vec::new();
-                        decompose_carthesian_sort(context, sort, module, &mut components)?;
-                        components
-                    },
-                    None => {
-                        Vec::new()
-                    },
+                let sort_ids = if let Some(sort) = sort {
+                    let mut components = Vec::new();
+                    decompose_carthesian_sort(context, sort, module, &mut components)?;
+                    components
+                } else {
+                    Vec::new()
                 };
                 let def_id = context.generate_def_id(module.id);
                 let decl_id = context.generate_decl_id(module.id);
@@ -86,7 +85,64 @@ pub fn convert_ir_decl(
             }
         },
         DeclEnum::EquationSet { variables, equations } => {
-            // TODO
+            let mut ir_variables = Vec::new();
+            for variable_decl in variables {
+                for (identifier, identifier_loc) in &variable_decl.ids {
+                    let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
+                    let def_id = context.generate_def_id(module.id);
+                    ir_variables.push(IrRewriteVar {
+                        def_id,
+                        identifier: identifier.clone(),
+                        identifier_loc: *identifier_loc,
+                        sort: sort_id,
+                        loc: variable_decl.loc,
+                    });
+                }
+            }
+
+            let mut ir_rules = Vec::new();
+            for equation_decl in equations {
+                let condition = if let Some(cond) = &equation_decl.condition {
+                    Some(convert_ir_expr(context, cond, module)?)
+                } else {
+                    None
+                };
+                let lhs = convert_ir_expr(context, &equation_decl.lhs, module)?;
+                let rhs = convert_ir_expr(context, &equation_decl.rhs, module)?;
+                ir_rules.push(IrRewriteRule { condition, lhs, rhs, loc: equation_decl.loc });
+            }
+
+            let rewrite_set_id = context.generate_rewrite_set_id(module.id);
+
+            // add parent and def_source relations for the `var` section
+            for (index, ir_variable) in ir_variables.iter().enumerate() {
+                let rewrite_var_id = RewriteVarId {
+                    rewrite_set: rewrite_set_id,
+                    index,
+                };
+                module.add_parent(ir_variable.sort.into(), rewrite_var_id.into());
+                module.add_parent(rewrite_var_id.into(), rewrite_set_id.into());
+                module.add_def_source(ir_variable.def_id, rewrite_var_id.into());
+            }
+
+            // add parent and def_source relations for the `eqn` section
+            for (index, ir_rule) in ir_rules.iter().enumerate() {
+                let rewrite_rule_id = RewriteRuleId {
+                    rewrite_set: rewrite_set_id,
+                    index,
+                };
+                if let &Some(condition) = &ir_rule.condition {
+                    module.add_parent(condition.into(), rewrite_rule_id.into());
+                }
+                module.add_parent(ir_rule.lhs.into(), rewrite_rule_id.into());
+                module.add_parent(ir_rule.rhs.into(), rewrite_rule_id.into());
+                module.add_parent(rewrite_rule_id.into(), rewrite_set_id.into());
+            }
+
+            module.rewrite_sets.insert(rewrite_set_id, IrRewriteSet {
+                variables: ir_variables,
+                rules: ir_rules,
+            });
         },
         DeclEnum::GlobalVariable { variables } => {
             for variable_decl in variables {
@@ -137,14 +193,15 @@ pub fn convert_ir_decl(
             // convert parameters' sorts to IR
             let mut ir_params = Vec::new();
             for variable_decl in params {
-                let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
                 for (identifier, identifier_loc) in &variable_decl.ids {
+                    let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
                     let def_id = context.generate_def_id(module.id);
                     ir_params.push(IrParam {
                         def_id,
                         identifier: identifier.clone(),
                         identifier_loc: *identifier_loc,
                         sort: sort_id,
+                        loc: variable_decl.loc,
                     });
                 }
             }

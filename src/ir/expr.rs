@@ -2,7 +2,7 @@
 use crate::core::syntax::{Identifier, SourceRange};
 use crate::ir::decl::DefId;
 use crate::ir::module::ModuleId;
-use crate::ir::sort::{IrSort, SortId};
+use crate::ir::sort::SortId;
 
 use std::fmt::{Debug, Formatter};
 
@@ -112,11 +112,26 @@ pub enum BinaryExprOp {
 }
 
 #[derive(Debug)]
+pub struct IrRewriteSet {
+    pub variables: Vec<IrRewriteVar>,
+    pub rules: Vec<IrRewriteRule>,
+}
+
+#[derive(Debug)]
+pub struct IrRewriteVar {
+    pub def_id: DefId,
+    pub identifier: Identifier,
+    pub identifier_loc: SourceRange,
+    pub sort: SortId,
+    pub loc: SourceRange,
+}
+
+#[derive(Debug)]
 pub struct IrRewriteRule {
-    pub variables: Vec<(DefId, Identifier, IrSort)>,
-    pub condition: ExprId,
+    pub condition: Option<ExprId>,
     pub lhs: ExprId,
     pub rhs: ExprId,
+    pub loc: SourceRange,
 }
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
@@ -138,19 +153,55 @@ impl Debug for ExprId {
 }
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
-pub struct RewriteRuleId {
+pub struct RewriteSetId {
     pub(crate) module: ModuleId,
     pub(crate) value: usize,
 }
 
-impl RewriteRuleId {
+impl RewriteSetId {
     pub fn get_module_id(&self) -> ModuleId {
         self.module
     }
 }
 
+impl Debug for RewriteSetId {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}.eqn.{}", self.module, self.value)
+    }
+}
+
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+pub struct RewriteVarId {
+    pub(crate) rewrite_set: RewriteSetId,
+    pub(crate) index: usize,
+}
+
+impl RewriteVarId {
+    pub fn get_module_id(&self) -> ModuleId {
+        self.rewrite_set.module
+    }
+}
+
+impl Debug for RewriteVarId {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}.rewritevar.{}", self.rewrite_set, self.index)
+    }
+}
+
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+pub struct RewriteRuleId {
+    pub(crate) rewrite_set: RewriteSetId,
+    pub(crate) index: usize,
+}
+
+impl RewriteRuleId {
+    pub fn get_module_id(&self) -> ModuleId {
+        self.rewrite_set.module
+    }
+}
+
 impl Debug for RewriteRuleId {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}.rewriterule.{}", self.module, self.value)
+        write!(f, "{:?}.rewriterule.{}", self.rewrite_set, self.index)
     }
 }

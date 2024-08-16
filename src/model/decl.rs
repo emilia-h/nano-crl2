@@ -27,7 +27,7 @@ pub struct Decl {
 }
 
 impl Decl {
-    /// Creates a new declaration with `parent` set to `None`.
+    /// Creates a new declaration.
     pub fn new(value: DeclEnum, loc: SourceRange) -> Self {
         Decl { value, loc }
     }
@@ -95,11 +95,12 @@ pub enum DeclEnum {
 /// 
 /// Note that a variable declaration is not a top-level declaration like
 /// [`Decl`](./struct.Decl). It is instead used to specify parameters for
-/// equations for `map`s.
+/// equations for `map`s, for parameters of named processes, and others.
 #[derive(Debug)]
 pub struct VariableDecl {
     pub ids: Vec<(Identifier, SourceRange)>,
     pub sort: Arc<Sort>,
+    pub loc: SourceRange,
 }
 
 /// A single equation declaration of the form `[condition ->] lhs = rhs`.
@@ -107,7 +108,8 @@ pub struct VariableDecl {
 pub struct EquationDecl {
     pub condition: Option<Arc<Expr>>,
     pub lhs: Arc<Expr>,
-    pub rhs: Arc<Expr>,    
+    pub rhs: Arc<Expr>,
+    pub loc: SourceRange,
 }
 
 impl Parseable for Vec<Decl> {
@@ -181,19 +183,22 @@ pub fn parse_decl_block(parser: &mut Parser) -> Result<Vec<Decl>, ParseError> {
 pub fn parse_var_decl_list(parser: &mut Parser) -> Result<Vec<VariableDecl>, ParseError> {
     let mut result = Vec::new();
 
+    while {
+        result.push(parse_variable_decl(parser)?);
+
+        parser.skip_if_equal(&LexicalElement::Comma)
+    } {}
+
+    Ok(result)
+}
+
+fn parse_variable_decl(parser: &mut Parser) -> Result<VariableDecl, ParseError> {
+    let loc = parser.get_loc();
+
     let ids = parser.parse_identifier_list()?;
     parser.expect_token(&LexicalElement::Colon)?;
     let sort = Arc::new(parser.parse::<Sort>()?);
-    result.push(VariableDecl { ids, sort });
-
-    while parser.skip_if_equal(&LexicalElement::Comma) {
-        let ids = parser.parse_identifier_list()?;
-        parser.expect_token(&LexicalElement::Colon)?;
-        let sort = Arc::new(parser.parse::<Sort>()?);
-        result.push(VariableDecl { ids, sort });
-    }
-
-    Ok(result)
+    Ok(VariableDecl { ids, sort, loc: parser.until_now(&loc) })
 }
 
 fn parse_action_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
@@ -261,19 +266,31 @@ fn parse_equation_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
     parser.expect_token(&LexicalElement::Eqn)?;
     let mut equations = Vec::new();
     while parser.has_token() && !is_decl_keyword(&parser.get_token().value) {
+        let eqn_loc = parser.get_loc();
+
         let expr = Arc::new(parser.parse::<Expr>()?);
         if !parser.has_token() {
             return parser.end_of_input("either = or ->");
         } else if parser.skip_if_equal(&LexicalElement::Equals) {
             let rhs = Arc::new(parser.parse::<Expr>()?);
 
-            equations.push(EquationDecl { condition: None, lhs: expr, rhs });
+            equations.push(EquationDecl {
+                condition: None,
+                lhs: expr,
+                rhs,
+                loc: parser.until_now(&eqn_loc),
+            });
         } else if parser.skip_if_equal(&LexicalElement::Arrow) {
             let lhs = Arc::new(parser.parse::<Expr>()?);
             parser.expect_token(&LexicalElement::Equals)?;
             let rhs = Arc::new(parser.parse::<Expr>()?);
 
-            equations.push(EquationDecl { condition: Some(expr), lhs, rhs });
+            equations.push(EquationDecl {
+                condition: Some(expr),
+                lhs,
+                rhs,
+                loc: parser.until_now(&eqn_loc),
+            });
         } else {
             return Err(ParseError::expected(
                 "either = or -> in an 'eqn' declaration",
@@ -350,14 +367,7 @@ fn parse_process_decl(parser: &mut Parser) -> Result<Decl, ParseError> {
         // (id11, .., id1M: Sort1, ..., idN1, .., idNM: SortN)
         //  ^^^^^^^^^^^^^^^^^^^^^
         //  one element in the vector
-        while {
-            let ids = parser.parse_identifier_list()?;
-            parser.expect_token(&LexicalElement::Colon)?;
-            let sort = Arc::new(parser.parse::<Sort>()?);
-            params.push(VariableDecl { ids, sort });
-
-            parser.skip_if_equal(&LexicalElement::Comma)
-        } {}
+        params = parse_var_decl_list(parser)?;
         parser.expect_token(&LexicalElement::ClosingParen)?;
     }
     parser.expect_token(&LexicalElement::Equals)?;
@@ -441,7 +451,7 @@ mod tests {
         ]);
 
         // first equation
-        let EquationDecl { condition, lhs, rhs } = &equations[0];
+        let EquationDecl { condition, lhs, rhs, loc } = &equations[0];
         assert!(condition.is_none());
         
         let (equals_lhs, equals_rhs) = unwrap_pattern!(&lhs.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));
@@ -457,7 +467,7 @@ mod tests {
         assert_eq!(b.get_value(), "b");
 
         // second equation
-        let EquationDecl { condition, lhs, rhs } = &equations[1];
+        let EquationDecl { condition, lhs, rhs, loc } = &equations[1];
 
         let condition = condition.as_ref().unwrap();
         let (equals_lhs, equals_rhs) = unwrap_pattern!(&condition.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));

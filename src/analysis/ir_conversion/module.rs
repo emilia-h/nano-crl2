@@ -56,6 +56,10 @@ pub fn query_ir_module(
     for decl_id in decl_ids {
         result.add_parent(decl_id.into(), module.into());
     }
+    let rewrite_set_ids = result.rewrite_sets.keys().map(Clone::clone).collect::<Vec<_>>();
+    for rewrite_set_id in rewrite_set_ids {
+        result.add_parent(rewrite_set_id.into(), module.into());
+    }
 
     if error {
         context.ir_modules.unlock(&module, Err(()));

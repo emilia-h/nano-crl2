@@ -56,6 +56,7 @@ pub struct IrParam {
     pub identifier: Identifier,
     pub identifier_loc: SourceRange,
     pub sort: SortId,
+    pub loc: SourceRange,
 }
 
 /// A (nameless) identifier that, within a given analysis context, refers to a
