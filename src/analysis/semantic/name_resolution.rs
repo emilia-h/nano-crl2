@@ -22,11 +22,22 @@ pub fn query_def_of_name(
     // note that there are three separate name spaces, namely one for
     // expressions, one for processes, and one for sorts
     match node {
-        NodeId::Action(_) => {
+        NodeId::Action(id) => {
             // for processes, name lookup is slightly annoying because
             // there can be multiple actions with the same name but
             // with different signatures
-            todo!()
+            let action = ir_module.get_action(id);
+            if let Some(parent) = ir_module.get_parent(id.into()) {
+                find_def_of_name(
+                    context,
+                    parent,
+                    &NameLookup::Proc { identifier: &action.identifier },
+                    &ir_module,
+                )
+            } else {
+                context.error();
+                Err(())
+            }
         },
         NodeId::Decl(_) => panic!("a declaration is not a name"),
         NodeId::Expr(id) => {
@@ -98,7 +109,7 @@ fn find_def_of_name(
                                 context.error();
                                 return Err(());
                             }
-                            result = Some(decl.def_id);
+                            result = Some(param.def_id);
                         }
                     }
                     if let Some(result) = result {

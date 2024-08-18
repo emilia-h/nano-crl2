@@ -157,7 +157,7 @@ impl IrModule {
 
     pub fn get_rewrite_var(&self, node: RewriteVarId) -> &IrRewriteVar {
         let rewrite_set = self.rewrite_sets.get(&node.rewrite_set).unwrap();
-        assert!(node.index < rewrite_set.rules.len());
+        assert!(node.index < rewrite_set.variables.len());
         &rewrite_set.variables[node.index]
     }
 
