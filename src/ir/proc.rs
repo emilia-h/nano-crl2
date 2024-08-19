@@ -57,6 +57,7 @@ pub struct IrAction {
     pub identifier: Identifier,
     pub identifier_loc: SourceRange,
     pub args: Vec<ExprId>,
+    pub loc: SourceRange,
 }
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]

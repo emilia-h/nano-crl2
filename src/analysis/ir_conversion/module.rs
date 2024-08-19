@@ -57,7 +57,7 @@ fn calculate_ir_module(
 ) -> Result<Arc<IrModule>, ()> {
     let ast_module = query_ast_module(context, module)?;
 
-    let mut result = IrModule::new(module);
+    let mut result = IrModule::new(module, ast_module.loc);
     let mut error = false;
     for decl in &ast_module.decls {
         if convert_ir_decl(context, decl, &mut result).is_err() {

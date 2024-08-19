@@ -142,6 +142,7 @@ pub fn convert_ir_decl(
             module.rewrite_sets.insert(rewrite_set_id, IrRewriteSet {
                 variables: ir_variables,
                 rules: ir_rules,
+                loc: decl.loc,
             });
         },
         DeclEnum::GlobalVariable { variables } => {

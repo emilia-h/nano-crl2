@@ -64,6 +64,7 @@ pub fn convert_ir_proc(
                         identifier: id.clone(),
                         identifier_loc: *id_loc,
                         args: arg_ids,
+                        loc: proc.loc,
                     }],
                 },
                 loc: proc.loc,
@@ -197,6 +198,7 @@ fn extract_actions(
                 identifier: id.clone(),
                 identifier_loc: *id_loc,
                 args: arg_ids,
+                loc: proc.loc,
             });
         },
         ProcEnum::Multi { lhs, rhs } => {

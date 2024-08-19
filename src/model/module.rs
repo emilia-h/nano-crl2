@@ -4,6 +4,7 @@
 //! The [mCRL2 spec on this](https://mcrl2.org/web/user_manual/language_reference/mcrl2.html).
 
 use crate::core::parser::{Parseable, ParseError, Parser};
+use crate::core::syntax::SourceRange;
 use crate::model::decl::{Decl, DeclEnum};
 use crate::model::display::display_pretty_default;
 use crate::model::proc::Proc;
@@ -17,6 +18,7 @@ use std::sync::Arc;
 pub struct Module {
     pub decls: Vec<Arc<Decl>>,
     pub initial: Option<Arc<Proc>>,
+    pub loc: SourceRange,
 }
 
 impl Display for Module {
@@ -43,6 +45,12 @@ pub fn parse_module(parser: &mut Parser) -> Result<Module, ParseError> {
     let mut decls = Vec::new();
     let mut initial = None;
 
+    let loc = if parser.has_token() {
+        parser.get_loc()
+    } else {
+        SourceRange::new(0, 0, 0, 0)
+    };
+
     while parser.has_token() {
         for decl in parser.parse::<Vec<Decl>>()? {
             if let DeclEnum::Initial { value } = decl.value {
@@ -60,5 +68,6 @@ pub fn parse_module(parser: &mut Parser) -> Result<Module, ParseError> {
     Ok(Module {
         decls,
         initial,
+        loc,
     })
 }

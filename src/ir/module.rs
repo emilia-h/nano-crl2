@@ -1,4 +1,5 @@
 
+use crate::core::syntax::SourceRange;
 use crate::ir::decl::{DeclId, DefId, IrDecl, IrDeclEnum, IrParam, ParamId};
 use crate::ir::expr::{
     ExprId, IrExpr, IrRewriteRule, IrRewriteSet, IrRewriteVar, RewriteRuleId,
@@ -27,13 +28,14 @@ pub struct IrModule {
     pub(crate) procs: HashMap<ProcId, IrProc>,
     pub(crate) sorts: HashMap<SortId, IrSort>,
     pub initial: Option<ProcId>,
+    pub loc: SourceRange,
     parent_map: HashMap<NodeId, NodeId>,
     def_source_map: HashMap<DefId, NodeId>,
 }
 
 impl IrModule {
     /// Creates an empty IR module structure with an empty initial process.
-    pub fn new(id: ModuleId) -> Self {
+    pub fn new(id: ModuleId, loc: SourceRange) -> Self {
         IrModule {
             id,
             decls: HashMap::new(),
@@ -42,6 +44,7 @@ impl IrModule {
             procs: HashMap::new(),
             sorts: HashMap::new(),
             initial: None,
+            loc,
             parent_map: HashMap::new(),
             def_source_map: HashMap::new(),
         }

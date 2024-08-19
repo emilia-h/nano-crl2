@@ -1,5 +1,5 @@
-//! Implements functions for converting from in-source location to a node ID in
-//! the intermediate representation (IR).
+//! Implements functions for navigating and accessing nodes in the intermediate
+//! representation (IR).
 
 use crate::core::syntax::{Identifier, SourceRange};
 use crate::ir::decl::{DefId, IrDeclEnum, ParamId};
@@ -8,226 +8,213 @@ use crate::ir::module::{IrModule, NodeId};
 use crate::ir::proc::{ActionId, IrProcEnum};
 use crate::ir::sort::IrSortEnum;
 
-impl<'a> IntoIterator for &'a IrModule {
-    type IntoIter = IrIterator<'a>;
-    type Item = IrIteratorItem;
+impl<'m> IntoIterator for &'m IrModule {
+    type IntoIter = IrIterator<'m>;
+    type Item = NodeId;
 
     fn into_iter(self) -> Self::IntoIter {
         IrIterator::new(self, self.id.into())
     }
 }
 
-pub enum IrIteratorItem {
-    Node(NodeId),
-    Def(DefId),
-}
-
 /// Iterates its module using depth-first search (preoder tree traversal),
 /// which will output each node ID with its source location once.
-pub struct IrIterator<'a> {
-    module: &'a IrModule,
-    /// The first element is the node ID. The second element in each pair is
-    /// the index that this child has in its parent.
-    stack: Vec<IrIteratorItem>,
+pub struct IrIterator<'m> {
+    module: &'m IrModule,
+    stack: Vec<NodeId>,
 }
 
-impl<'a> IrIterator<'a> {
-    pub fn new(module: &'a IrModule, starting_node: NodeId) -> Self {
+impl<'m> IrIterator<'m> {
+    pub fn new(module: &'m IrModule, starting_node: NodeId) -> Self {
         IrIterator {
             module,
-            stack: vec![IrIteratorItem::Node(starting_node)],
+            stack: vec![starting_node],
         }
-    }
-
-    /// Convenience function for the iterator.
-    fn push_node<T>(&mut self, id: T)
-    where
-        T: Into<NodeId>,
-    {
-        self.stack.push(IrIteratorItem::Node(id.into()));
-    }
-
-    fn push_def(&mut self, id: DefId) {
-        self.stack.push(IrIteratorItem::Def(id));
     }
 }
 
-impl<'a> Iterator for IrIterator<'a> {
-    type Item = IrIteratorItem;
+impl<'m> Iterator for IrIterator<'m> {
+    type Item = NodeId;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(iterator_item) = self.stack.pop() {
-            match iterator_item {
-                IrIteratorItem::Node(NodeId::Action(id)) => {
-                    let action = self.module.get_action(id);
-                    for &arg in &action.args {
-                        self.push_node(arg);
-                    }
-                },
-                IrIteratorItem::Node(NodeId::Decl(id)) => {
-                    let decl = self.module.get_decl(id);
-                    self.push_def(decl.def_id);
-                    match &decl.value {
-                        IrDeclEnum::Action { sorts } => {
-                            for &sort_id in sorts {
-                                self.push_node(sort_id);
-                            }
-                        },
-                        IrDeclEnum::Constructor { sort } |
-                        IrDeclEnum::GlobalVariable { sort } |
-                        IrDeclEnum::Map { sort } |
-                        IrDeclEnum::SortAlias { sort } => {
-                            self.push_node(*sort);
-                        },
-                        IrDeclEnum::Process { params, proc } => {
-                            for index in 0 .. params.len() {
-                                self.push_node(ParamId { decl: id, index });
-                            }
-                            self.push_node(*proc);
-                        },
-                        IrDeclEnum::Sort => {},
-                    }
-                },
-                IrIteratorItem::Node(NodeId::Expr(id)) => {
-                    let expr = self.module.get_expr(id);
-                    match &expr.value {
-                        IrExprEnum::Name { .. } |
-                        IrExprEnum::NumberLiteral { .. } |
-                        IrExprEnum::BoolLiteral { .. } => {},
-                        IrExprEnum::ListLiteral { values } |
-                        IrExprEnum::SetLiteral { values } => {
-                            for &expr_id in values {
-                                self.push_node(expr_id);
-                            }
-                        },
-                        IrExprEnum::BagLiteral { values } => {
-                            for &(expr_id1, expr_id2) in values {
-                                self.push_node(expr_id1);
-                                self.push_node(expr_id2);
-                            }
-                        },
-                        IrExprEnum::FunctionUpdate { function, lhs, rhs } => {
-                            self.push_node(*function);
-                            self.push_node(*lhs);
-                            self.push_node(*rhs);
-                        },
-                        IrExprEnum::Apply { callee, args } => {
-                            self.push_node(*callee);
-                            for &expr_id in args {
-                                self.push_node(expr_id);
-                            }
-                        },
-                        IrExprEnum::Binder { def_id, sort, expr, .. } => {
-                            self.push_def(*def_id);
-                            self.push_node(*sort);
-                            self.push_node(*expr);
-                        },
-                        IrExprEnum::Unary { value, .. } => {
-                            self.push_node(*value);
-                        },
-                        IrExprEnum::Binary { lhs, rhs, .. } => {
-                            self.push_node(*lhs);
-                            self.push_node(*rhs);
-                        },
-                        IrExprEnum::If { condition, then_expr, else_expr } => {
-                            self.push_node(*condition);
-                            self.push_node(*then_expr);
-                            self.push_node(*else_expr);
-                        },
-                        IrExprEnum::Where {  } => {
-
-                        },
-                    }
-                },
-                IrIteratorItem::Node(NodeId::Module(id)) => {
-                    assert_eq!(self.module.id, id);
-                    for (&decl_id, _) in &self.module.decls {
-                        self.push_node(decl_id);
-                    }
-                    for (&rewrite_set_id, _) in &self.module.rewrite_sets {
-                        self.push_node(rewrite_set_id);
-                    }
-                },
-                IrIteratorItem::Node(NodeId::Param(id)) => {
-                    let param = self.module.get_param(id);
-                    self.push_def(param.def_id);
-                    self.push_node(param.sort);
-                },
-                IrIteratorItem::Node(NodeId::Proc(id)) => {
-                    let proc = self.module.get_proc(id);
-                    match &proc.value {
-                        IrProcEnum::Binary { lhs, rhs, .. } => {
-                            self.push_node(*lhs);
-                            self.push_node(*rhs);
-                        },
-                        IrProcEnum::Delta => {},
-                        IrProcEnum::IfThenElse { condition, then_proc, else_proc } => {
-                            self.push_node(*condition);
-                            self.push_node(*then_proc);
-                            self.push_node(*else_proc);
-                        },
-                        IrProcEnum::MultiAction { actions } => {
-                            for index in 0 .. actions.len() {
-                                self.push_node(ActionId { proc: id, index });
-                            }
-                        },
-                        IrProcEnum::Sum { def_id, sort, proc, .. } => {
-                            self.push_def(*def_id);
-                            self.push_node(*sort);
-                            self.push_node(*proc);
-                        },
-                    }
-                },
-                IrIteratorItem::Node(NodeId::RewriteRule(id)) => {
-                    let rewrite_rule = self.module.get_rewrite_rule(id);
-                    if let Some(condition) = rewrite_rule.condition {
-                        self.push_node(condition);
-                    }
-                    self.push_node(rewrite_rule.lhs);
-                    self.push_node(rewrite_rule.rhs);
-                },
-                IrIteratorItem::Node(NodeId::RewriteSet(id)) => {
-                    let rewrite_set = self.module.get_rewrite_set(id);
-                    for index in 0 .. rewrite_set.variables.len() {
-                        self.push_node(RewriteVarId { rewrite_set: id, index });
-                    }
-                    for index in 0 .. rewrite_set.rules.len() {
-                        self.push_node(RewriteRuleId { rewrite_set: id, index });
-                    }
-                },
-                IrIteratorItem::Node(NodeId::RewriteVar(id)) => {
-                    let rewrite_var = self.module.get_rewrite_var(id);
-                    self.push_def(rewrite_var.def_id);
-                    self.push_node(rewrite_var.sort);
-                },
-                IrIteratorItem::Node(NodeId::Sort(id)) => {
-                    let sort = self.module.get_sort(id);
-                    match &sort.value {
-                        IrSortEnum::Primitive { .. } => {},
-                        IrSortEnum::Generic { subsort, .. } => {
-                            self.push_node(*subsort);
-                        },
-                        IrSortEnum::Carthesian { lhs, rhs } => {
-                            self.push_node(*lhs);
-                            self.push_node(*rhs);
-                        },
-                        IrSortEnum::Function { lhs, rhs } => {
-                            self.push_node(*lhs);
-                            self.push_node(*rhs);
-                        },
-                        IrSortEnum::Name { .. } => {},
-                        IrSortEnum::Struct {  } => {
-
-                        },
-                    }
-                },
-                IrIteratorItem::Def(_) => {},
-            }
-
-            Some(iterator_item)
+        if let Some(node_id) = self.stack.pop() {
+            let writer = |item| self.stack.push(item);
+            for_each_child(&self.module, node_id, writer);
+            Some(node_id)
         } else {
             None
         }
+    }
+}
+
+/// Calls `writer` once for each direct child of `node`.
+pub fn for_each_child<T>(
+    module: &IrModule,
+    node: NodeId,
+    mut writer: T,
+)
+where
+    T: FnMut(NodeId),
+{
+    match node {
+        NodeId::Action(id) => {
+            let action = module.get_action(id);
+            for &arg in &action.args {
+                writer(arg.into());
+            }
+        },
+        NodeId::Decl(id) => {
+            let decl = module.get_decl(id);
+            match &decl.value {
+                IrDeclEnum::Action { sorts } => {
+                    for &sort_id in sorts {
+                        writer(sort_id.into());
+                    }
+                },
+                IrDeclEnum::Constructor { sort } |
+                IrDeclEnum::GlobalVariable { sort } |
+                IrDeclEnum::Map { sort } |
+                IrDeclEnum::SortAlias { sort } => {
+                    writer((*sort).into());
+                },
+                IrDeclEnum::Process { params, proc } => {
+                    for index in 0 .. params.len() {
+                        writer(ParamId { decl: id, index }.into());
+                    }
+                    writer((*proc).into());
+                },
+                IrDeclEnum::Sort => {},
+            }
+        },
+        NodeId::Expr(id) => {
+            let expr = module.get_expr(id);
+            match &expr.value {
+                IrExprEnum::Name { .. } |
+                IrExprEnum::NumberLiteral { .. } |
+                IrExprEnum::BoolLiteral { .. } => {},
+                IrExprEnum::ListLiteral { values } |
+                IrExprEnum::SetLiteral { values } => {
+                    for &expr_id in values {
+                        writer(expr_id.into());
+                    }
+                },
+                IrExprEnum::BagLiteral { values } => {
+                    for &(expr_id1, expr_id2) in values {
+                        writer(expr_id1.into());
+                        writer(expr_id2.into());
+                    }
+                },
+                IrExprEnum::FunctionUpdate { function, lhs, rhs } => {
+                    writer((*function).into());
+                    writer((*lhs).into());
+                    writer((*rhs).into());
+                },
+                IrExprEnum::Apply { callee, args } => {
+                    writer((*callee).into());
+                    for &expr_id in args {
+                        writer(expr_id.into());
+                    }
+                },
+                IrExprEnum::Binder { sort, expr, .. } => {
+                    writer((*sort).into());
+                    writer((*expr).into());
+                },
+                IrExprEnum::Unary { value, .. } => {
+                    writer((*value).into());
+                },
+                IrExprEnum::Binary { lhs, rhs, .. } => {
+                    writer((*lhs).into());
+                    writer((*rhs).into());
+                },
+                IrExprEnum::If { condition, then_expr, else_expr } => {
+                    writer((*condition).into());
+                    writer((*then_expr).into());
+                    writer((*else_expr).into());
+                },
+                IrExprEnum::Where {  } => {
+
+                },
+            }
+        },
+        NodeId::Module(id) => {
+            assert_eq!(module.id, id);
+            for (&decl_id, _) in &module.decls {
+                writer(decl_id.into());
+            }
+            for (&rewrite_set_id, _) in &module.rewrite_sets {
+                writer(rewrite_set_id.into());
+            }
+        },
+        NodeId::Param(id) => {
+            let param = module.get_param(id);
+            writer(param.sort.into());
+        },
+        NodeId::Proc(id) => {
+            let proc = module.get_proc(id);
+            match &proc.value {
+                IrProcEnum::Binary { lhs, rhs, .. } => {
+                    writer((*lhs).into());
+                    writer((*rhs).into());
+                },
+                IrProcEnum::Delta => {},
+                IrProcEnum::IfThenElse { condition, then_proc, else_proc } => {
+                    writer((*condition).into());
+                    writer((*then_proc).into());
+                    writer((*else_proc).into());
+                },
+                IrProcEnum::MultiAction { actions } => {
+                    for index in 0 .. actions.len() {
+                        writer(ActionId { proc: id, index }.into());
+                    }
+                },
+                IrProcEnum::Sum { sort, proc, .. } => {
+                    writer((*sort).into());
+                    writer((*proc).into());
+                },
+            }
+        },
+        NodeId::RewriteRule(id) => {
+            let rewrite_rule = module.get_rewrite_rule(id);
+            if let Some(condition) = rewrite_rule.condition {
+                writer(condition.into());
+            }
+            writer(rewrite_rule.lhs.into());
+            writer(rewrite_rule.rhs.into());
+        },
+        NodeId::RewriteSet(id) => {
+            let rewrite_set = module.get_rewrite_set(id);
+            for index in 0 .. rewrite_set.variables.len() {
+                writer(RewriteVarId { rewrite_set: id, index }.into());
+            }
+            for index in 0 .. rewrite_set.rules.len() {
+                writer(RewriteRuleId { rewrite_set: id, index }.into());
+            }
+        },
+        NodeId::RewriteVar(id) => {
+            let rewrite_var = module.get_rewrite_var(id);
+            writer(rewrite_var.sort.into());
+        },
+        NodeId::Sort(id) => {
+            let sort = module.get_sort(id);
+            match &sort.value {
+                IrSortEnum::Primitive { .. } => {},
+                IrSortEnum::Generic { subsort, .. } => {
+                    writer((*subsort).into());
+                },
+                IrSortEnum::Carthesian { lhs, rhs } => {
+                    writer((*lhs).into());
+                    writer((*rhs).into());
+                },
+                IrSortEnum::Function { lhs, rhs } => {
+                    writer((*lhs).into());
+                    writer((*rhs).into());
+                },
+                IrSortEnum::Name { .. } => {},
+                IrSortEnum::Struct {  } => {
+
+                },
+            }
+        },
     }
 }
 
@@ -278,5 +265,29 @@ pub fn get_def_data(
             Some((*def_id, &identifier, *identifier_loc))
         },
         NodeId::Sort(_) => None,
+    }
+}
+
+/// Returns the source location of an arbitrary node in the IR.
+/// 
+/// # Panics
+/// If the module that `node` is in does not match the given `module`, this
+/// function will panic.
+pub fn get_node_loc(
+    module: &IrModule,
+    node: NodeId,
+) -> SourceRange {
+    assert_eq!(node.get_module_id(), module.id);
+    match node {
+        NodeId::Action(id) => module.get_action(id).loc,
+        NodeId::Decl(id) => module.get_decl(id).loc,
+        NodeId::Expr(id) => module.get_expr(id).loc,
+        NodeId::Module(_) => module.loc,
+        NodeId::Param(id) => module.get_param(id).loc,
+        NodeId::Proc(id) => module.get_proc(id).loc,
+        NodeId::RewriteRule(id) => module.get_rewrite_rule(id).loc,
+        NodeId::RewriteSet(id) => module.get_rewrite_set(id).loc,
+        NodeId::RewriteVar(id) => module.get_rewrite_var(id).loc,
+        NodeId::Sort(id) => module.get_sort(id).loc,
     }
 }

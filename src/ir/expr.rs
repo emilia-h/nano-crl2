@@ -115,6 +115,7 @@ pub enum BinaryExprOp {
 pub struct IrRewriteSet {
     pub variables: Vec<IrRewriteVar>,
     pub rules: Vec<IrRewriteRule>,
+    pub loc: SourceRange,
 }
 
 #[derive(Debug)]
