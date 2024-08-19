@@ -30,6 +30,8 @@ pub struct AnalysisContext {
 
     pub(crate) ast_modules: QueryHashMap<ModuleId, Result<Arc<Module>, ()>>,
     pub(crate) ir_modules: QueryHashMap<ModuleId, Result<Arc<IrModule>, ()>>,
+    pub(crate) resolved_sorts: QueryHashMap<SortId, Result<Interned<ResolvedSort>, ()>>,
+    pub(crate) sorts_of_def: QueryHashMap<DefId, Result<Interned<ResolvedSort>, ()>>,
     pub(crate) sorts_of_expr: QueryHashMap<ExprId, Result<Interned<ResolvedSort>, ()>>,
     pub(crate) token_lists: QueryHashMap<ModuleId, Result<Arc<Vec<Token>>, ()>>,
 
@@ -46,6 +48,8 @@ impl AnalysisContext {
 
             ast_modules: QueryHashMap::new(),
             ir_modules: QueryHashMap::new(),
+            resolved_sorts: QueryHashMap::new(),
+            sorts_of_def: QueryHashMap::new(),
             sorts_of_expr: QueryHashMap::new(),
             token_lists: QueryHashMap::new(),
 

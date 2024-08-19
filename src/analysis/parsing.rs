@@ -11,41 +11,57 @@ pub fn query_token_list(
     context: &AnalysisContext,
     module: ModuleId,
 ) -> Result<Arc<Vec<Token>>, ()> {
-    if let Some(tokens) = context.token_lists.get_or_lock(&module)? {
-        return tokens.clone();
-    }
+    match context.token_lists.get_or_lock(&module) {
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            let (_, input) = context.get_model_input(module);
+            let result = match tokenize(input) {
+                Ok(value) => Ok(Arc::new(value)),
+                Err(error) => {
+                    context.error();
+                    Err(())
+                }
+            };
 
-    let (_, input) = context.get_model_input(module);
-    let result = match tokenize(input) {
-        Ok(value) => Ok(Arc::new(value)),
-        Err(error) => {
+            context.token_lists.unlock(&module, result.clone());
+            result        
+        },
+        Err(()) => {
             context.error();
             Err(())
-        }
-    };
-
-    context.token_lists.unlock(&module, result.clone());
-    return result;
+        },
+    }
 }
 
 pub fn query_ast_module(
     context: &AnalysisContext,
     module: ModuleId,
 ) -> Result<Arc<Module>, ()> {
-    if let Some(ast_module) = context.ast_modules.get_or_lock(&module)? {
-        return ast_module.clone();
+    match context.ast_modules.get_or_lock(&module) {
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            let result = calculate_ast_module(context, module);
+            context.ast_modules.unlock(&module, result.clone());
+            result
+        },
+        Err(()) => {
+            context.error();
+            Err(())
+        },
     }
+}
 
+fn calculate_ast_module(
+    context: &AnalysisContext,
+    module: ModuleId,
+) -> Result<Arc<Module>, ()> {
     let tokens = query_token_list(context, module)?;
     let mut parser = Parser::new(&tokens);
-    let result = match parser.parse::<Module>() {
+    match parser.parse::<Module>() {
         Ok(value) => Ok(Arc::new(value)),
         Err(error) => {
             context.error();
             Err(())
         }
-    };
-
-    context.ast_modules.unlock(&module, result.clone());
-    return result;
+    }
 }

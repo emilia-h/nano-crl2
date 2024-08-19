@@ -451,7 +451,7 @@ mod tests {
         ]);
 
         // first equation
-        let EquationDecl { condition, lhs, rhs, loc } = &equations[0];
+        let EquationDecl { condition, lhs, rhs, .. } = &equations[0];
         assert!(condition.is_none());
         
         let (equals_lhs, equals_rhs) = unwrap_pattern!(&lhs.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));
@@ -467,7 +467,7 @@ mod tests {
         assert_eq!(b.get_value(), "b");
 
         // second equation
-        let EquationDecl { condition, lhs, rhs, loc } = &equations[1];
+        let EquationDecl { condition, lhs, rhs, .. } = &equations[1];
 
         let condition = condition.as_ref().unwrap();
         let (equals_lhs, equals_rhs) = unwrap_pattern!(&condition.value, ExprEnum::Equals { lhs, rhs } => (lhs, rhs));

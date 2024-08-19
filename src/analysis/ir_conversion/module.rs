@@ -12,7 +12,7 @@ pub enum SemanticError {
     IdentifierError {
         message: String,
         identifier: Identifier,
-        // id_loc: SourceRange,
+        // identifier_loc: SourceRange,
         // duplicate_loc: Option<SourceRange>,
     },
     InitialProcError {
@@ -37,10 +37,24 @@ pub fn query_ir_module(
     context: &AnalysisContext,
     module: ModuleId,
 ) -> Result<Arc<IrModule>, ()> {
-    if let Some(result) = context.ir_modules.get_or_lock(&module)? {
-        return result;
+    match context.ir_modules.get_or_lock(&module) {
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            let result = calculate_ir_module(context, module);
+            context.ir_modules.unlock(&module, result.clone());
+            result
+        },
+        Err(()) => {
+            context.error();
+            Err(())
+        },
     }
+}
 
+fn calculate_ir_module(
+    context: &AnalysisContext,
+    module: ModuleId,
+) -> Result<Arc<IrModule>, ()> {
     let ast_module = query_ast_module(context, module)?;
 
     let mut result = IrModule::new(module);
@@ -52,21 +66,20 @@ pub fn query_ir_module(
     }
 
     // unfortunate workaround for borrow checker :/
-    let decl_ids = result.decls.keys().map(Clone::clone).collect::<Vec<_>>();
+    let decl_ids = result.decls.keys().map(Clone::clone)
+        .collect::<Vec<_>>();
     for decl_id in decl_ids {
         result.add_parent(decl_id.into(), module.into());
     }
-    let rewrite_set_ids = result.rewrite_sets.keys().map(Clone::clone).collect::<Vec<_>>();
+    let rewrite_set_ids = result.rewrite_sets.keys().map(Clone::clone)
+        .collect::<Vec<_>>();
     for rewrite_set_id in rewrite_set_ids {
         result.add_parent(rewrite_set_id.into(), module.into());
     }
 
     if error {
-        context.ir_modules.unlock(&module, Err(()));
         Err(())
     } else {
-        let result = Arc::new(result);
-        context.ir_modules.unlock(&module, Ok(Arc::clone(&result)));
-        Ok(result)
+        Ok(Arc::new(result))
     }
 }

@@ -1,8 +1,9 @@
 //! Implements functions for converting from in-source location to a node ID in
 //! the intermediate representation (IR).
 
+use crate::core::syntax::{Identifier, SourceRange};
 use crate::ir::decl::{DefId, IrDeclEnum, ParamId};
-use crate::ir::expr::{IrExprEnum, RewriteRuleId, RewriteVarId};
+use crate::ir::expr::{IrExprEnum, IrRewriteVar, RewriteRuleId, RewriteVarId};
 use crate::ir::module::{IrModule, NodeId};
 use crate::ir::proc::{ActionId, IrProcEnum};
 use crate::ir::sort::IrSortEnum;
@@ -227,5 +228,55 @@ impl<'a> Iterator for IrIterator<'a> {
         } else {
             None
         }
+    }
+}
+
+/// For a node in the IR, finds the definition ID that is defined by this node,
+/// the identifier for it and the location of that identifier.
+/// 
+/// The function `module.get_def_source` is in essence an inverse of this; this
+/// is because `get_def_data(module, module.get_def_source(def_id)).0.unwrap()
+/// == def_id`.
+pub fn get_def_data(
+    module: &IrModule,
+    node: NodeId,
+) -> Option<(DefId, &Identifier, SourceRange)> {
+    match node {
+        NodeId::Action(_) => None,
+        NodeId::Decl(id) => {
+            let decl = module.get_decl(id);
+            Some((decl.def_id, &decl.identifier, decl.identifier_loc))
+        },
+        NodeId::Expr(id) => {
+            let expr = module.get_expr(id);
+            match &expr.value {
+                IrExprEnum::Binder { def_id, identifier, identifier_loc, .. } => {
+                    Some((*def_id, identifier, *identifier_loc))
+                },
+                _ => None,
+            }
+        },
+        NodeId::Module(_) => None,
+        NodeId::Param(id) => {
+            let param = module.get_param(id);
+            Some((param.def_id, &param.identifier, param.identifier_loc))
+        },
+        NodeId::Proc(id) => {
+            let proc = module.get_proc(id);
+            match &proc.value {
+                IrProcEnum::Sum { def_id, identifier, identifier_loc, .. } => {
+                    Some((*def_id, identifier, *identifier_loc))
+                },
+                _ => None,
+            }
+        },
+        NodeId::RewriteRule(_) => None,
+        NodeId::RewriteSet(_) => None,
+        NodeId::RewriteVar(id) => {
+            let IrRewriteVar { def_id, identifier, identifier_loc, .. } =
+                module.get_rewrite_var(id);
+            Some((*def_id, &identifier, *identifier_loc))
+        },
+        NodeId::Sort(_) => None,
     }
 }
