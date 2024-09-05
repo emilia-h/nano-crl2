@@ -18,7 +18,11 @@ use crate::util::parsing::CharParser;
 /// [Aldebaran format]: https://mcrl2.org/web/user_manual/tools/lts.html#the-aut-format
 pub fn parse_aldebaran_lts(input: &str) -> Result<Lts, LtsParseError> {
     let mut parser = CharParser::new(input, &|message, line, character| {
-        LtsParseError { message, line, character }
+        LtsParseError {
+            message,
+            line: line as u32,
+            character: character as u32,
+        }
     });
 
     // read header
@@ -51,7 +55,10 @@ pub fn parse_aldebaran_lts(input: &str) -> Result<Lts, LtsParseError> {
 
         let tokens = match tokenize(&string) {
             Ok(tokens) => tokens,
-            Err(error) => return Err(parser.error(error.message)),
+            Err(error) => {
+                let error = format!("invalid edge at {:?}: {}", error.loc, error.message);
+                return Err(parser.error(error));
+            },
         };
         let multi_action = match parse_multi_action(&mut Parser::new(&tokens)) {
             Ok(multi_action) => {

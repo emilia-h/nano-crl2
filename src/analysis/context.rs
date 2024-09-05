@@ -1,9 +1,11 @@
 //! Implements data structures that assist in analysis in this library.
 
+use crate::core::diagnostic::{Diagnostic, DiagnosticContext, DiagnosticSeverity};
 use crate::core::lexer::Token;
+use crate::core::syntax::SourceRange;
 use crate::ir::decl::{DeclId, DefId};
 use crate::ir::expr::{ExprId, RewriteSetId};
-use crate::ir::module::{IrModule, ModuleId};
+use crate::ir::module::{IrModule, ModuleId, NodeId};
 use crate::ir::proc::ProcId;
 use crate::ir::sort::{GenericSortOp, PrimitiveSort, ResolvedSort, SortId};
 use crate::model::module::Module;
@@ -36,6 +38,7 @@ pub struct AnalysisContext {
     pub(crate) token_lists: QueryHashMap<ModuleId, Result<Arc<Vec<Token>>, ()>>,
 
     resolved_sort_context: ResolvedSortContext,
+    diagnostic_context: RefCell<DiagnosticContext>,
     module_id_counter: Cell<usize>,
     id_counter: Cell<usize>,
 }
@@ -54,6 +57,7 @@ impl AnalysisContext {
             token_lists: QueryHashMap::new(),
 
             resolved_sort_context: ResolvedSortContext::new(),
+            diagnostic_context: RefCell::new(DiagnosticContext::new()),
             module_id_counter: Cell::new(0),
             id_counter: Cell::new(0),
         }
@@ -75,19 +79,24 @@ impl AnalysisContext {
 
     /// # Panics
     /// If the given module ID does not exist, this function will panic.
-    pub fn get_model_input(&self, id: ModuleId) -> &(String, String) {
-        self.model_inputs.get(&id).unwrap()
+    pub fn get_model_input(&self, id: ModuleId) -> (&String, &str) {
+        let (source, value) = self.model_inputs.get(&id).unwrap();
+        (&*source, value)
     }
 
     /// # Panics
     /// If the given module ID does not exist, this function will panic.
     pub fn remove_model_input(&mut self, id: ModuleId) {
         self.model_inputs.remove(&id).unwrap();
-        // we don't have to invalidate every query hash map!
         self.ast_modules = QueryHashMap::new();
         self.ir_modules = QueryHashMap::new();
         self.sorts_of_expr = QueryHashMap::new();
-        self.token_lists.invalidate(&id);
+        self.token_lists = QueryHashMap::new();
+        self.diagnostic_context = RefCell::new(DiagnosticContext::new());
+        // we don't technically have to invalidate every query hash map, but
+        // for simplicity's sake we do (for now at least)
+        //self.ast_modules.invalidate(&id);
+        //self.token_lists.invalidate(&id);
     }
 
     pub fn get_resolved_sort_context(&self) -> &ResolvedSortContext {
@@ -135,8 +144,36 @@ impl AnalysisContext {
     }
 
     /// Adds an error to the error list.
-    pub fn error(&self, ) {
+    pub fn error(&self, module: ModuleId, loc: SourceRange, message: String) {
+        let file = self.get_model_input(module).0;
+        let mut diagnostics_borrow = self.diagnostic_context.borrow_mut();
+        diagnostics_borrow.push(Diagnostic {
+            severity: DiagnosticSeverity::Error,
+            file: Some(file.clone()),
+            loc: Some(loc),
+            message,
+        });
+    }
 
+    pub fn error_cyclic_dependency(&self, loc: SourceRange, node: NodeId) {
+        self.error(node.get_module_id(), loc, "cyclic dependency".to_owned());
+    }
+
+    pub fn for_each_diagnostic<F>(
+        &self,
+        mut f: F,
+    )
+    where
+        F: FnMut(&Diagnostic),
+    {
+        let diagnostics = self.diagnostic_context.borrow();
+        for diagnostic in &*diagnostics {
+            f(diagnostic);
+        }
+    }
+
+    pub fn into_diagnostics(self) -> DiagnosticContext {
+        self.diagnostic_context.into_inner()
     }
 }
 

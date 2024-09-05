@@ -45,7 +45,8 @@ pub fn query_ir_module(
             result
         },
         Err(()) => {
-            context.error();
+            let loc = query_ast_module(context, module)?.loc;
+            context.error_cyclic_dependency(loc, module.into());
             Err(())
         },
     }
@@ -82,4 +83,8 @@ fn calculate_ir_module(
     } else {
         Ok(Arc::new(result))
     }
+}
+
+pub enum IrConversionError {
+    
 }

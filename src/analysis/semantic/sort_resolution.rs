@@ -3,7 +3,9 @@ use crate::analysis::context::{AnalysisContext, ResolvedSortContext};
 use crate::analysis::ir_conversion::module::query_ir_module;
 use crate::analysis::semantic::name_resolution::query_def_of_name;
 use crate::ir::decl::{DefId, IrDeclEnum};
+use crate::ir::display::ResolvedSortDisplay;
 use crate::ir::expr::{BinaryExprOp, BinderExprOp, ExprId, IrExprEnum, UnaryExprOp};
+use crate::ir::iterator::get_node_loc;
 use crate::ir::module::NodeId;
 use crate::ir::sort::{GenericSortOp, IrSortEnum, PrimitiveSort, ResolvedSort, SortId};
 use crate::util::caching::Interned;
@@ -26,7 +28,10 @@ pub fn query_sort_of_expr(
             result
         },
         Err(()) => {
-            context.error();
+            let loc = query_ir_module(context, expr.get_module_id())?
+                .get_expr(expr)
+                .loc;
+            context.error_cyclic_dependency(loc, expr.into());
             Err(())
         },
     }
@@ -36,7 +41,7 @@ fn calculate_sort_of_expr(
     context: &AnalysisContext,
     expr: ExprId,
 ) -> Result<Interned<ResolvedSort>, ()> {
-    let module = query_ir_module(&context, expr.module)?;
+    let module = query_ir_module(&context, expr.get_module_id())?;
     let ir_expr = module.get_expr(expr);
     let sort_context = context.get_resolved_sort_context();
 
@@ -72,7 +77,9 @@ fn calculate_sort_of_expr(
                     Ok(Interned::clone(rhs))
                 },
                 _ => {
-                    context.error();
+                    // TODO
+                    let error = "cannot call a value that is not a function".to_owned();
+                    context.error(expr.get_module_id(), ir_expr.loc, error);
                     return Err(());
                 },
             }
@@ -112,9 +119,9 @@ fn calculate_sort_of_expr(
                     Ok(sort_context.get_primitive_sort(PrimitiveSort::Real))
                 },
                 _ => {
-                    // cannot determine sort of negation, since the
-                    // expression being negated is not a number
-                    context.error();
+                    // TODO
+                    let error = "cannot determine sort of expression, since the negated expression is not a number".to_owned();
+                    context.error(module.id, ir_expr.loc, error);
                     return Err(());
                 },
             }
@@ -154,13 +161,13 @@ fn calculate_sort_of_expr(
             )?;
             let g1 = get_number_sort_generality(&lhs_sort);
             let g2 = get_number_sort_generality(&rhs_sort);
-            if g1.is_none() {
-                context.error();
-            }
-            if g2.is_none() {
-                context.error();
-            }
             let Some((g1, g2)) = chain_option(g1, g2) else {
+                let error = format!(
+                    "cannot add expressions of sorts `{}` and `{}`",
+                    ResolvedSortDisplay::new(&lhs_sort, &module),
+                    ResolvedSortDisplay::new(&rhs_sort, &module),
+                );
+                context.error(expr.get_module_id(), ir_expr.loc, error);
                 return Err(());
             };
             Ok(get_number_sort_from_generality(sort_context, g1.max(g2)))
@@ -222,7 +229,10 @@ pub fn query_sort_of_def(
             result
         },
         Err(()) => {
-            context.error();
+            let ir_module = query_ir_module(context, def.get_module_id())?;
+            let source = ir_module.get_def_source(def);
+            let loc = get_node_loc(&ir_module, source);
+            context.error_cyclic_dependency(loc, source);
             Err(())
         },
     }
@@ -232,7 +242,7 @@ fn calculate_sort_of_def(
     context: &AnalysisContext,
     def: DefId,
 ) -> Result<Interned<ResolvedSort>, ()> {
-    let module = query_ir_module(context, def.module)?;
+    let module = query_ir_module(context, def.get_module_id())?;
     let def_source = module.get_def_source(def);
     match def_source {
         NodeId::Action(_) => panic!("an action cannot define something"),
@@ -245,8 +255,8 @@ fn calculate_sort_of_def(
                     query_resolved_sort(context, *sort)
                 },
                 _ => {
-                    // declaration ... does not have a sort
-                    context.error();
+                    let error = "declaration does not have a sort, cannot be used in an expression".to_owned();
+                    context.error(module.id, decl.loc, error);
                     return Err(());
                 },
             }
@@ -277,7 +287,10 @@ pub fn query_resolved_sort(
             result
         },
         Err(()) => {
-            context.error();
+            let loc = query_ir_module(context, sort.get_module_id())?
+                .get_sort(sort)
+                .loc;
+            context.error_cyclic_dependency(loc, sort.into());
             Err(())
         },
     }

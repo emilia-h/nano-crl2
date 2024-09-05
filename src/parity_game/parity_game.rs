@@ -1,6 +1,7 @@
 //! Defines structures for parity games (PGs).
 
-use crate::core::error::Mcrl2Error;
+use crate::core::diagnostic::{Diagnostic, DiagnosticSeverity};
+use crate::core::syntax::{SourcePos, SourceRange};
 
 use std::fmt::{Display, Formatter};
 
@@ -8,16 +9,21 @@ use std::fmt::{Display, Formatter};
 #[derive(Debug)]
 pub struct PgParseError {
     pub message: String,
-    pub line: usize,
-    pub character: usize,
+    pub loc: SourcePos,
 }
 
-impl Into<Mcrl2Error> for PgParseError {
-    fn into(self) -> Mcrl2Error {
-        Mcrl2Error::PgSyntaxError {
+impl PgParseError {
+    pub fn into_diagnostic(self, file: Option<String>) -> Diagnostic {
+        Diagnostic {
+            severity: DiagnosticSeverity::Error,
+            file,
+            loc: Some(SourceRange::new(
+                self.loc.get_char(),
+                self.loc.get_line(),
+                self.loc.get_char(),
+                self.loc.get_line(),
+            )),
             message: self.message,
-            line: self.line,
-            character: self.character,
         }
     }
 }

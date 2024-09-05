@@ -69,6 +69,19 @@ pub enum PrimitiveSort {
     Real,
 }
 
+impl PrimitiveSort {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Unit => "__Unit",
+            Self::Bool => "Bool",
+            Self::Pos => "Pos",
+            Self::Nat => "Nat",
+            Self::Int => "Int",
+            Self::Real => "Real",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum GenericSortOp {
     List,
@@ -76,6 +89,18 @@ pub enum GenericSortOp {
     FSet,
     Bag,
     FBag,
+}
+
+impl GenericSortOp {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::List => "List",
+            Self::Set => "Set",
+            Self::FSet => "FSet",
+            Self::Bag => "Bag",
+            Self::FBag => "FBag",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]

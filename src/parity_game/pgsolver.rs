@@ -6,13 +6,17 @@
 //! [PGSolver github]: https://github.com/tcsprojects/pgsolver
 //! [PGSolver parity game format]: https://github.com/tcsprojects/pgsolver/blob/master/doc/pgsolver.pdf
 
+use crate::core::syntax::SourcePos;
 use crate::parity_game::parity_game::{Pg, PgEdge, PgParseError, PgNode, Player};
 use crate::util::parsing::CharParser;
 
 /// Parses a parity game in PGSolver format.
 pub fn parse_pgsolver_game(input: &str) -> Result<Pg, PgParseError> {
     let mut parser = CharParser::new(input, &|message, line, character| {
-        PgParseError { message, line, character }
+        PgParseError {
+            message,
+            loc: SourcePos::new(line as u32, character as u32),
+        }
     });
 
     parser.skip_whitespace();

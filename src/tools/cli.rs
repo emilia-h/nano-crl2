@@ -1,9 +1,8 @@
 
-use crate::core::error::Mcrl2Error;
+use crate::core::diagnostic::{Diagnostic, DiagnosticSeverity};
 
 use std::collections::hash_map::HashMap;
 use std::collections::hash_set::HashSet;
-use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 /// An error in the CLI input format.
@@ -17,47 +16,44 @@ pub enum CliError {
     NotInteger(String),
 }
 
-impl Display for CliError {
-    fn fmt(&self, fmt: &mut Formatter) -> Result<(), std::fmt::Error> {
+impl CliError {
+    pub fn get_option(&self) -> Option<&str> {
         use CliError::*;
 
         match self {
-            IncorrectFormat(string) => {
-                write!(fmt, "{}", string)
-            },
-            UnrecognizedOption(option) => {
-                write!(fmt, "Unrecognized argument '{}'", option)
-            },
-            NotSupplied(option) => {
-                write!(fmt, "Missing argument '{}'", option)
-            },
-            TooManySupplied(option) => {
-                write!(fmt, "Too many values given for argument '{}'", option)
-            },
-            NotBool(option) => {
-                write!(fmt, "Expected a boolean for argument '{}'", option)
-            },
-            NotInteger(option) => {
-                write!(fmt, "Expected an integer for argument '{}'", option)
-            },
-        }
-    }
-}
-
-impl Into<Mcrl2Error> for CliError {
-    fn into(self) -> Mcrl2Error {
-        use CliError::*;
-
-        let message = format!("{}", self);
-        let option = match self {
             IncorrectFormat(_) => None,
             UnrecognizedOption(option) => Some(option),
             NotSupplied(option) => Some(option),
             TooManySupplied(option) => Some(option),
             NotBool(option) => Some(option),
             NotInteger(option) => Some(option),
-        };
-        Mcrl2Error::ToolUsageError { message, option }
+        }
+    }
+}
+
+impl Into<Diagnostic> for CliError {
+    fn into(self) -> Diagnostic {
+        use CliError::*;
+
+        Diagnostic {
+            severity: DiagnosticSeverity::Error,
+            file: None,
+            loc: None,
+            message: match &self {
+                IncorrectFormat(string) =>
+                    format!("{}", string),
+                UnrecognizedOption(option) =>
+                    format!("unrecognized argument '{}'", option),
+                NotSupplied(option) =>
+                    format!("missing argument '{}'", option),
+                TooManySupplied(option) =>
+                    format!("too many values given for argument '{}'", option),
+                NotBool(option) =>
+                    format!("expected a boolean for argument '{}'", option),
+                NotInteger(option) =>
+                    format!("expected an integer for argument '{}'", option),
+            },
+        }
     }
 }
 

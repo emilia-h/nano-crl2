@@ -41,31 +41,33 @@ impl Display for Identifier {
 /// cursor in an editor! A cursor is positioned in between two characters, so
 /// be careful not to mix up these two concepts.
 #[derive(Clone, Copy, Eq, PartialEq)]
-pub struct SourcePos {
-    line: u32,
-    character: u32,
-}
+pub struct SourcePos(u32, u32);
 
 impl SourcePos {
-    /// Creates a new `SourceLoc` from its components
     pub const fn new(line: u32, character: u32) -> Self {
-        SourcePos { line, character }
+        SourcePos(line, character)
     }
 
     pub const fn get_line(&self) -> u32 {
-        self.line
+        self.0
     }
 
     pub const fn get_char(&self) -> u32 {
-        self.character
+        self.1
+    }
+}
+
+impl Debug for SourcePos {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "({}, {})", self.0, self.1)
     }
 }
 
 impl Ord for SourcePos {
     fn cmp(&self, other: &Self) -> Ordering {
-        match self.line.cmp(&other.line) {
+        match self.0.cmp(&other.0) {
             Ordering::Less => Ordering::Less,
-            Ordering::Equal => self.character.cmp(&other.character),
+            Ordering::Equal => self.1.cmp(&other.1),
             Ordering::Greater => Ordering::Greater,
         }
     }
@@ -74,6 +76,23 @@ impl Ord for SourcePos {
 impl PartialOrd for SourcePos {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub struct SourceCursorPos(u32, u32);
+
+impl SourceCursorPos {
+    pub const fn new(line: u32, character: u32) -> Self {
+        SourceCursorPos(line, character)
+    }
+
+    pub const fn get_line(&self) -> u32 {
+        self.0
+    }
+
+    pub const fn get_char(&self) -> u32 {
+        self.1
     }
 }
 
@@ -109,10 +128,8 @@ impl SourceRange {
         SourceRange { start_line, start_char, end_line, end_char }
     }
 
-    /// See the `SourceRange` documentation for an explanation of why this does
-    /// not return a `SourcePos`.
-    pub const fn get_start(&self) -> (u32, u32) {
-        (self.start_line, self.start_char)
+    pub const fn get_start(&self) -> SourceCursorPos {
+        SourceCursorPos(self.start_line, self.start_char)
     }
 
     pub const fn get_start_line(&self) -> u32 {
@@ -123,8 +140,8 @@ impl SourceRange {
         self.start_char
     }
 
-    pub const fn get_end(&self) -> (u32, u32) {
-        (self.end_line, self.end_char)
+    pub const fn get_end(&self) -> SourceCursorPos {
+        SourceCursorPos(self.end_line, self.end_char)
     }
 
     pub const fn get_end_line(&self) -> u32 {
@@ -151,9 +168,15 @@ impl SourceRange {
     /// Returns whether or not the given character position `pos` is within
     /// this selection.
     pub const fn contains(&self, pos: SourcePos) -> bool {
-        self.start_line <= pos.line && pos.line <= self.end_line &&
-        (self.start_line != pos.line || self.start_char <= pos.character) &&
-        (pos.line != self.end_line || pos.character < self.end_char)
+        self.start_line <= pos.0 && pos.0 <= self.end_line &&
+        (self.start_line != pos.0 || self.start_char <= pos.1) &&
+        (pos.0 != self.end_line || pos.1 < self.end_char)
+    }
+
+    pub const fn contains_cursor(&self, cursor_pos: SourceCursorPos) -> bool {
+        self.start_line <= cursor_pos.0 && cursor_pos.0 <= self.end_line &&
+        (self.start_line != cursor_pos.0 || self.start_char <= cursor_pos.1) &&
+        (cursor_pos.0 != self.end_line || cursor_pos.1 <= self.end_char)
     }
 }
 

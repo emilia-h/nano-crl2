@@ -5,7 +5,7 @@
 //! modules. They are also as generic as possible.
 
 #[macro_use]
-pub mod error;
+pub mod diagnostic;
 pub mod lexer;
 pub mod parser;
 pub mod state_set;

@@ -160,11 +160,8 @@ pub fn convert_ir_decl(
         DeclEnum::Initial { value } => {
             let sort_id = convert_ir_proc(context, value, module)?;
             if module.initial.is_some() {
-                context.error();
-                // return Err(SemanticError::InitialProcError {
-                //     message: "More than one `init` declaration".to_owned(),
-                //     loc: decl.loc,
-                // });
+                let error = "more than one `init` declaration".to_owned();
+                context.error(module.id, decl.loc, error);
                 return Err(());
             }
             module.initial = Some(sort_id);

@@ -3,6 +3,7 @@
 
 pub mod caching;
 pub mod error;
+pub mod io;
 pub mod parsing;
 
 // https://stackoverflow.com/questions/34953711/unwrap-inner-type-when-enum-variant-is-known

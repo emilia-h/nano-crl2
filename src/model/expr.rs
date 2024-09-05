@@ -524,7 +524,7 @@ pub fn parse_unit_expr(parser: &mut Parser) -> Result<Expr, ParseError> {
                 // { a: 1, b: 2, ... } (bag)
                 // need to do some lookahead :(
                 if {
-                    let mut parser_copy = parser.clone();
+                    let mut parser_copy = parser.create_temp_copy();
                     if matches!(parser_copy.get_token().value, LexicalElement::Identifier(_)) {
                         parser_copy.skip_token();
                         parser_copy.expect_token(&LexicalElement::Colon).unwrap();

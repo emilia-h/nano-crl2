@@ -234,7 +234,7 @@ fn parse_conditional_proc(parser: &mut Parser) -> Result<Proc, ParseError> {
 
     let loc = parser.get_loc();
 
-    let mut parser_copy = parser.clone();
+    let mut parser_copy = parser.create_temp_copy();
     if is_unit_data_expr(&mut parser_copy)? {
         let condition = Arc::new(parse_unit_expr(parser)?);
         parser.expect_token(&LexicalElement::Arrow)?;

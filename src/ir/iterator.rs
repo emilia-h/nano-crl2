@@ -221,6 +221,10 @@ where
 /// For a node in the IR, finds the definition ID that is defined by this node,
 /// the identifier for it and the location of that identifier.
 /// 
+/// For instance, for the node `forall x: Nat . x == y` with node ID
+/// `0.expr.0`, where `x` has `def_id = 0.def.0`, calling
+/// `get_def_data(0.expr.0)` will return `(0.def.0, "x", location of "x")`.
+/// 
 /// The function `module.get_def_source` is in essence an inverse of this; this
 /// is because `get_def_data(module, module.get_def_source(def_id)).0.unwrap()
 /// == def_id`.

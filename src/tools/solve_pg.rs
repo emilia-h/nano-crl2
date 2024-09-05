@@ -1,31 +1,33 @@
 
-use crate::try_into;
 use crate::analysis::small_progress_measures::{IterationPolicy, solve_parity_game};
-use crate::core::error::Mcrl2Error;
+use crate::core::diagnostic::{Diagnostic, DiagnosticContext, DiagnosticSeverity};
 use crate::parity_game::parity_game::Player;
 use crate::parity_game::pgsolver::parse_pgsolver_game;
 use crate::tools::cli::CliOptions;
+use crate::util::io::{create_file_writer, read_file};
 
-use std::fs::{File, read_to_string};
-use std::io::{BufWriter, Write};
+use std::io::Write;
 use std::time::Instant;
 
 /// Reads a min parity game and calculates if node 0 is won by player "even",
 /// and optionally all the states that are won by player even.
-pub fn solve_pg(options: &CliOptions) -> Result<Player, Mcrl2Error> {
-    let input_file = try_into!(options.get_named_string("input"));
+pub fn solve_pg(
+    options: &CliOptions,
+    diagnostics: &mut DiagnosticContext,
+) -> Result<Player, ()> {
+    let input_file = diagnostics.union_result(options.get_named_string("input"))?;
     let output_file = if options.has_named("output") {
-        Some(try_into!(options.get_named_string("output")))
+        Some(diagnostics.union_result(options.get_named_string("output"))?)
     } else {
         None
     };
     let policy = if options.has_named("policy") {
-        let string = try_into!(options.get_named_string("policy"));
+        let string = diagnostics.union_result(options.get_named_string("policy"))?;
         match string.as_str() {
             "input" => IterationPolicy::InputOrder,
             "random" => {
                 let seed = if options.has_named("seed") {
-                    try_into!(options.get_named_int::<u64>("seed"))
+                    diagnostics.union_result(options.get_named_int::<u64>("seed"))?
                 } else {
                     rand::random::<u64>()
                 };
@@ -35,10 +37,15 @@ pub fn solve_pg(options: &CliOptions) -> Result<Player, Mcrl2Error> {
             "descending-degree" => IterationPolicy::DescendingDegreeOrder,
             "reverse-bfs" => IterationPolicy::ReverseBfs,
             "postorder-dfs" => IterationPolicy::PostOrderDfs,
-            _ => return Err(Mcrl2Error::ToolUsageError {
-                message: format!("unknown policy '{}'", string),
-                option: Some(String::from("policy")),
-            }),
+            _ => {
+                diagnostics.push(Diagnostic {
+                    severity: DiagnosticSeverity::Warning,
+                    file: None,
+                    loc: None,
+                    message: format!("unknown policy '{}'", string),
+                });
+                IterationPolicy::InputOrder
+            },
         }
     } else {
         IterationPolicy::InputOrder
@@ -46,8 +53,12 @@ pub fn solve_pg(options: &CliOptions) -> Result<Player, Mcrl2Error> {
 
     eprintln!("Parsing parity game...");
     let now = Instant::now();
-    let pg_string = read_to_string(input_file)?;
-    let pg = try_into!(parse_pgsolver_game(&pg_string));
+    let pg_string = diagnostics.union_result(read_file(input_file))?;
+    let pg = diagnostics.union_result(
+        parse_pgsolver_game(&pg_string).map_err(|error| {
+            error.into_diagnostic(Some(input_file.clone()))
+        }),
+    )?;
     eprintln!("Parsing parity game took {} ms", now.elapsed().as_millis());
 
     eprintln!("Solving parity game...");
@@ -56,9 +67,17 @@ pub fn solve_pg(options: &CliOptions) -> Result<Player, Mcrl2Error> {
     eprintln!("Solving parity game took {} ms", now.elapsed().as_millis());
 
     if let Some(output_file) = output_file {
-        let mut file = BufWriter::new(File::create(output_file)?);
+        let mut file = diagnostics.union_result(create_file_writer(output_file))?;
         for &elem in &result {
-            write!(file, "{}\n", elem)?;
+            let write_result = write!(file, "{}\n", elem).map_err(|error| {
+                Diagnostic {
+                    severity: DiagnosticSeverity::Error,
+                    file: Some(output_file.clone()),
+                    loc: None,
+                    message: error.to_string(),
+                }
+            });
+            diagnostics.union_result(write_result)?;
         }
     }
 

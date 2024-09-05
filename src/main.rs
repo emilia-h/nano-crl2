@@ -1,4 +1,5 @@
 
+use nano_crl2::core::diagnostic::DiagnosticContext;
 use nano_crl2::tools::check_input::check_input;
 use nano_crl2::tools::gen_docs::gen_docs;
 use nano_crl2::tools::solve_pg::solve_pg;
@@ -86,6 +87,8 @@ fn main() {
     let tool = args[1].as_str();
     let options = &args[2..];
 
+    let mut diagnostics = DiagnosticContext::new();
+
     if tool == "check-input" {
         let cli_config = CliConfig::new(&[
             ("help", 'h'),
@@ -95,11 +98,11 @@ fn main() {
             Ok(options) if options.has_named("help") => {
                 eprintln!("{}", HELP_STRING_CHECK_INPUT);
             },
-            Ok(options) => match check_input(&options) {
+            Ok(options) => match check_input(&options, &mut diagnostics) {
                 Ok(()) => println!("success"),
-                Err(error) => {
+                Err(()) => {
                     println!("failure");
-                    eprintln!("{:?}", error);
+                    eprintln!("{}", diagnostics);
                 },
             },
             Err(error) => {
@@ -117,9 +120,9 @@ fn main() {
             Ok(options) if options.has_named("help") => {
                 eprintln!("{}", HELP_STRING_GEN_DOCS);
             },
-            Ok(options) => match gen_docs(&options) {
+            Ok(options) => match gen_docs(&options, &mut diagnostics) {
                 Ok(docs) => println!("{}", docs),
-                Err(error) => eprintln!("{:?}", error),
+                Err(()) => eprintln!("{}", diagnostics),
             },
             Err(error) => {
                 eprintln!("{:?}", error);
@@ -137,9 +140,9 @@ fn main() {
             Ok(options) if options.has_named("help") => {
                 eprintln!("{}", HELP_STRING_SOLVE_PG);
             },
-            Ok(options) => match solve_pg(&options) {
+            Ok(options) => match solve_pg(&options, &mut diagnostics) {
                 Ok(winner) => println!("{}", winner),
-                Err(error) => eprintln!("{:?}", error),
+                Err(()) => eprintln!("{}", diagnostics),
             },
             Err(error) => {
                 eprintln!("{:?}", error);
@@ -156,9 +159,9 @@ fn main() {
             Ok(options) if options.has_named("help") => {
                 eprintln!("{}", HELP_STRING_VERIFY_LTS);
             },
-            Ok(options) => match verify_lts(&options) {
+            Ok(options) => match verify_lts(&options, &mut diagnostics) {
                 Ok(satisfied) => println!("{}", satisfied),
-                Err(error) => eprintln!("{:?}", error),
+                Err(()) => eprintln!("{}", diagnostics),
             },
             Err(error) => {
                 eprintln!("{:?}", error);

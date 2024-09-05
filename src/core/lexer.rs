@@ -10,46 +10,11 @@
 //! [mCRL2 model parser]: ../parser/index.html
 //! [mu-calculus parser]: ../formula/index.html
 
-use crate::core::error::Mcrl2Error;
-use crate::core::syntax::SourceRange;
+use crate::core::syntax::{SourcePos, SourceRange};
+use crate::core::diagnostic::{Diagnostic, DiagnosticSeverity};
 
 use std::fmt::{Display, Formatter};
 use std::str::Chars;
-
-/// An error during the tokenization process, which happens when the input is
-/// invalid.
-/// 
-/// # Examples
-/// ```
-/// # use nano_crl2::core::lexer::tokenize;
-/// // a word character is not allowed after a number
-/// let error = tokenize("123t").unwrap_err();
-/// eprintln!("{:?}", error);
-/// ```
-#[derive(Debug)]
-pub struct LexError {
-    pub message: String,
-    pub line: u32,
-    pub character: u32,
-}
-
-impl LexError {
-    pub fn get_loc(&self) -> SourceRange {
-        SourceRange::new(
-            self.line,
-            self.character,
-            self.line,
-            self.character,
-        )
-    }
-}
-
-impl Into<Mcrl2Error> for LexError {
-    fn into(self) -> Mcrl2Error {
-        let loc = self.get_loc();
-        Mcrl2Error::ModelError { message: self.message, loc }
-    }
-}
 
 /// Represents a single lexical element, for instance `"++"`, `my_map`, `123`
 /// or `struct`.
@@ -405,6 +370,28 @@ pub fn reconstruct_from_tokens(input: &[Token]) -> String {
     result
 }
 
+#[derive(Debug)]
+pub struct LexError {
+    pub message: String,
+    pub loc: SourcePos,
+}
+
+impl LexError {
+    pub fn into_diagnostic(self, file: Option<String>) -> Diagnostic {
+        Diagnostic {
+            severity: DiagnosticSeverity::Error,
+            file,
+            loc: Some(SourceRange::new(
+                self.loc.get_line(),
+                self.loc.get_char(),
+                self.loc.get_line(),
+                self.loc.get_char(),
+            )),
+            message: self.message,
+        }
+    }
+}
+
 struct Lexer<'a> {
     tokens: Vec<Token>,
     curr_line: u32,
@@ -470,8 +457,7 @@ impl<'a> Lexer<'a> {
                     if in_integer {
                         return Err(LexError {
                             message: String::from("found word character right after integer"),
-                            line: self.curr_line as u32,
-                            character: self.curr_char as u32,
+                            loc: SourcePos::new(self.curr_line, self.curr_char),
                         });
                     }
                     in_identifier = true;
@@ -549,8 +535,7 @@ impl<'a> Lexer<'a> {
                         _ => {
                             return Err(LexError {
                                 message: format!("Found unexpected character {:?}", next),
-                                line: self.curr_line,
-                                character: self.curr_char,
+                                loc: SourcePos::new(self.curr_line, self.curr_char),
                             });
                         }
                     } {

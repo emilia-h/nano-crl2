@@ -16,7 +16,7 @@
 //! assert_eq!(module.decls.len(), 2);
 //! ```
 
-use crate::core::error::Mcrl2Error;
+use crate::core::diagnostic::{Diagnostic, DiagnosticSeverity};
 use crate::core::lexer::{LexicalElement, Token};
 use crate::core::syntax::{Identifier, SourceRange};
 
@@ -29,6 +29,17 @@ pub struct ParseError {
 }
 
 impl ParseError {
+    pub fn into_diagnostic(self, file: Option<String>) -> Diagnostic {
+        Diagnostic {
+            severity: DiagnosticSeverity::Error,
+            file,
+            loc: Some(self.loc),
+            message: self.message,
+        }
+    }
+}
+
+impl ParseError {
     /// Creates a parse error with a given message and source location.
     pub fn new(message: String, loc: SourceRange) -> Self {
         ParseError { message, loc }
@@ -37,18 +48,21 @@ impl ParseError {
     /// Creates a parse error with a message of the form "expected X but found
     /// Y".
     pub fn expected(expectation: &str, token: &Token) -> Self {
-        let mut message = String::from("expected ");
-        message.push_str(expectation);
-        message.push_str(&format!(" but found {}", token.value));
+        let message = format!(
+            "expected {} but found {}",
+            expectation,
+            token.value,
+        );
         ParseError { message, loc: token.loc }
     }
 
     /// Creates a parse error with a message of the form "expected X but the
     /// end of the input was reached".
     pub fn end_of_input(expectation: &str, loc: SourceRange) -> Self {
-        let mut message = String::from("expected ");
-        message.push_str(expectation);
-        message.push_str(" but the end of the input was reached");
+        let message = format!(
+            "expected {} but the end of the input was reached",
+            expectation,
+        );
         ParseError { message, loc }
     }
 
@@ -56,18 +70,11 @@ impl ParseError {
     /// bracket, or other delimiter was encountered, with a message of the form
     /// "found unmatched delimiter X".
     pub fn delimiter_mismatch(delimiter: &str, loc: SourceRange) -> Self {
-        let mut message = String::from("found unmatched closing delimiter ");
-        message.push_str(delimiter);
+        let message = format!(
+            "found unmatched closing delimiter {}",
+            delimiter,
+        );
         ParseError { message, loc }
-    }
-}
-
-impl Into<Mcrl2Error> for ParseError {
-    fn into(self) -> Mcrl2Error {
-        Mcrl2Error::ModelError {
-            message: self.message,
-            loc: self.loc,
-        }
     }
 }
 
@@ -76,19 +83,37 @@ impl Into<Mcrl2Error> for ParseError {
 /// These tokens can be parsed from a string using the [tokenize()] function.
 /// 
 /// [tokenize()]: ../lexer/fn.tokenize.html
-#[derive(Clone)]
 pub struct Parser<'a> {
     tokens: &'a [Token],
     index: usize,
+    errors: Vec<ParseError>, // TODO report as many errors as possible
 }
 
 impl<'a> Parser<'a> {
     /// Creates a new parser from a slice of tokens, that starts parsing from
     /// the first token.
     pub fn new(tokens: &'a [Token]) -> Self {
-        let mut parser = Parser { tokens, index: 0 };
+        let mut parser = Parser {
+            tokens,
+            index: 0,
+            errors: Vec::new(),
+        };
         parser.skip_comments();
         parser
+    }
+
+    /// Returns a new parser with the same input that is also at the same point
+    /// as the original parser. However, it resets the error state.
+    /// 
+    /// This function is meant for parts of the parser that need to do
+    /// lookahead, which is necessary for about two elements in the mCRL2
+    /// grammar.
+    pub fn create_temp_copy(&self) -> Self {
+        Parser {
+            tokens: self.tokens,
+            index: self.index,
+            errors: Vec::new(),
+        }
     }
 
     /// Parses an arbitrary type that has the `Parseable` trait implemented.

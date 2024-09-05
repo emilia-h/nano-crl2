@@ -2,9 +2,9 @@
 //! systems (LTS) for properties, which are specified in mu-calculus formulas.
 
 use crate::analysis::action_formula::matches_action_formula;
-use crate::core::error::Mcrl2Error;
+use crate::core::diagnostic::{Diagnostic, DiagnosticSeverity};
 use crate::core::state_set::{StateSetManager, StateSet};
-use crate::core::syntax::Identifier;
+use crate::core::syntax::{Identifier, SourceRange};
 use crate::lts::lts::Lts;
 use crate::mu_calculus::action_formula::ActionFormula;
 use crate::mu_calculus::regular_formula::RegularFormulaEnum;
@@ -22,11 +22,15 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub struct FormulaError {
     pub message: String,
+    pub loc: Option<SourceRange>, // TODO always add loc information
 }
 
-impl Into<Mcrl2Error> for FormulaError {
-    fn into(self) -> Mcrl2Error {
-        Mcrl2Error::FormulaError {
+impl FormulaError {
+    pub fn into_diagnostic(self, file: Option<String>) -> Diagnostic {
+        Diagnostic {
+            severity: DiagnosticSeverity::Error,
+            file,
+            loc: self.loc,
             message: self.message,
         }
     }
@@ -348,6 +352,7 @@ fn rewrite_state_formula_impl<'a>(
             } else {
                 return Err(FormulaError {
                     message: format!("Unbound variable {}", id),
+                    loc: None,
                 });
             }
         },
@@ -476,6 +481,7 @@ fn rewrite_fixpoint_formula<'a>(
     if id_map.contains_key(id) {
         return Err(FormulaError {
             message: format!("Rebound variable {}", id),
+            loc: None,
         });
     }
 

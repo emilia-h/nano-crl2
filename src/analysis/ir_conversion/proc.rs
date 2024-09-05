@@ -206,10 +206,8 @@ fn extract_actions(
             extract_actions(context, rhs, result, output)?;
         },
         _ => {
-            context.error();
-            // return Err(SemanticError::NodeKindError {
-            //     message: "The multi-action operator | can only be used between (multi-)actions".to_owned(),
-            // });
+            let error = "the multi-action operator | can only be used between (multi-)actions".to_owned();
+            context.error(result.id, proc.loc, error);
             return Err(());
         },
     }

@@ -2,6 +2,7 @@
 use crate::analysis::context::AnalysisContext;
 use crate::core::lexer::{Token, tokenize};
 use crate::core::parser::Parser;
+use crate::core::syntax::SourceRange;
 use crate::ir::module::ModuleId;
 use crate::model::module::Module;
 
@@ -18,7 +19,13 @@ pub fn query_token_list(
             let result = match tokenize(input) {
                 Ok(value) => Ok(Arc::new(value)),
                 Err(error) => {
-                    context.error();
+                    let loc = SourceRange::new(
+                        error.loc.get_line(),
+                        error.loc.get_char(),
+                        error.loc.get_line(),
+                        error.loc.get_char(),
+                    );
+                    context.error(module, loc, error.message);
                     Err(())
                 }
             };
@@ -27,7 +34,10 @@ pub fn query_token_list(
             result        
         },
         Err(()) => {
-            context.error();
+            context.error_cyclic_dependency(
+                SourceRange::new(0, 0, 0, 0),
+                module.into(),
+            );
             Err(())
         },
     }
@@ -45,7 +55,10 @@ pub fn query_ast_module(
             result
         },
         Err(()) => {
-            context.error();
+            context.error_cyclic_dependency(
+                SourceRange::new(0, 0, 0, 0),
+                module.into(),
+            );
             Err(())
         },
     }
@@ -60,7 +73,7 @@ fn calculate_ast_module(
     match parser.parse::<Module>() {
         Ok(value) => Ok(Arc::new(value)),
         Err(error) => {
-            context.error();
+            context.error(module, error.loc, error.message);
             Err(())
         }
     }

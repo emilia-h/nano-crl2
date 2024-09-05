@@ -3,6 +3,7 @@
 //! syntax tree (AST).
 
 pub mod decl;
+pub mod display;
 pub mod expr;
 pub mod iterator;
 pub mod module;

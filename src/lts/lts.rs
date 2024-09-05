@@ -1,22 +1,31 @@
 //! Defines structures for labelled transition systems (LTSs).
 
+use crate::core::diagnostic::{Diagnostic, DiagnosticSeverity};
+use crate::core::syntax::SourceRange;
 use crate::model::proc::Action;
-use crate::core::error::Mcrl2Error;
 
 /// An error while parsing the LTS, which happens when the given string is not
 /// in the correct format.
 #[derive(Debug)]
 pub struct LtsParseError {
+    pub line: u32,
+    pub character: u32,
     pub message: String,
-    pub line: usize,
-    pub character: usize,
 }
 
-impl Into<Mcrl2Error> for LtsParseError {
-    fn into(self) -> Mcrl2Error {
-        Mcrl2Error::LtsSyntaxError {
+impl LtsParseError {
+    /// Converts the error into a generic `Diagnostic`.
+    pub fn into_diagnostic(self, file: Option<String>) -> Diagnostic {
+        Diagnostic {
+            file,
+            severity: DiagnosticSeverity::Error,
+            loc: Some(SourceRange::new(
+                self.line,
+                self.character,
+                self.line,
+                self.character,
+            )),
             message: self.message,
-            line: self.line,
         }
     }
 }
