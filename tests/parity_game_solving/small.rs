@@ -5,6 +5,8 @@ use nano_crl2::analysis::small_progress_measures::{IterationPolicy, solve_parity
 use nano_crl2::parity_game::parity_game::Player;
 use nano_crl2::parity_game::pgsolver::parse_pgsolver_game;
 
+use std::time::{Duration, SystemTime};
+
 fn test_solve_parity_game(name: &str, correct: &[usize]) {
     use IterationPolicy::*;
 
@@ -14,9 +16,12 @@ fn test_solve_parity_game(name: &str, correct: &[usize]) {
     let pg_string = read_resource_file(&file_path);
     let pg = parse_pgsolver_game(&pg_string).unwrap();
 
+    let seed = SystemTime::UNIX_EPOCH.elapsed()
+        .unwrap_or(Duration::ZERO)
+        .as_nanos() as u64;
     for policy in [
         InputOrder,
-        RandomOrder { seed: rand::random::<u64>() },
+        RandomOrder { seed },
         DescendingDegreeOrder,
         ReverseBfs,
         PostOrderDfs,

@@ -7,7 +7,7 @@ use crate::tools::cli::CliOptions;
 use crate::util::io::{create_file_writer, read_file};
 
 use std::io::Write;
-use std::time::Instant;
+use std::time::{Duration, Instant, SystemTime};
 
 /// Reads a min parity game and calculates if node 0 is won by player "even",
 /// and optionally all the states that are won by player even.
@@ -29,7 +29,10 @@ pub fn solve_pg(
                 let seed = if options.has_named("seed") {
                     diagnostics.union_result(options.get_named_int::<u64>("seed"))?
                 } else {
-                    rand::random::<u64>()
+                    // what value we pick for this doesn't need to be random
+                    SystemTime::UNIX_EPOCH.elapsed()
+                        .unwrap_or(Duration::ZERO)
+                        .as_nanos() as u64
                 };
                 eprintln!("Using seed {} for 'random' policy", seed);
                 IterationPolicy::RandomOrder { seed }

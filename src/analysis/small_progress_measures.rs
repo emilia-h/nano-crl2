@@ -1,10 +1,8 @@
 //! Implements the small progress measures algorithm for solving parity games.
 
-use crate::parity_game::parity_game::{Pg, Player};
+use fastrand::Rng;
 
-use rand::SeedableRng;
-use rand::rngs::StdRng;
-use rand::seq::SliceRandom;
+use crate::parity_game::parity_game::{Pg, Player};
 
 use std::cmp::Ordering;
 use std::collections::vec_deque::VecDeque;
@@ -56,9 +54,9 @@ pub fn solve_parity_game(
             lift_ordered(game, &mut progress_measure, &play_value_limit, &order);
         },
         IterationPolicy::RandomOrder { seed } => {
-            let mut rng = StdRng::seed_from_u64(seed);
+            let mut rng = Rng::with_seed(seed);
             let mut order = (0 .. game.nodes.len()).collect::<Vec<_>>();
-            order.shuffle(&mut rng);
+            rng.shuffle(&mut order);
             lift_ordered(game, &mut progress_measure, &play_value_limit, &order.into_iter());
         },
         IterationPolicy::DescendingDegreeOrder => {
@@ -449,6 +447,8 @@ mod tests {
     use super::*;
     use crate::parity_game::pgsolver::parse_pgsolver_game;
 
+    use std::time::{Duration, SystemTime};
+
     #[test]
     fn test_prog_basic() {
         // domain M = {0} x {0, 1, 2} x {0} x {0, 1, 2}
@@ -523,9 +523,13 @@ mod tests {
     fn check_each_policy(game: &Pg, player: Player) -> Vec<usize> {
         use IterationPolicy::*;
 
+        let seed = SystemTime::UNIX_EPOCH.elapsed()
+            .unwrap_or(Duration::ZERO)
+            .as_nanos() as u64;
+
         let result = solve_parity_game(game, player, IterationPolicy::InputOrder);
         let policies = [
-            RandomOrder { seed: rand::random::<u64>() },
+            RandomOrder { seed },
             DescendingDegreeOrder,
             ReverseBfs,
             PostOrderDfs,
