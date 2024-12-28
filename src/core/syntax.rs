@@ -14,6 +14,10 @@ impl Identifier {
         Identifier { value: String::from(value) }
     }
 
+    pub fn new_from_owned(value: String) -> Self {
+        Identifier { value }
+    }
+
     pub fn get_value(&self) -> &str {
         &self.value
     }

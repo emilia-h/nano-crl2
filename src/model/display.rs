@@ -235,8 +235,12 @@ impl DisplayPretty for Expr {
                 )?;
                 write!(f, "}}")?;
             },
-            SetComprehension { .. } => {
-                todo!();
+            SetComprehension { id, id_loc: _, sort, condition } => {
+                write!(f, "{{ {}: ", id)?;
+                sort.fmt(options, f)?;
+                write!(f, " | ")?;
+                condition.fmt(&options, f)?;
+                write!(f, "}}")?;
             }
             FunctionUpdate { function, lhs, rhs } => {
                 function.fmt(options, f)?;
@@ -722,7 +726,7 @@ fn display_constructor(
         )?;
         write!(f, ")")?;
     }
-    if let Some((id, _)) = &constructor.recognizer_function_id {
+    if let Some((id, _)) = &constructor.recognizer_id {
         write!(f, " ? {}", id)?;
     }
     Ok(())

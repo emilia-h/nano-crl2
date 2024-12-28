@@ -207,8 +207,7 @@ fn extract_actions(
         },
         _ => {
             let error = "the multi-action operator | can only be used between (multi-)actions".to_owned();
-            context.error(result.id, proc.loc, error);
-            return Err(());
+            return context.error(result.id, proc.loc, error);
         },
     }
 

@@ -31,6 +31,7 @@ pub struct AnalysisContext {
     model_inputs: HashMap<ModuleId, (String, String)>,
 
     pub(crate) ast_modules: QueryHashMap<ModuleId, Result<Arc<Module>, ()>>,
+    pub(crate) defs_of_names: QueryHashMap<NodeId, Result<DefId, ()>>,
     pub(crate) ir_modules: QueryHashMap<ModuleId, Result<Arc<IrModule>, ()>>,
     pub(crate) resolved_sorts: QueryHashMap<SortId, Result<Interned<ResolvedSort>, ()>>,
     pub(crate) sorts_of_def: QueryHashMap<DefId, Result<Interned<ResolvedSort>, ()>>,
@@ -50,6 +51,7 @@ impl AnalysisContext {
             model_inputs: HashMap::new(),
 
             ast_modules: QueryHashMap::new(),
+            defs_of_names: QueryHashMap::new(),
             ir_modules: QueryHashMap::new(),
             resolved_sorts: QueryHashMap::new(),
             sorts_of_def: QueryHashMap::new(),
@@ -144,7 +146,7 @@ impl AnalysisContext {
     }
 
     /// Adds an error to the error list.
-    pub fn error(&self, module: ModuleId, loc: SourceRange, message: String) {
+    pub fn error<T>(&self, module: ModuleId, loc: SourceRange, message: String) -> Result<T, ()> {
         let file = self.get_model_input(module).0;
         let mut diagnostics_borrow = self.diagnostic_context.borrow_mut();
         diagnostics_borrow.push(Diagnostic {
@@ -153,10 +155,11 @@ impl AnalysisContext {
             loc: Some(loc),
             message,
         });
+        Err(())
     }
 
-    pub fn error_cyclic_dependency(&self, loc: SourceRange, node: NodeId) {
-        self.error(node.get_module_id(), loc, "cyclic dependency".to_owned());
+    pub fn error_cyclic_dependency<T>(&self, loc: SourceRange, node: NodeId) -> Result<T, ()> {
+        self.error(node.get_module_id(), loc, "cyclic dependency".to_owned())
     }
 
     pub fn for_each_diagnostic<F>(

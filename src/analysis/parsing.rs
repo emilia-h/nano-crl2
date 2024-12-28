@@ -25,8 +25,7 @@ pub fn query_token_list(
                         error.loc.get_line(),
                         error.loc.get_char(),
                     );
-                    context.error(module, loc, error.message);
-                    Err(())
+                    context.error(module, loc, error.message)
                 }
             };
 
@@ -37,8 +36,7 @@ pub fn query_token_list(
             context.error_cyclic_dependency(
                 SourceRange::new(0, 0, 0, 0),
                 module.into(),
-            );
-            Err(())
+            )
         },
     }
 }
@@ -58,8 +56,7 @@ pub fn query_ast_module(
             context.error_cyclic_dependency(
                 SourceRange::new(0, 0, 0, 0),
                 module.into(),
-            );
-            Err(())
+            )
         },
     }
 }
@@ -73,8 +70,7 @@ fn calculate_ast_module(
     match parser.parse::<Module>() {
         Ok(value) => Ok(Arc::new(value)),
         Err(error) => {
-            context.error(module, error.loc, error.message);
-            Err(())
+            context.error(module, error.loc, error.message)
         }
     }
 }

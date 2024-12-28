@@ -59,6 +59,57 @@ pub enum ResolvedSort {
     },
 }
 
+impl ResolvedSort {
+    pub fn is_unit(&self) -> bool {
+        matches!(self, ResolvedSort::Primitive { sort: PrimitiveSort::Unit })
+    }
+
+    pub fn is_bool(&self) -> bool {
+        matches!(self, ResolvedSort::Primitive { sort: PrimitiveSort::Bool })
+    }
+
+    pub fn is_pos(&self) -> bool {
+        matches!(self, ResolvedSort::Primitive { sort: PrimitiveSort::Pos })
+    }
+
+    pub fn is_nat(&self) -> bool {
+        matches!(self, ResolvedSort::Primitive { sort: PrimitiveSort::Nat })
+    }
+
+    pub fn is_int(&self) -> bool {
+        matches!(self, ResolvedSort::Primitive { sort: PrimitiveSort::Int })
+    }
+
+    pub fn is_real(&self) -> bool {
+        matches!(self, ResolvedSort::Primitive { sort: PrimitiveSort::Real })
+    }
+
+    /// Returns whether this is a `Generic` variant with op == `List`.
+    pub fn is_list(&self) -> bool {
+        matches!(self, ResolvedSort::Generic { op: GenericSortOp::List, .. })
+    }
+
+    /// Returns whether this is a `Generic` variant with op == `Set`.
+    pub fn is_set(&self) -> bool {
+        matches!(self, ResolvedSort::Generic { op: GenericSortOp::Set, .. })
+    }
+
+    /// Returns whether this is a `Generic` variant with op == `FSet`.
+    pub fn is_fset(&self) -> bool {
+        matches!(self, ResolvedSort::Generic { op: GenericSortOp::FSet, .. })
+    }
+
+    /// Returns whether this is a `Generic` variant with op == `Bag`.
+    pub fn is_bag(&self) -> bool {
+        matches!(self, ResolvedSort::Generic { op: GenericSortOp::Bag, .. })
+    }
+
+    /// Returns whether this is a `Generic` variant with op == `FBag`.
+    pub fn is_fbag(&self) -> bool {
+        matches!(self, ResolvedSort::Generic { op: GenericSortOp::FBag, .. })
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum PrimitiveSort {
     Unit,
@@ -80,6 +131,11 @@ impl PrimitiveSort {
             Self::Real => "Real",
         }
     }
+
+    /// Returns whether this is a `Pos`, `Nat`, `Int` or `Real` variant
+    pub fn is_any_number(self) -> bool {
+        matches!(self, Self::Pos | Self::Nat | Self::Int | Self::Real)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -100,6 +156,16 @@ impl GenericSortOp {
             Self::Bag => "Bag",
             Self::FBag => "FBag",
         }
+    }
+
+    /// Returns whether this is a `Set` or `FSet` variant.
+    pub fn is_any_set(self) -> bool {
+        matches!(self, Self::Set | Self::FSet)
+    }
+
+    /// Returns whether this is a `Bag` or `FBag` variant.
+    pub fn is_any_bag(self) -> bool {
+        matches!(self, Self::Bag | Self::FBag)
     }
 }
 

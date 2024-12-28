@@ -68,7 +68,11 @@ pub enum IrExprEnum {
         else_expr: ExprId,
     },
     Where {
-
+        def_id: DefId,
+        identifier: Identifier,
+        identifier_loc: SourceRange,
+        inner: ExprId,
+        assigned: ExprId,
     },
 }
 

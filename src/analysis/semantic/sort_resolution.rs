@@ -4,9 +4,9 @@ use crate::analysis::ir_conversion::module::query_ir_module;
 use crate::analysis::semantic::name_resolution::query_def_of_name;
 use crate::ir::decl::{DefId, IrDeclEnum};
 use crate::ir::display::ResolvedSortDisplay;
-use crate::ir::expr::{BinaryExprOp, BinderExprOp, ExprId, IrExprEnum, UnaryExprOp};
+use crate::ir::expr::{BinaryExprOp, BinderExprOp, ExprId, IrExpr, IrExprEnum, UnaryExprOp};
 use crate::ir::iterator::get_node_loc;
-use crate::ir::module::NodeId;
+use crate::ir::module::{IrModule, NodeId};
 use crate::ir::sort::{GenericSortOp, IrSortEnum, PrimitiveSort, ResolvedSort, SortId};
 use crate::util::caching::Interned;
 use crate::util::error::{chain_option, chain_result};
@@ -31,8 +31,7 @@ pub fn query_sort_of_expr(
             let loc = query_ir_module(context, expr.get_module_id())?
                 .get_expr(expr)
                 .loc;
-            context.error_cyclic_dependency(loc, expr.into());
-            Err(())
+            context.error_cyclic_dependency(loc, expr.into())
         },
     }
 }
@@ -77,10 +76,11 @@ fn calculate_sort_of_expr(
                     Ok(Interned::clone(rhs))
                 },
                 _ => {
-                    // TODO
-                    let error = "cannot call a value that is not a function".to_owned();
-                    context.error(expr.get_module_id(), ir_expr.loc, error);
-                    return Err(());
+                    let error = format!(
+                        "cannot call a value with a sort `{}` that is not a function",
+                        ResolvedSortDisplay::new(&callee_sort, &module),
+                    );
+                    return context.error(expr.get_module_id(), ir_expr.loc, error);
                 },
             }
         },
@@ -119,10 +119,11 @@ fn calculate_sort_of_expr(
                     Ok(sort_context.get_primitive_sort(PrimitiveSort::Real))
                 },
                 _ => {
-                    // TODO
-                    let error = "cannot determine sort of expression, since the negated expression is not a number".to_owned();
-                    context.error(module.id, ir_expr.loc, error);
-                    return Err(());
+                    let error = format!(
+                        "cannot negate a value when its sort `{}` is not a number sort",
+                        ResolvedSortDisplay::new(&value_sort, &module),
+                    );
+                    return context.error(module.id, ir_expr.loc, error);
                 },
             }
         },
@@ -145,38 +146,110 @@ fn calculate_sort_of_expr(
         } => {
             Ok(sort_context.get_primitive_sort(PrimitiveSort::Bool))
         },
-        IrExprEnum::Binary { op: BinaryExprOp::Cons, lhs, rhs } => {
-            todo!()
+        IrExprEnum::Binary { op: BinaryExprOp::Cons, rhs, .. } => {
+            query_sort_of_expr(context, *rhs)
         },
-        IrExprEnum::Binary { op: BinaryExprOp::Snoc, lhs, rhs } => {
-            todo!()
+        IrExprEnum::Binary { op: BinaryExprOp::Snoc, lhs, .. } => {
+            query_sort_of_expr(context, *lhs)
         },
         IrExprEnum::Binary { op: BinaryExprOp::Concat, lhs, rhs } => {
-            todo!()
+            let (lhs_sort, rhs_sort) = chain_result(
+                query_sort_of_expr(context, *lhs),
+                query_sort_of_expr(context, *rhs),
+            )?;
+            if !lhs_sort.is_list() {
+                let error = format!(
+                    "cannot concatenate when the left-hand side sort `{}` is not a `List` sort",
+                    ResolvedSortDisplay::new(&lhs_sort, &module),
+                );
+                return context.error(module.id, ir_expr.loc, error);
+            } else if !rhs_sort.is_list() {
+                let error = format!(
+                    "cannot concatenate when the right-hand side sort `{}` is not a `List` sort",
+                    ResolvedSortDisplay::new(&rhs_sort, &module),
+                );
+                return context.error(module.id, ir_expr.loc, error);
+            } else if lhs_sort != rhs_sort {
+                let error = format!(
+                    "cannot concatenate two lists of incompatible sorts `{}` and `{}`",
+                    ResolvedSortDisplay::new(&lhs_sort, &module),
+                    ResolvedSortDisplay::new(&rhs_sort, &module),
+                );
+                return context.error(module.id, ir_expr.loc, error);
+            }
+            Ok(lhs_sort)
         },
         IrExprEnum::Binary { op: BinaryExprOp::Add, lhs, rhs } => {
             let (lhs_sort, rhs_sort) = chain_result(
                 query_sort_of_expr(context, *lhs),
                 query_sort_of_expr(context, *rhs),
             )?;
-            let g1 = get_number_sort_generality(&lhs_sort);
-            let g2 = get_number_sort_generality(&rhs_sort);
-            let Some((g1, g2)) = chain_option(g1, g2) else {
-                let error = format!(
-                    "cannot add expressions of sorts `{}` and `{}`",
-                    ResolvedSortDisplay::new(&lhs_sort, &module),
-                    ResolvedSortDisplay::new(&rhs_sort, &module),
-                );
-                context.error(expr.get_module_id(), ir_expr.loc, error);
-                return Err(());
-            };
-            Ok(get_number_sort_from_generality(sort_context, g1.max(g2)))
+            match (&*lhs_sort, &*rhs_sort) {
+                (
+                    ResolvedSort::Generic { op: op1, subsort: subsort1 },
+                    ResolvedSort::Generic { op: op2, subsort: subsort2 },
+                ) if op1.is_any_set() && op2.is_any_set() => {
+                    let Some(common) = find_common_sort(context, subsort1, subsort2) else {
+                        let error = format!(
+                            "cannot add two sets of incompatible sorts `{}` and `{}`",
+                            ResolvedSortDisplay::new(subsort1, &module),
+                            ResolvedSortDisplay::new(subsort2, &module),
+                        );
+                        return context.error(module.id, ir_expr.loc, error);
+                    };
+                    if *op1 == GenericSortOp::FSet && *op2 == GenericSortOp::FSet {
+                        Ok(sort_context.get_generic_sort(GenericSortOp::FSet, &common))
+                    } else {
+                        Ok(sort_context.get_generic_sort(GenericSortOp::Set, &common))
+                    }
+                },
+                (
+                    ResolvedSort::Generic { op: op1, subsort: subsort1 },
+                    ResolvedSort::Generic { op: op2, subsort: subsort2 },
+                ) if op1.is_any_bag() && op2.is_any_bag() => {
+                    // almost the same code as in the previous code
+                    let Some(common) = find_common_sort(context, subsort1, subsort2) else {
+                        let error = format!(
+                            "cannot add two bags of incompatible sorts `{}` and `{}`",
+                            ResolvedSortDisplay::new(subsort1, &module),
+                            ResolvedSortDisplay::new(subsort2, &module),
+                        );
+                        return context.error(module.id, ir_expr.loc, error);
+                    };
+                    if *op1 == GenericSortOp::FBag && *op2 == GenericSortOp::FBag {
+                        Ok(sort_context.get_generic_sort(GenericSortOp::FBag, &common))
+                    } else {
+                        Ok(sort_context.get_generic_sort(GenericSortOp::Bag, &common))
+                    }
+                },
+                (
+                    ResolvedSort::Primitive { sort: sort1 },
+                    ResolvedSort::Primitive { sort: sort2 },
+                ) if sort1.is_any_number() && sort2.is_any_number() => {
+                    let g1 = get_number_sort_generality(&lhs_sort).unwrap();
+                    let g2 = get_number_sort_generality(&rhs_sort).unwrap();
+                    Ok(get_number_sort_from_generality(sort_context, g1.max(g2)))
+                },
+                _ => {
+                    let error = format!(
+                        "can only add numbers, sets and bags, not `{}` and `{}`",
+                        ResolvedSortDisplay::new(&lhs_sort, &module),
+                        ResolvedSortDisplay::new(&rhs_sort, &module),
+                    );
+                    return context.error(module.id, ir_expr.loc, error);
+                },
+            }
         },
-        IrExprEnum::Binary { op: BinaryExprOp::Subtract, lhs, rhs } => {
-            todo!()
+        IrExprEnum::Binary { op: BinaryExprOp::Subtract, .. } => {
+            let (g1, g2) = get_binary_op_number_generalities(context, &module, ir_expr)?;
+            if g1 == 3 || g2 == 3 {
+                Ok(sort_context.get_primitive_sort(PrimitiveSort::Real))
+            } else {
+                Ok(sort_context.get_primitive_sort(PrimitiveSort::Int))
+            }
         },
-        IrExprEnum::Binary { op: BinaryExprOp::Divide, lhs, rhs } => {
-            todo!()
+        IrExprEnum::Binary { op: BinaryExprOp::Divide, .. } => {
+            Ok(sort_context.get_primitive_sort(PrimitiveSort::Real))
         },
         IrExprEnum::Binary { op: BinaryExprOp::IntegerDivide, lhs, rhs } => {
             todo!()
@@ -184,11 +257,20 @@ fn calculate_sort_of_expr(
         IrExprEnum::Binary { op: BinaryExprOp::Mod, lhs, rhs } => {
             todo!()
         },
-        IrExprEnum::Binary { op: BinaryExprOp::Multiply, lhs, rhs } => {
-            todo!()
+        IrExprEnum::Binary { op: BinaryExprOp::Multiply, .. } => {
+            let (g1, g2) = get_binary_op_number_generalities(context, &module, ir_expr)?;
+            Ok(get_number_sort_from_generality(sort_context, g1.max(g2)))
         },
-        IrExprEnum::Binary { op: BinaryExprOp::Index, lhs, rhs } => {
-            todo!()
+        IrExprEnum::Binary { op: BinaryExprOp::Index, lhs, .. } => {
+            let lhs_sort = query_sort_of_expr(context, *lhs)?;
+            let ResolvedSort::Generic { op: GenericSortOp::List, subsort } = &*lhs_sort else {
+                let error = format!(
+                    "cannot index expression of which sort `{}` is not a `List` sort",
+                    ResolvedSortDisplay::new(&lhs_sort, &module)
+                );
+                return context.error(module.id, ir_expr.loc, error);
+            };
+            Ok(Interned::clone(subsort))
         },
 
         IrExprEnum::If { then_expr, else_expr, .. } => {
@@ -196,12 +278,51 @@ fn calculate_sort_of_expr(
                 query_sort_of_expr(context, *then_expr),
                 query_sort_of_expr(context, *else_expr),
             )?;
-            find_common_sort(context, &then_sort, &else_sort)
+            let Some(value) = find_common_sort(context, &then_sort, &else_sort) else {
+                let error = format!(
+                    "incompatible expressions in `if`, `{}` and `{}` do not have a common sort",
+                    ResolvedSortDisplay::new(&then_sort, &module),
+                    ResolvedSortDisplay::new(&else_sort, &module),
+                );
+                return context.error(expr.get_module_id(), ir_expr.loc, error);
+            };
+            Ok(value)
         },
-        IrExprEnum::Where {  } => {
-            todo!()
+        IrExprEnum::Where { inner, .. } => {
+            query_sort_of_expr(context, *inner)
         },
     }
+}
+
+/// For a binary expression of the form `a + b`, `a - b` etc., returns the
+/// number sort generalities of its operands.
+/// 
+/// # Panics
+/// `expr.value` must be of the variant `IrExprEnum::Binary`, or this function
+/// will panic.
+fn get_binary_op_number_generalities(
+    context: &AnalysisContext,
+    module: &IrModule,
+    expr: &IrExpr,
+) -> Result<(u32, u32), ()> {
+    let IrExprEnum::Binary { lhs, rhs, .. } = &expr.value else {
+        panic!();
+    };
+    let (lhs_sort, rhs_sort) = chain_result(
+        query_sort_of_expr(context, *lhs),
+        query_sort_of_expr(context, *rhs),
+    )?;
+    let g1 = get_number_sort_generality(&lhs_sort);
+    let g2 = get_number_sort_generality(&rhs_sort);
+    let Some((g1, g2)) = chain_option(g1, g2) else {
+        let error = format!(
+            "cannot add expressions of sorts `{}` and `{}`",
+            ResolvedSortDisplay::new(&lhs_sort, &module),
+            ResolvedSortDisplay::new(&rhs_sort, &module),
+        );
+        return context.error(module.id, expr.loc, error);
+    };
+    Ok((g1, g2))
 }
 
 /// Returns the sort of the variable/map/constructor that is denoted by `def`.
@@ -232,8 +353,7 @@ pub fn query_sort_of_def(
             let ir_module = query_ir_module(context, def.get_module_id())?;
             let source = ir_module.get_def_source(def);
             let loc = get_node_loc(&ir_module, source);
-            context.error_cyclic_dependency(loc, source);
-            Err(())
+            context.error_cyclic_dependency(loc, source)
         },
     }
 }
@@ -256,8 +376,7 @@ fn calculate_sort_of_def(
                 },
                 _ => {
                     let error = "declaration does not have a sort, cannot be used in an expression".to_owned();
-                    context.error(module.id, decl.loc, error);
-                    return Err(());
+                    return context.error(module.id, decl.loc, error);
                 },
             }
         },
@@ -290,8 +409,7 @@ pub fn query_resolved_sort(
             let loc = query_ir_module(context, sort.get_module_id())?
                 .get_sort(sort)
                 .loc;
-            context.error_cyclic_dependency(loc, sort.into());
-            Err(())
+            context.error_cyclic_dependency(loc, sort.into())
         },
     }
 }
@@ -340,12 +458,47 @@ fn calculate_resolved_sort(
 /// - common(S1, S2) = common(S2, S1)
 /// - common(S1, common(S2, S3)) = common(common(S1, S2), S3)
 /// - common(S, S) = S
+/// 
+/// Note that this function does not report errors, it just returns `None` if
+/// the two sorts are incomparable.
 fn find_common_sort(
     context: &AnalysisContext,
     sort1: &Interned<ResolvedSort>,
     sort2: &Interned<ResolvedSort>,
-) -> Result<Interned<ResolvedSort>, ()> {
-    todo!()
+) -> Option<Interned<ResolvedSort>> {
+    use ResolvedSort::*;
+
+    // note this guard; this prevents a lot of checks in the `match` clause
+    if *sort1 == *sort2 {
+        return Some(Interned::clone(sort1));
+    }
+
+    let sort_context = context.get_resolved_sort_context();
+
+    // a primitive sort can only have a common type with another primitive
+    // sort; similar rules hold for generic sorts and function sorts
+    match (&**sort1, &**sort2) {
+        (Primitive { sort: s1 }, Primitive { sort: s2 }) => {
+            assert_ne!(s1, s2); // should have been caught by top-level `if`
+            todo!()
+        },
+        // a generic sort can only have a common type with another generic
+        // sort
+        (Generic { op: op1, subsort: s1 }, Generic { op: op2, subsort: s2 }) => {
+            todo!()
+        },
+        (Carthesian { lhs: lhs1, rhs: rhs1 }, Carthesian { lhs: lh2, rhs: rhs2 }) => {
+            // need to be careful here! because of associativity
+            todo!()
+        },
+        (Function { lhs: lhs1, rhs: rhs1 }, Function { lhs: lh2, rhs: rhs2 }) => {
+            todo!()
+        },
+        // note that two structural types (`ResolvedSort::Def`) are only equal
+        // if they are the same name (i.e. nominal typing), and otherwise they
+        // are always incomparable
+        _ => None,
+    }
 }
 
 /// Returns a number that represents the generality of a number sort, or `None`

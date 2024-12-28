@@ -131,8 +131,9 @@ where
                     writer((*then_expr).into());
                     writer((*else_expr).into());
                 },
-                IrExprEnum::Where {  } => {
-
+                IrExprEnum::Where { inner, assigned, .. } => {
+                    writer((*inner).into());
+                    writer((*assigned).into());
                 },
             }
         },

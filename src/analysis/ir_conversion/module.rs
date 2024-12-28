@@ -46,8 +46,7 @@ pub fn query_ir_module(
         },
         Err(()) => {
             let loc = query_ast_module(context, module)?.loc;
-            context.error_cyclic_dependency(loc, module.into());
-            Err(())
+            context.error_cyclic_dependency(loc, module.into())
         },
     }
 }

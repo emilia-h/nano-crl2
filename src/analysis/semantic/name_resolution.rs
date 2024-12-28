@@ -15,7 +15,25 @@ pub fn query_def_of_name(
     context: &AnalysisContext,
     node: NodeId,
 ) -> Result<DefId, ()> {
-    // TODO cache
+    match context.defs_of_names.get_or_lock(&node) {
+        Ok(Some(value)) => value,
+        Ok(None) => {
+            let result = calculate_def_of_name(context, node);
+            context.defs_of_names.unlock(&node, result.clone());
+            result
+        },
+        Err(()) => {
+            let loc = query_ir_module(context, node.get_module_id())?
+                .get_loc(node);
+            context.error_cyclic_dependency(loc, node)
+        },
+    }
+}
+
+fn calculate_def_of_name(
+    context: &AnalysisContext,
+    node: NodeId,
+) -> Result<DefId, ()> {
 
     let module = query_ir_module(context, node.get_module_id())?;
 
@@ -32,8 +50,7 @@ pub fn query_def_of_name(
                     "unresolved identifier `{}`",
                     action.identifier,
                 );
-                context.error(module.id, action.loc, error);
-                return Err(());
+                return context.error(module.id, action.loc, error);
             };
 
             let name_lookup = NameLookup {
@@ -56,8 +73,7 @@ pub fn query_def_of_name(
                             "unresolved identifier `{}`",
                             identifier,
                         );
-                        context.error(module.id, expr.loc, error);
-                        return Err(());
+                        return context.error(module.id, expr.loc, error);
                     };
 
                     let name_lookup = NameLookup {
@@ -86,8 +102,7 @@ pub fn query_def_of_name(
                             "unresolved identifier `{}`",
                             identifier,
                         );
-                        context.error(module.id, sort.loc, error);
-                        return Err(());
+                        return context.error(module.id, sort.loc, error);
                     };
 
                     let name_lookup = NameLookup {
@@ -125,8 +140,7 @@ fn find_def_of_name(
                                     "multiple parameters with name `{}`",
                                     &param.identifier,
                                 );
-                                context.error(module.id, param.identifier_loc, error);
-                                return Err(());
+                                return context.error(module.id, param.identifier_loc, error);
                             }
                             result = Some(param.def_id);
                         }
@@ -148,8 +162,10 @@ fn find_def_of_name(
                             todo!()
                         }
                     },
-                    IrExprEnum::Where {} => {
-                        todo!()
+                    IrExprEnum::Where { def_id, identifier: i2, .. } => {
+                        if name_lookup.identifier == i2 {
+                            return Ok(*def_id);
+                        }
                     },
                     _ => {},
                 }
@@ -210,8 +226,7 @@ fn find_def_of_name(
                                     "multiple `sort` declarations with identifier `{}`",
                                     decl.identifier,
                                 );
-                                context.error(module.id, decl.identifier_loc, error);
-                                return Err(());
+                                return context.error(module.id, decl.identifier_loc, error);
                             }
                             result = Some(decl.def_id);
                         }
@@ -261,8 +276,7 @@ fn find_def_of_name(
             "undefined identifier `{}`",
             name_lookup.identifier.get_value(),
         );
-        context.error(module.id, name_lookup.loc, error);
-        Err(())
+        context.error(module.id, name_lookup.loc, error)
     }
 }
 

@@ -168,6 +168,26 @@ impl IrModule {
         assert_eq!(node.get_module_id(), self.id);
         self.sorts.get(&node).unwrap()
     }
+
+    pub fn get_loc(&self, node: NodeId) -> SourceRange {
+        use NodeId::*;
+
+        match node {
+            Action(action_id) => self.get_action(action_id).loc,
+            Decl(decl_id) => self.get_decl(decl_id).loc,
+            Expr(expr_id) => self.get_expr(expr_id).loc,
+            Module(module_id) => {
+                assert_eq!(module_id, self.id);
+                self.loc
+            },
+            Param(param_id) => self.get_param(param_id).loc,
+            Proc(proc_id) => self.get_proc(proc_id).loc,
+            RewriteRule(rewrite_rule_id) => self.get_rewrite_rule(rewrite_rule_id).loc,
+            RewriteSet(rewrite_set_id) => self.get_rewrite_set(rewrite_set_id).loc,
+            RewriteVar(rewrite_var_id) => self.get_rewrite_var(rewrite_var_id).loc,
+            Sort(sort_id) => self.get_sort(sort_id).loc,
+        }
+    }
 }
 
 /// A (nameless) identifier that, within a given analysis context, refers to a

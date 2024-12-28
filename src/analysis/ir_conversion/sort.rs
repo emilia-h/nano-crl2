@@ -1,10 +1,14 @@
 
 use crate::analysis::context::AnalysisContext;
+use crate::core::syntax::{Identifier, SourceRange};
+use crate::ir::decl::IrDeclEnum;
 use crate::ir::module::IrModule;
 use crate::ir::sort::{GenericSortOp, IrSort, IrSortEnum, PrimitiveSort, SortId};
 use crate::model::sort::{Sort, SortEnum};
 
 use std::sync::Arc;
+
+use super::decl::add_decl_to_ir_module;
 
 pub fn convert_ir_sort(
     context: &AnalysisContext,
@@ -69,9 +73,35 @@ pub fn convert_ir_sort(
                 identifier: id.clone(),
             })
         },
-        SortEnum::Struct { constructors: _ } => {
-            // should be desugared into named type
-            todo!()
+        SortEnum::Struct { constructors } => {
+            // desugar into named structured type
+            // https://www.mcrl2.org/web/user_manual/language_reference/data.html#structured-sorts
+            let generated = Identifier::new_from_owned(
+                format!("__Struct_")
+            );
+            add_decl_to_ir_module(
+                context, module,
+                &generated, SourceRange::new(0, 0, 0, 0),
+                IrDeclEnum::Sort,
+                SourceRange::new(0, 0, 0, 0),
+            );
+
+            // for constructor in constructors {
+            //     add_decl_to_ir_module(
+            //         context, module,
+            //         &constructor.id, constructor.id_loc,
+            //         IrDeclEnum::Constructor { sort: () },
+            //         constructor.loc,
+            //     );
+            //     for property in constructor.properties {
+                    
+            //     }
+            //     if let Some((recognizer, recognizer_loc)) = constructor.recognizer_id {
+
+            //     }
+            // }
+
+            add_sort(module, IrSortEnum::Name { identifier: generated })
         },
         SortEnum::Carthesian { lhs, rhs } => {
             let lhs_id = convert_ir_sort(context, lhs, module)?;

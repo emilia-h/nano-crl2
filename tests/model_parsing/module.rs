@@ -6,7 +6,7 @@ use nano_crl2::core::parser::Parser;
 use nano_crl2::model::module::Module;
 
 fn parse_module(name: &str) -> Option<Module> {
-    let mut file_path = String::from("tests/mcrl2/");
+    let mut file_path = String::from("tests/");
     file_path.push_str(name);
     file_path.push_str(".mcrl2");
     let module_string = read_resource_file(&file_path);
@@ -18,12 +18,12 @@ fn parse_module(name: &str) -> Option<Module> {
 
 #[test]
 fn test_general1_module() {
-    let x = parse_module("general1");
+    let x = parse_module("should_compile/general1");
     x.unwrap();
 }
 
 #[test]
 fn test_sets_module() {
-    let x = parse_module("sets");
+    let x = parse_module("should_compile/sets");
     x.unwrap();
 }

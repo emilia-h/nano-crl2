@@ -86,7 +86,8 @@ pub struct Constructor {
     pub id: Identifier,
     pub id_loc: SourceRange,
     pub properties: Vec<(Option<(Identifier, SourceRange)>, Arc<Sort>)>,
-    pub recognizer_function_id: Option<(Identifier, SourceRange)>,
+    pub recognizer_id: Option<(Identifier, SourceRange)>,
+    pub loc: SourceRange,
 }
 
 impl Parseable for Sort {
@@ -248,6 +249,7 @@ fn parse_constructor_list(parser: &mut Parser) -> Result<Vec<Constructor>, Parse
 }
 
 fn parse_constructor(parser: &mut Parser) -> Result<Constructor, ParseError> {
+    let loc = parser.get_loc();
     let (id, id_loc) = parser.parse_identifier()?;
 
     let mut properties = Vec::new();
@@ -270,13 +272,19 @@ fn parse_constructor(parser: &mut Parser) -> Result<Constructor, ParseError> {
         parser.expect_token(&LexicalElement::ClosingParen)?;
     }
 
-    let recognizer_function_id = if parser.skip_if_equal(&LexicalElement::QuestionMark) {
+    let recognizer_id = if parser.skip_if_equal(&LexicalElement::QuestionMark) {
         Some(parser.parse_identifier()?)
     } else {
         None
     };
 
-    Ok(Constructor { id, id_loc, properties, recognizer_function_id })
+    Ok(Constructor {
+        id,
+        id_loc,
+        properties,
+        recognizer_id,
+        loc: parser.until_now(&loc)
+    })
 }
 
 #[cfg(test)]
@@ -295,7 +303,7 @@ mod tests {
         assert_eq!(constructors.len(), 4);
         assert_eq!(constructors[0].id.get_value(), "a");
         assert_eq!(constructors[0].properties.len(), 0);
-        assert!(constructors[0].recognizer_function_id.is_none());
+        assert!(constructors[0].recognizer_id.is_none());
 
         assert_eq!(constructors[1].id.get_value(), "x");
         assert_eq!(

@@ -275,9 +275,26 @@ pub fn convert_ir_expr(
             module.add_parent(else_id.into(), expr_id.into());
             expr_id
         },
-        ExprEnum::Where { expr, assignments: _ } => {
-            let _sub_expr_id = convert_ir_expr(context, expr, module)?;
-            todo!()
+        ExprEnum::Where { expr, assignments } => {
+            let mut current_id = convert_ir_expr(context, expr, module)?;
+            // rewrite to a bunch of nested `whr` expressions, where each has
+            // only one variable
+            for (identifier, identifier_loc, assigned) in assignments {
+                let expr_id = convert_ir_expr(context, assigned, module)?;
+                let def_id = context.generate_def_id(module.id);
+                let next_id = add_expr(module, IrExprEnum::Where {
+                    def_id,
+                    identifier: identifier.clone(),
+                    identifier_loc: *identifier_loc,
+                    inner: current_id,
+                    assigned: expr_id,
+                });
+                module.add_parent(expr_id.into(), next_id.into());
+                module.add_parent(current_id.into(), next_id.into());
+                module.add_def_source(def_id, next_id.into());
+                current_id = next_id;
+            }
+            current_id
         },
     })
 }

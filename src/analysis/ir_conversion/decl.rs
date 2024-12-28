@@ -4,7 +4,7 @@ use crate::analysis::ir_conversion::expr::convert_ir_expr;
 use crate::analysis::ir_conversion::proc::convert_ir_proc;
 use crate::analysis::ir_conversion::sort::convert_ir_sort;
 use crate::core::syntax::{Identifier, SourceRange};
-use crate::ir::decl::{IrDecl, IrDeclEnum, IrParam, ParamId};
+use crate::ir::decl::{DeclId, IrDecl, IrDeclEnum, IrParam, ParamId};
 use crate::ir::expr::{IrRewriteRule, IrRewriteSet, IrRewriteVar, RewriteRuleId, RewriteVarId};
 use crate::ir::module::IrModule;
 use crate::ir::sort::SortId;
@@ -33,18 +33,8 @@ pub fn convert_ir_decl(
     decl: &Arc<Decl>,
     module: &mut IrModule,
 ) -> Result<(), ()> {
-    let add_def = |module: &mut IrModule, id: &Identifier, id_loc: SourceRange, value: IrDeclEnum| {
-        let def_id = context.generate_def_id(module.id);
-        let decl_id = context.generate_decl_id(module.id);
-        module.decls.insert(decl_id, IrDecl {
-            def_id,
-            identifier: id.clone(),
-            identifier_loc: id_loc,
-            value,
-            loc: decl.loc,
-        });
-        module.add_def_source(def_id, decl_id.into());
-        decl_id
+    let finish = |module: &mut IrModule, id: &Identifier, id_loc: SourceRange, value: IrDeclEnum| {
+        add_decl_to_ir_module(context, module, id, id_loc, value, decl.loc)
     };
 
     match &decl.value {
@@ -80,7 +70,7 @@ pub fn convert_ir_decl(
                 let value = IrDeclEnum::Constructor {
                     sort: sort_id,
                 };
-                let decl_id = add_def(module, identifier, *identifier_loc, value);
+                let decl_id = finish(module, identifier, *identifier_loc, value);
                 module.add_parent(sort_id.into(), decl_id.into());
             }
         },
@@ -152,7 +142,7 @@ pub fn convert_ir_decl(
                     let value = IrDeclEnum::GlobalVariable {
                         sort: sort_id,
                     };
-                    let decl_id = add_def(module, identifier, *identifier_loc, value);
+                    let decl_id = finish(module, identifier, *identifier_loc, value);
                     module.add_parent(sort_id.into(), decl_id.into());
                 }
             }
@@ -161,15 +151,14 @@ pub fn convert_ir_decl(
             let sort_id = convert_ir_proc(context, value, module)?;
             if module.initial.is_some() {
                 let error = "more than one `init` declaration".to_owned();
-                context.error(module.id, decl.loc, error);
-                return Err(());
+                return context.error(module.id, decl.loc, error);
             }
             module.initial = Some(sort_id);
         },
         DeclEnum::Map { id, id_loc, sort } => {
             let sort_id = convert_ir_sort(context, sort, module)?;
             let value = IrDeclEnum::Map { sort: sort_id };
-            let decl_id = add_def(module, id, *id_loc, value);
+            let decl_id = finish(module, id, *id_loc, value);
             module.add_parent(sort_id.into(), decl_id.into());
         },
         DeclEnum::Sort { ids, sort } => {
@@ -178,12 +167,12 @@ pub fn convert_ir_decl(
                 assert_eq!(ids.len(), 1);
                 let sort_id = convert_ir_sort(context, sort, module)?;
                 let value = IrDeclEnum::SortAlias { sort: sort_id };
-                let decl_id = add_def(module, &ids[0].0, ids[0].1, value);
+                let decl_id = finish(module, &ids[0].0, ids[0].1, value);
                 module.add_parent(sort_id.into(), decl_id.into());
             } else {
                 // sort A_1, ..., A_n;
                 for (identifier, identifier_loc) in ids {
-                    let _ = add_def(module, identifier, *identifier_loc, IrDeclEnum::Sort);
+                    let _ = finish(module, identifier, *identifier_loc, IrDeclEnum::Sort);
                 }
             }
         },
@@ -229,6 +218,27 @@ pub fn convert_ir_decl(
         },
     }
     Ok(())
+}
+
+pub fn add_decl_to_ir_module(
+    context: &AnalysisContext,
+    module: &mut IrModule,
+    id: &Identifier,
+    id_loc: SourceRange,
+    value: IrDeclEnum,
+    loc: SourceRange,
+) -> DeclId {
+    let def_id = context.generate_def_id(module.id);
+    let decl_id = context.generate_decl_id(module.id);
+    module.decls.insert(decl_id, IrDecl {
+        def_id,
+        identifier: id.clone(),
+        identifier_loc: id_loc,
+        value,
+        loc,
+    });
+    module.add_def_source(def_id, decl_id.into());
+    decl_id
 }
 
 fn decompose_carthesian_sort(
