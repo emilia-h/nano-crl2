@@ -66,12 +66,17 @@ where
         NodeId::Decl(id) => {
             let decl = module.get_decl(id);
             match &decl.value {
-                IrDeclEnum::Action { sorts } => {
+                IrDeclEnum::Action { params: sorts } => {
                     for &sort_id in sorts {
                         writer(sort_id.into());
                     }
                 },
-                IrDeclEnum::Constructor { sort } |
+                IrDeclEnum::Constructor { params, sort } => {
+                    for param in params {
+                        writer((*param).into());
+                    }
+                    writer((*sort).into());
+                },
                 IrDeclEnum::GlobalVariable { sort } |
                 IrDeclEnum::Map { sort } |
                 IrDeclEnum::SortAlias { sort } => {
@@ -79,7 +84,7 @@ where
                 },
                 IrDeclEnum::Process { params, proc } => {
                     for index in 0 .. params.len() {
-                        writer(ParamId { decl: id, index }.into());
+                        writer(ParamId { parent: id.into(), index }.into());
                     }
                     writer((*proc).into());
                 },
@@ -115,9 +120,15 @@ where
                         writer(expr_id.into());
                     }
                 },
-                IrExprEnum::Binder { sort, expr, .. } => {
+                IrExprEnum::Binder { sort, value, .. } => {
                     writer((*sort).into());
-                    writer((*expr).into());
+                    writer((*value).into());
+                },
+                IrExprEnum::Lambda { params, value } => {
+                    for index in 0 .. params.len() {
+                        writer(ParamId { parent: id.into(), index }.into());
+                    }
+                    writer((*value).into());
                 },
                 IrExprEnum::Unary { value, .. } => {
                     writer((*value).into());
@@ -202,12 +213,10 @@ where
                 IrSortEnum::Generic { subsort, .. } => {
                     writer((*subsort).into());
                 },
-                IrSortEnum::Carthesian { lhs, rhs } => {
-                    writer((*lhs).into());
-                    writer((*rhs).into());
-                },
                 IrSortEnum::Function { lhs, rhs } => {
-                    writer((*lhs).into());
+                    for &param_sort_id in lhs {
+                        writer(param_sort_id.into());
+                    }
                     writer((*rhs).into());
                 },
                 IrSortEnum::Name { .. } => {},

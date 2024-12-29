@@ -91,17 +91,19 @@ fn calculate_sort_of_expr(
         IrExprEnum::Binder { op: BinderExprOp::Exists, .. } => {
             Ok(sort_context.get_primitive_sort(PrimitiveSort::Bool))
         },
-        IrExprEnum::Binder { op: BinderExprOp::Lambda, sort, expr, .. } => {
-            let variable_sort = query_resolved_sort(context, *sort)?;
-            let expr_sort = query_sort_of_expr(context, *expr)?;
-            Ok(sort_context.get_function_sort(&variable_sort, &expr_sort))
-        },
         IrExprEnum::Binder { op: BinderExprOp::SetComprehension, sort, .. } => {
             let result = sort_context.get_generic_sort(
                 GenericSortOp::Set,
                 &query_resolved_sort(context, *sort)?,
             );
             Ok(result)
+        },
+
+        IrExprEnum::Lambda { params, value, .. } => {
+            todo!()
+            // let variable_sort = query_resolved_sort(context, *sort)?;
+            // let expr_sort = query_sort_of_expr(context, *expr)?;
+            // Ok(sort_context.get_function_sort(&variable_sort, &expr_sort))
         },
 
         IrExprEnum::Unary { op: UnaryExprOp::LogicalNot, .. } => {
@@ -369,13 +371,16 @@ fn calculate_sort_of_def(
         NodeId::Decl(id) => {
             let decl = module.get_decl(id);
             match &decl.value {
-                IrDeclEnum::Constructor { sort } |
+                IrDeclEnum::Constructor { sort, .. } |
                 IrDeclEnum::GlobalVariable { sort } |
                 IrDeclEnum::Map { sort } => {
                     query_resolved_sort(context, *sort)
                 },
                 _ => {
-                    let error = "declaration does not have a sort, cannot be used in an expression".to_owned();
+                    let error = format!(
+                        "declaration `{}` does not have a sort, cannot be used in an expression",
+                        decl.identifier
+                    );
                     return context.error(module.id, decl.loc, error);
                 },
             }
@@ -422,16 +427,15 @@ fn calculate_resolved_sort(
     let ir_sort = module.get_sort(sort);
     let sort_context = context.get_resolved_sort_context();
     match &ir_sort.value {
-        IrSortEnum::Carthesian { lhs, rhs } => {
-            let (lhs_resolved, rhs_resolved) = chain_result(
-                query_resolved_sort(context, *lhs),
-                query_resolved_sort(context, *rhs),
-            )?;
-            Ok(sort_context.get_carthesian_sort(&lhs_resolved, &rhs_resolved))
-        },
         IrSortEnum::Function { lhs, rhs } => {
+            let lhs_resolved = lhs
+                .iter()
+                .map(|&x| {
+                    query_resolved_sort(context, x)
+                })
+                .collect::<Result<Vec<Interned<ResolvedSort>>, ()>>();
             let (lhs_resolved, rhs_resolved) = chain_result(
-                query_resolved_sort(context, *lhs),
+                lhs_resolved,
                 query_resolved_sort(context, *rhs),
             )?;
             Ok(sort_context.get_function_sort(&lhs_resolved, &rhs_resolved))
@@ -485,10 +489,6 @@ fn find_common_sort(
         // a generic sort can only have a common type with another generic
         // sort
         (Generic { op: op1, subsort: s1 }, Generic { op: op2, subsort: s2 }) => {
-            todo!()
-        },
-        (Carthesian { lhs: lhs1, rhs: rhs1 }, Carthesian { lhs: lh2, rhs: rhs2 }) => {
-            // need to be careful here! because of associativity
             todo!()
         },
         (Function { lhs: lhs1, rhs: rhs1 }, Function { lhs: lh2, rhs: rhs2 }) => {

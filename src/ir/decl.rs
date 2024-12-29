@@ -1,6 +1,6 @@
 
 use crate::core::syntax::{Identifier, SourceRange};
-use crate::ir::module::ModuleId;
+use crate::ir::module::{DeclOrExprId, ModuleId};
 use crate::ir::proc::ProcId;
 use crate::ir::sort::SortId;
 
@@ -18,9 +18,10 @@ pub struct IrDecl {
 #[derive(Debug)]
 pub enum IrDeclEnum {
     Action {
-        sorts: Vec<SortId>,
+        params: Vec<SortId>,
     },
     Constructor {
+        params: Vec<SortId>,
         sort: SortId,
     },
     GlobalVariable {
@@ -88,19 +89,19 @@ impl Debug for DeclId {
 /// declaration.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub struct ParamId {
-    pub(crate) decl: DeclId,
+    pub(crate) parent: DeclOrExprId,
     pub(crate) index: usize,
 }
 
 impl ParamId {
     pub fn get_module_id(&self) -> ModuleId {
-        self.decl.module
+        self.parent.get_module_id()
     }
 }
 
 impl Debug for ParamId {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}.param.{}", self.decl, self.index)
+        write!(f, "{:?}.param.{}", self.parent, self.index)
     }
 }
 

@@ -1,14 +1,13 @@
 
 use crate::analysis::context::AnalysisContext;
+use crate::analysis::ir_conversion::decl::add_decl_to_ir_module;
 use crate::core::syntax::{Identifier, SourceRange};
-use crate::ir::decl::IrDeclEnum;
+use crate::ir::decl::{IrDecl, IrDeclEnum};
 use crate::ir::module::IrModule;
 use crate::ir::sort::{GenericSortOp, IrSort, IrSortEnum, PrimitiveSort, SortId};
 use crate::model::sort::{Sort, SortEnum};
 
 use std::sync::Arc;
-
-use super::decl::add_decl_to_ir_module;
 
 pub fn convert_ir_sort(
     context: &AnalysisContext,
@@ -16,12 +15,7 @@ pub fn convert_ir_sort(
     module: &mut IrModule,
 ) -> Result<SortId, ()> {
     let add_sort = |module: &mut IrModule, value: IrSortEnum| {
-        let sort_id = context.generate_sort_id(module.id);
-        module.sorts.insert(sort_id, IrSort {
-            value,
-            loc: sort.loc,
-        });
-        sort_id
+        add_sort_to_ir_module(context, module, value, sort.loc)
     };
 
     let convert_generic_sort = |
@@ -77,53 +71,116 @@ pub fn convert_ir_sort(
             // desugar into named structured type
             // https://www.mcrl2.org/web/user_manual/language_reference/data.html#structured-sorts
             let generated = Identifier::new_from_owned(
-                format!("__Struct_")
+                format!("__Struct_{}", context.generate_name_id())
             );
-            add_decl_to_ir_module(
+            let sort_decl_id = add_decl_to_ir_module(
                 context, module,
-                &generated, SourceRange::new(0, 0, 0, 0),
+                &generated, SourceRange::EMPTY,
                 IrDeclEnum::Sort,
-                SourceRange::new(0, 0, 0, 0),
+                sort.loc,
+            );
+            module.add_parent(sort_decl_id.into(), module.id.into());
+
+            let name = |module: &mut IrModule| add_sort_to_ir_module(
+                context, module,
+                IrSortEnum::Name { identifier: generated.clone() },
+                sort.loc,
             );
 
-            // for constructor in constructors {
-            //     add_decl_to_ir_module(
-            //         context, module,
-            //         &constructor.id, constructor.id_loc,
-            //         IrDeclEnum::Constructor { sort: () },
-            //         constructor.loc,
-            //     );
-            //     for property in constructor.properties {
-                    
-            //     }
-            //     if let Some((recognizer, recognizer_loc)) = constructor.recognizer_id {
+            for constructor in constructors {
+                let struct_sort_id = name(module);
+                let params = constructor.properties
+                    .iter()
+                    .map(|(_, sort)| {
+                        convert_ir_sort(context, sort, module)
+                    })
+                    .collect::<Result<Vec<SortId>, ()>>()?;
 
-            //     }
-            // }
+                let def_id = context.generate_def_id(module.id);
+                let cons_decl_id = context.generate_decl_id(module.id);
+                for &param in &params {
+                    module.add_parent(param.into(), cons_decl_id.into());
+                }
+                module.decls.insert(cons_decl_id, IrDecl {
+                    def_id,
+                    identifier: constructor.id.clone(),
+                    identifier_loc: constructor.id_loc,
+                    value: IrDeclEnum::Constructor {
+                        params,
+                        sort: struct_sort_id,
+                    },
+                    loc: constructor.loc,
+                });
+                module.add_def_source(def_id, cons_decl_id.into());
+                module.add_parent(struct_sort_id.into(), cons_decl_id.into());
+                module.add_parent(cons_decl_id.into(), module.id.into());
+
+                // for (optional_identifier, property_sort) in &constructor.properties {
+                //     if let Some(property_identifier) = optional_identifier {
+                //         todo!()
+                //     }
+                // }
+                // if let Some((recognizer, recognizer_loc)) = &constructor.recognizer_id {
+                //     todo!()
+                // }
+            }
 
             add_sort(module, IrSortEnum::Name { identifier: generated })
         },
         SortEnum::Carthesian { lhs, rhs } => {
-            let lhs_id = convert_ir_sort(context, lhs, module)?;
-            let rhs_id = convert_ir_sort(context, rhs, module)?;
-            let sort_id = add_sort(module, IrSortEnum::Carthesian {
-                lhs: lhs_id,
-                rhs: rhs_id,
-            });
-            module.add_parent(lhs_id.into(), sort_id.into());
-            module.add_parent(rhs_id.into(), sort_id.into());
-            sort_id
+            let error = format!(
+                "`#` sort `{} # {}` is only allowed on the left of a `->` sort or in an `act` declaration",
+                lhs,
+                rhs,
+            );
+            return context.error(module.id, sort.loc, error);
         },
         SortEnum::Function { lhs, rhs } => {
-            let lhs_id = convert_ir_sort(context, lhs, module)?;
+            let mut lhs_ids = Vec::new();
+            decompose_carthesian_sort(context, lhs, module, &mut lhs_ids)?;
             let rhs_id = convert_ir_sort(context, rhs, module)?;
-            let sort_id = add_sort(module, IrSortEnum::Function {
-                lhs: lhs_id,
-                rhs: rhs_id,
+            let sort_id = context.generate_sort_id(module.id);
+            for &lhs_id in &lhs_ids {
+                module.add_parent(lhs_id.into(), sort_id.into());
+            }
+            module.sorts.insert(sort_id, IrSort {
+                value: IrSortEnum::Function {
+                    lhs: lhs_ids,
+                    rhs: rhs_id,
+                },
+                loc: sort.loc,
             });
-            module.add_parent(lhs_id.into(), sort_id.into());
             module.add_parent(rhs_id.into(), sort_id.into());
+
             sort_id
         },
     })
+}
+
+fn add_sort_to_ir_module(
+    context: &AnalysisContext,
+    module: &mut IrModule,
+    value: IrSortEnum,
+    loc: SourceRange,
+) -> SortId {
+    let sort_id = context.generate_sort_id(module.id);
+    module.sorts.insert(sort_id, IrSort { value, loc });
+    sort_id
+}
+
+pub fn decompose_carthesian_sort(
+    context: &AnalysisContext,
+    sort: &Arc<Sort>,
+    module: &mut IrModule,
+    result: &mut Vec<SortId>,
+) -> Result<(), ()> {
+    match &sort.value {
+        SortEnum::Carthesian { lhs, rhs } => {
+            decompose_carthesian_sort(context, lhs, module, result)?;
+            decompose_carthesian_sort(context, rhs, module, result)?;
+        },
+        _ => result.push(convert_ir_sort(context, sort, module)?),
+    }
+
+    Ok(())
 }

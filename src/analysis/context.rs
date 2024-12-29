@@ -65,8 +65,8 @@ impl AnalysisContext {
         }
     }
 
-    /// Adds the AST of a module as a new input to the context, and returns the
-    /// ID that it is given internally.
+    /// Adds the contents of a module as a new input to the context, and
+    /// returns the ID that it is given internally.
     /// 
     /// Note that multiple inputs with the same module name should in general
     /// not be added without removing them first, because this may lead to
@@ -103,6 +103,12 @@ impl AnalysisContext {
 
     pub fn get_resolved_sort_context(&self) -> &ResolvedSortContext {
         &self.resolved_sort_context
+    }
+
+    pub fn generate_name_id(&self) -> usize {
+        let value = self.id_counter.get();
+        self.id_counter.set(value + 1);
+        value
     }
 
     /// Returns a declaration ID that was not returned by this function before.
@@ -218,17 +224,11 @@ pub struct ResolvedSortContext {
         Interned<ResolvedSort>,
     >>,
 
-    // binary sort operators
-    carthesian_sorts: RefCell<HashMap<
-        (Interned<ResolvedSort>, Interned<ResolvedSort>),
-        Interned<ResolvedSort>,
-    >>,
-    function_sorts: RefCell<HashMap<
-        (Interned<ResolvedSort>, Interned<ResolvedSort>),
-        Interned<ResolvedSort>,
-    >>,
-
     // other
+    function_sorts: RefCell<HashMap<
+        (Vec<Interned<ResolvedSort>>, Interned<ResolvedSort>),
+        Interned<ResolvedSort>,
+    >>,
     def_sorts: RefCell<HashMap<DefId, Interned<ResolvedSort>>>,
 }
 
@@ -247,7 +247,6 @@ impl ResolvedSortContext {
             fset_sorts: RefCell::new(HashMap::new()),
             fbag_sorts: RefCell::new(HashMap::new()),
             def_sorts: RefCell::new(HashMap::new()),
-            carthesian_sorts: RefCell::new(HashMap::new()),
             function_sorts: RefCell::new(HashMap::new()),
         }
     }
@@ -284,37 +283,19 @@ impl ResolvedSortContext {
         }))
     }
 
-    pub fn get_carthesian_sort(
-        &self,
-        lhs: &Interned<ResolvedSort>,
-        rhs: &Interned<ResolvedSort>,
-    ) -> Interned<ResolvedSort> {
-        let key = (
-            Interned::clone(lhs),
-            Interned::clone(rhs),
-        );
-        let mut borrow = self.carthesian_sorts.borrow_mut();
-        Interned::clone(borrow.entry(key).or_insert_with(move || {
-            Interned::new(ResolvedSort::Carthesian {
-                lhs: Interned::clone(&lhs),
-                rhs: Interned::clone(&rhs),
-            })
-        }))
-    }
-
     pub fn get_function_sort(
         &self,
-        lhs: &Interned<ResolvedSort>,
+        lhs: &Vec<Interned<ResolvedSort>>,
         rhs: &Interned<ResolvedSort>,
     ) -> Interned<ResolvedSort> {
         let key = (
-            Interned::clone(lhs),
+            lhs.clone(),
             Interned::clone(rhs),
         );
         let mut borrow = self.function_sorts.borrow_mut();
         Interned::clone(borrow.entry(key).or_insert_with(move || {
             Interned::new(ResolvedSort::Function {
-                lhs: Interned::clone(&lhs),
+                lhs: lhs.clone(),
                 rhs: Interned::clone(&rhs),
             })
         }))

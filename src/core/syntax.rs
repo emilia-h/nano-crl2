@@ -132,6 +132,8 @@ impl SourceRange {
         SourceRange { start_line, start_char, end_line, end_char }
     }
 
+    pub const EMPTY: Self = SourceRange::new(0, 0, 0, 0);
+
     pub const fn get_start(&self) -> SourceCursorPos {
         SourceCursorPos(self.start_line, self.start_char)
     }

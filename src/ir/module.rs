@@ -2,8 +2,8 @@
 use crate::core::syntax::SourceRange;
 use crate::ir::decl::{DeclId, DefId, IrDecl, IrDeclEnum, IrParam, ParamId};
 use crate::ir::expr::{
-    ExprId, IrExpr, IrRewriteRule, IrRewriteSet, IrRewriteVar, RewriteRuleId,
-    RewriteSetId, RewriteVarId,
+    ExprId, IrExpr, IrExprEnum, IrRewriteRule, IrRewriteSet, IrRewriteVar,
+    RewriteRuleId, RewriteSetId, RewriteVarId,
 };
 use crate::ir::proc::{ActionId, IrAction, IrProc, IrProcEnum, ProcId};
 use crate::ir::sort::{IrSort, SortId};
@@ -132,13 +132,27 @@ impl IrModule {
     }
 
     pub fn get_param(&self, node: ParamId) -> &IrParam {
-        let decl = self.decls.get(&node.decl).unwrap();
-        match &decl.value {
-            IrDeclEnum::Process { params, .. } => {
-                assert!(node.index < params.len());
-                &params[node.index]
+        match node.parent {
+            DeclOrExprId::Decl(id) => {
+                let decl = self.decls.get(&id).unwrap();
+                match &decl.value {
+                    IrDeclEnum::Process { params, .. } => {
+                        assert!(node.index < params.len());
+                        &params[node.index]
+                    },
+                    _ => panic!("node {:?} does not have parameters", id),
+                }
             },
-            _ => panic!("node {:?} does not have parameters", node.decl),
+            DeclOrExprId::Expr(id) => {
+                let expr = self.exprs.get(&id).unwrap();
+                match &expr.value {
+                    IrExprEnum::Lambda { params, .. } => {
+                        assert!(node.index < params.len());
+                        &params[node.index]
+                    },
+                    _ => panic!("node {:?} does not have parameters", id),
+                }
+            },
         }
     }
 
@@ -227,7 +241,7 @@ impl NodeId {
             Self::Action(id) => id.proc.module,
             Self::Decl(id) => id.module,
             Self::Expr(id) => id.module,
-            Self::Param(id) => id.decl.module,
+            Self::Param(id) => id.parent.get_module_id(),
             Self::Proc(id) => id.module,
             Self::RewriteRule(id) => id.rewrite_set.module,
             Self::RewriteSet(id) => id.module,
@@ -311,5 +325,43 @@ impl From<RewriteVarId> for NodeId {
 impl From<SortId> for NodeId {
     fn from(value: SortId) -> Self {
         Self::Sort(value)
+    }
+}
+
+/// An ugly but necessary enum, which is used for `ParamId`s, since a parameter
+/// can be either in a process declaration or a lambda expression.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+pub enum DeclOrExprId {
+    Decl(DeclId),
+    Expr(ExprId),
+}
+
+impl DeclOrExprId {
+    pub fn get_module_id(&self) -> ModuleId {
+        match self {
+            Self::Decl(id) => id.get_module_id(),
+            Self::Expr(id) => id.get_module_id(),
+        }
+    }
+}
+
+impl Debug for DeclOrExprId {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            Self::Decl(id) => write!(f, "{:?}", id),
+            Self::Expr(id) => write!(f, "{:?}", id),
+        }
+    }
+}
+
+impl From<DeclId> for DeclOrExprId {
+    fn from(value: DeclId) -> Self {
+        Self::Decl(value)
+    }
+}
+
+impl From<ExprId> for DeclOrExprId {
+    fn from(value: ExprId) -> Self {
+        Self::Expr(value)
     }
 }

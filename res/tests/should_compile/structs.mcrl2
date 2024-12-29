@@ -1,0 +1,7 @@
+
+sort Rec = struct foo(Rec) | foo2(b: Rec, c: Rec) | foo3(l: List(Rec)) ? is_list;
+
+map a: struct cons1 | cons2 -> Nat;
+proc B(param1: struct cons1 | cons2) = delta;
+act c: struct cons1 | cons3 # struct cons4;
+act d: struct cons1(proj1: Nat, proj2: Nat) ? recognizer;

@@ -21,12 +21,8 @@ pub enum IrSortEnum {
         op: GenericSortOp,
         subsort: SortId,
     },
-    Carthesian {
-        lhs: SortId,
-        rhs: SortId,
-    },
     Function {
-        lhs: SortId,
+        lhs: Vec<SortId>,
         rhs: SortId,
     },
     Name {
@@ -46,12 +42,8 @@ pub enum ResolvedSort {
         op: GenericSortOp,
         subsort: Interned<ResolvedSort>,
     },
-    Carthesian {
-        lhs: Interned<ResolvedSort>,
-        rhs: Interned<ResolvedSort>,
-    },
     Function {
-        lhs: Interned<ResolvedSort>,
+        lhs: Vec<Interned<ResolvedSort>>,
         rhs: Interned<ResolvedSort>,
     },
     Def {

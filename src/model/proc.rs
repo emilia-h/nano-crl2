@@ -15,11 +15,10 @@ use crate::core::parser::{Parseable, ParseError, Parser};
 use crate::core::syntax::{Identifier, SourceRange};
 use crate::model::decl::VariableDecl;
 use crate::model::expr::{Expr, parse_unit_expr};
+use crate::model::display::display_pretty_default;
 
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
-
-use super::display::display_pretty_default;
 
 /// A process expression in an mCRL2 model.
 pub struct Proc {

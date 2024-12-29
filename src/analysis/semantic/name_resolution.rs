@@ -34,7 +34,6 @@ fn calculate_def_of_name(
     context: &AnalysisContext,
     node: NodeId,
 ) -> Result<DefId, ()> {
-
     let module = query_ir_module(context, node.get_module_id())?;
 
     // note that there are three separate name spaces, namely one for
@@ -187,7 +186,7 @@ fn find_def_of_name(
                 NameLookupEnum::Expr {} => {
                     for decl in module.decls.values() {
                         match &decl.value {
-                            IrDeclEnum::Constructor { sort } => {
+                            IrDeclEnum::Constructor { params, sort } => {
                                 todo!()
                             },
                             IrDeclEnum::GlobalVariable { sort } => {
@@ -203,7 +202,7 @@ fn find_def_of_name(
                 NameLookupEnum::Proc {} => {
                     for decl in module.decls.values() {
                         match &decl.value {
-                            IrDeclEnum::Action { sorts } => {
+                            IrDeclEnum::Action { params: sorts } => {
                                 todo!()
                             },
                             IrDeclEnum::Process { params, proc } => {

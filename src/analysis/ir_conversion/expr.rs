@@ -1,6 +1,7 @@
 
 use crate::analysis::context::AnalysisContext;
 use crate::analysis::ir_conversion::sort::convert_ir_sort;
+use crate::ir::decl::{IrParam, ParamId};
 use crate::model::decl::VariableDecl;
 use crate::model::expr::{Expr, ExprEnum};
 use crate::ir::expr::{BinaryExprOp, BinderExprOp, ExprId, IrExpr, IrExprEnum, UnaryExprOp};
@@ -47,7 +48,7 @@ pub fn convert_ir_expr(
                     identifier: identifier.clone(),
                     identifier_loc: *identifier_loc,
                     sort: sort_id,
-                    expr: current_id,
+                    value: current_id,
                 });
                 module.add_parent(sort_id.into(), next_id.into());
                 module.add_parent(current_id.into(), next_id.into());
@@ -129,8 +130,24 @@ pub fn convert_ir_expr(
             });
             expr_id
         },
-        ExprEnum::Bag { values: _ } => {
-            todo!()
+        ExprEnum::Bag { values } => {
+            let mut value_pairs = Vec::new();
+            for (lhs, rhs) in values {
+                value_pairs.push((
+                    convert_ir_expr(context, lhs, module)?,
+                    convert_ir_expr(context, rhs, module)?,
+                ));
+            }
+            let expr_id = context.generate_expr_id(module.id);
+            for &(lhs, rhs) in &value_pairs {
+                module.add_parent(lhs.into(), expr_id.into());
+                module.add_parent(rhs.into(), expr_id.into());
+            }
+            module.exprs.insert(expr_id, IrExpr {
+                value: IrExprEnum::BagLiteral { values: value_pairs },
+                loc: expr.loc,
+            });
+            expr_id
         },
         ExprEnum::SetComprehension { id, id_loc, sort, condition } => {
             let sort_id = convert_ir_sort(context, sort, module)?;
@@ -142,7 +159,7 @@ pub fn convert_ir_expr(
                 identifier: id.clone(),
                 identifier_loc: *id_loc,
                 sort: sort_id,
-                expr: condition_id,
+                value: condition_id,
             });
             module.add_parent(sort_id.into(), expr_id.into());
             module.add_parent(condition_id.into(), expr_id.into());
@@ -199,7 +216,45 @@ pub fn convert_ir_expr(
             convert_multi_binder_expr(module, BinderExprOp::Exists, variables, condition)?
         },
         ExprEnum::Lambda { variables, expr } => {
-            convert_multi_binder_expr(module, BinderExprOp::Lambda, variables, expr)?
+            // NOTE: for lambdas, `lambda x, y: Nat . something` (uncurried) is
+            // NOT `lambda x: Nat . lambda y: Nat . something` (curried)
+            let mut ir_params = Vec::new();
+            for variable_decl in variables {
+                for (identifier, identifier_loc) in &variable_decl.ids {
+                    let sort_id = convert_ir_sort(context, &variable_decl.sort, module)?;
+                    let def_id = context.generate_def_id(module.id);
+                    ir_params.push(IrParam {
+                        def_id,
+                        identifier: identifier.clone(),
+                        identifier_loc: *identifier_loc,
+                        sort: sort_id,
+                        loc: variable_decl.loc,
+                    });
+                }
+            }
+
+            let value_id = convert_ir_expr(context, expr, module)?;
+
+            let expr_id = context.generate_expr_id(module.id);
+            for (index, param) in ir_params.iter().enumerate() {
+                let param_id = ParamId {
+                    parent: expr_id.into(),
+                    index,
+                };
+                module.add_parent(param.sort.into(), param_id.into());
+                module.add_parent(param_id.into(), expr_id.into());
+                module.add_def_source(param.def_id, param_id.into());
+            }
+            module.exprs.insert(expr_id, IrExpr {
+                value: IrExprEnum::Lambda {
+                    params: ir_params,
+                    value: value_id
+                },
+                loc: expr.loc,
+            });
+            module.add_parent(value_id.into(), expr_id.into());
+
+            expr_id
         },
         ExprEnum::Implies { lhs, rhs } => {
             convert_binary_expr(module, BinaryExprOp::Implies, lhs, rhs)?

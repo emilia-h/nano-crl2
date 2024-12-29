@@ -1,6 +1,6 @@
 
 use crate::core::syntax::{Identifier, SourceRange};
-use crate::ir::decl::DefId;
+use crate::ir::decl::{DefId, IrParam};
 use crate::ir::module::ModuleId;
 use crate::ir::sort::SortId;
 
@@ -51,7 +51,11 @@ pub enum IrExprEnum {
         identifier: Identifier,
         identifier_loc: SourceRange,
         sort: SortId,
-        expr: ExprId,
+        value: ExprId,
+    },
+    Lambda {
+        params: Vec<IrParam>,
+        value: ExprId,
     },
     Unary {
         op: UnaryExprOp,
@@ -87,7 +91,6 @@ pub enum UnaryExprOp {
 pub enum BinderExprOp {
     Forall,
     Exists,
-    Lambda,
     SetComprehension,
 }
 

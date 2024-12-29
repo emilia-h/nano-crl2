@@ -36,14 +36,14 @@ pub fn fmt_resolved_sort(
             fmt_resolved_sort(subsort, module, f)?;
             write!(f, ")")?;
         },
-        ResolvedSort::Carthesian { lhs, rhs } => {
-            fmt_resolved_sort(lhs, module, f)?;
-            write!(f, " # ")?;
-            fmt_resolved_sort(rhs, module, f)?;
-        },
         ResolvedSort::Function { lhs, rhs } => {
             write!(f, "(")?;
-            fmt_resolved_sort(lhs, module, f)?;
+            for (i, param_sort) in lhs.iter().enumerate() {
+                if i > 0 {
+                    write!(f, " # ")?;
+                }
+                fmt_resolved_sort(param_sort, module, f)?;
+            }
             write!(f, " -> ")?;
             fmt_resolved_sort(rhs, module, f)?;
             write!(f, ")")?;

@@ -2,14 +2,13 @@
 use crate::analysis::context::AnalysisContext;
 use crate::analysis::ir_conversion::expr::convert_ir_expr;
 use crate::analysis::ir_conversion::proc::convert_ir_proc;
-use crate::analysis::ir_conversion::sort::convert_ir_sort;
+use crate::analysis::ir_conversion::sort::{convert_ir_sort, decompose_carthesian_sort};
 use crate::core::syntax::{Identifier, SourceRange};
 use crate::ir::decl::{DeclId, IrDecl, IrDeclEnum, IrParam, ParamId};
 use crate::ir::expr::{IrRewriteRule, IrRewriteSet, IrRewriteVar, RewriteRuleId, RewriteVarId};
 use crate::ir::module::IrModule;
-use crate::ir::sort::SortId;
 use crate::model::decl::{Decl, DeclEnum};
-use crate::model::sort::{Sort, SortEnum};
+use crate::model::sort::SortEnum;
 
 use std::sync::Arc;
 
@@ -57,7 +56,7 @@ pub fn convert_ir_decl(
                     identifier: identifier.clone(),
                     identifier_loc: *identifier_loc,
                     value: IrDeclEnum::Action {
-                        sorts: sort_ids,
+                        params: sort_ids,
                     },
                     loc: decl.loc,
                 });
@@ -66,11 +65,35 @@ pub fn convert_ir_decl(
         },
         DeclEnum::Constructor { ids, sort } => {
             for (identifier, identifier_loc) in ids {
-                let sort_id = convert_ir_sort(context, sort, module)?;
-                let value = IrDeclEnum::Constructor {
-                    sort: sort_id,
+                let (param_ids, sort_id) = match &sort.value {
+                    SortEnum::Function { lhs, rhs } => {
+                        let mut param_ids = Vec::new();
+                        decompose_carthesian_sort(context, lhs, module, &mut param_ids)?;
+                        let sort_id = convert_ir_sort(context, &rhs, module)?;
+                        (param_ids, sort_id)
+                    },
+                    _ => {
+                        let sort_id = convert_ir_sort(context, sort, module)?;
+                        (Vec::new(), sort_id)
+                    },
                 };
-                let decl_id = finish(module, identifier, *identifier_loc, value);
+
+                let def_id = context.generate_def_id(module.id);
+                let decl_id = context.generate_decl_id(module.id);
+                for &param_id in &param_ids {
+                    module.add_parent(param_id.into(), decl_id.into());
+                }
+                module.decls.insert(decl_id, IrDecl {
+                    def_id,
+                    identifier: identifier.clone(),
+                    identifier_loc: *identifier_loc,
+                    value: IrDeclEnum::Constructor {
+                        params: param_ids,
+                        sort: sort_id,
+                    },
+                    loc: decl.loc,
+                });
+                module.add_def_source(def_id, decl_id.into());
                 module.add_parent(sort_id.into(), decl_id.into());
             }
         },
@@ -199,7 +222,7 @@ pub fn convert_ir_decl(
             let decl_id = context.generate_decl_id(module.id);
             for (index, param) in ir_params.iter().enumerate() {
                 let param_id = ParamId {
-                    decl: decl_id,
+                    parent: decl_id.into(),
                     index,
                 };
                 module.add_parent(param.sort.into(), param_id.into());
@@ -239,21 +262,4 @@ pub fn add_decl_to_ir_module(
     });
     module.add_def_source(def_id, decl_id.into());
     decl_id
-}
-
-fn decompose_carthesian_sort(
-    context: &AnalysisContext,
-    sort: &Arc<Sort>,
-    module: &mut IrModule,
-    result: &mut Vec<SortId>,
-) -> Result<(), ()> {
-    match &sort.value {
-        SortEnum::Carthesian { lhs, rhs } => {
-            decompose_carthesian_sort(context, lhs, module, result)?;
-            decompose_carthesian_sort(context, rhs, module, result)?;
-        },
-        _ => result.push(convert_ir_sort(context, sort, module)?),
-    }
-
-    Ok(())
 }
