@@ -31,6 +31,7 @@ pub struct AnalysisContext {
     model_inputs: HashMap<ModuleId, (String, String)>,
 
     pub(crate) ast_modules: QueryHashMap<ModuleId, Result<Arc<Module>, ()>>,
+    pub(crate) compilation_checks: QueryHashMap<ModuleId, Result<(), ()>>,
     pub(crate) defs_of_names: QueryHashMap<NodeId, Result<DefId, ()>>,
     pub(crate) ir_modules: QueryHashMap<ModuleId, Result<Arc<IrModule>, ()>>,
     pub(crate) resolved_sorts: QueryHashMap<SortId, Result<Interned<ResolvedSort>, ()>>,
@@ -51,6 +52,7 @@ impl AnalysisContext {
             model_inputs: HashMap::new(),
 
             ast_modules: QueryHashMap::new(),
+            compilation_checks: QueryHashMap::new(),
             defs_of_names: QueryHashMap::new(),
             ir_modules: QueryHashMap::new(),
             resolved_sorts: QueryHashMap::new(),

@@ -28,8 +28,8 @@ pub enum IrSortEnum {
     Name {
         identifier: Identifier,
     },
-    Struct {
-        // TODO
+    Def {
+        def_id: DefId,
     },
 }
 

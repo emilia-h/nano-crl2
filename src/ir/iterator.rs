@@ -220,9 +220,7 @@ where
                     writer((*rhs).into());
                 },
                 IrSortEnum::Name { .. } => {},
-                IrSortEnum::Struct {  } => {
-
-                },
+                IrSortEnum::Def { .. } => {},
             }
         },
     }

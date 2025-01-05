@@ -7,6 +7,7 @@ use crate::ir::display::ResolvedSortDisplay;
 use crate::ir::expr::{BinaryExprOp, BinderExprOp, ExprId, IrExpr, IrExprEnum, UnaryExprOp};
 use crate::ir::iterator::get_node_loc;
 use crate::ir::module::{IrModule, NodeId};
+use crate::ir::proc::IrProcEnum;
 use crate::ir::sort::{GenericSortOp, IrSortEnum, PrimitiveSort, ResolvedSort, SortId};
 use crate::util::caching::Interned;
 use crate::util::error::{chain_option, chain_result};
@@ -16,6 +17,8 @@ use crate::util::error::{chain_option, chain_result};
 /// Note that this query does not necessarily typecheck the expression.
 /// Sometimes it is possible to find the sort of an expression without it being
 /// typed correctly, and then this query will not return an error.
+/// 
+/// This query is cached.
 pub fn query_sort_of_expr(
     context: &AnalysisContext,
     expr: ExprId,
@@ -367,7 +370,6 @@ fn calculate_sort_of_def(
     let module = query_ir_module(context, def.get_module_id())?;
     let def_source = module.get_def_source(def);
     match def_source {
-        NodeId::Action(_) => panic!("an action cannot define something"),
         NodeId::Decl(id) => {
             let decl = module.get_decl(id);
             match &decl.value {
@@ -376,7 +378,7 @@ fn calculate_sort_of_def(
                 IrDeclEnum::Map { sort } => {
                     query_resolved_sort(context, *sort)
                 },
-                _ => {
+                _ => { // NOTE: this has to be an actual error, not `panic`
                     let error = format!(
                         "declaration `{}` does not have a sort, cannot be used in an expression",
                         decl.identifier
@@ -385,17 +387,43 @@ fn calculate_sort_of_def(
                 },
             }
         },
-        NodeId::Expr(_) => todo!(),
-        NodeId::Module(_) => todo!(),
-        NodeId::Param(_) => todo!(),
-        NodeId::Proc(_) => todo!(),
-        NodeId::RewriteSet(_) => todo!(),
-        NodeId::RewriteRule(_) => todo!(),
-        NodeId::RewriteVar(id) => {
-            let rewrite_var = module.get_rewrite_var(id);
-            query_resolved_sort(context, rewrite_var.sort)
+        NodeId::Expr(id) => {
+            let expr = module.get_expr(id);
+            match &expr.value {
+                IrExprEnum::Binder { def_id, sort, .. } => {
+                    assert_eq!(*def_id, def);
+                    query_resolved_sort(context, *sort)
+                },
+                // NOTE: Lambda has parameters, so does not have a def_id
+                IrExprEnum::Where { def_id, assigned, .. } => {
+                    assert_eq!(*def_id, def);
+                    query_sort_of_expr(context, *assigned)
+                },
+                _ => panic!("an expression not a binder or `whr` cannot define something"),
+            }
         },
-        NodeId::Sort(_) => todo!(),
+        NodeId::Param(id) => {
+            query_resolved_sort(context, module.get_param(id).sort)
+        },
+        NodeId::Proc(id) => {
+            let proc = module.get_proc(id);
+            match &proc.value {
+                IrProcEnum::Sum { def_id, sort, .. } => {
+                    assert_eq!(*def_id, def);
+                    query_resolved_sort(context, *sort)
+                },
+                _ => panic!("a process that is not `sum` cannot define something"),
+            }
+        },
+        NodeId::RewriteVar(id) => {
+            query_resolved_sort(context, module.get_rewrite_var(id).sort)
+        },
+
+        NodeId::Action(_) |
+        NodeId::Module(_) |
+        NodeId::RewriteSet(_) |
+        NodeId::RewriteRule(_) |
+        NodeId::Sort(_) => panic!("this node cannot define something"),
     }
 }
 
@@ -451,7 +479,9 @@ fn calculate_resolved_sort(
         IrSortEnum::Primitive { sort } => {
             Ok(sort_context.get_primitive_sort(*sort))
         },
-        IrSortEnum::Struct {  } => todo!(),
+        IrSortEnum::Def { def_id } => {
+            Ok(sort_context.get_def_sort(*def_id))
+        },
     }
 }
 

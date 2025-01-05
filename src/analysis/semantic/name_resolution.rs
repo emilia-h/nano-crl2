@@ -4,6 +4,7 @@ use crate::analysis::ir_conversion::module::query_ir_module;
 use crate::core::syntax::{Identifier, SourceRange};
 use crate::ir::decl::{DefId, IrDeclEnum};
 use crate::ir::expr::IrExprEnum;
+use crate::ir::iterator::get_node_loc;
 use crate::ir::module::{IrModule, NodeId};
 use crate::ir::proc::IrProcEnum;
 use crate::ir::sort::IrSortEnum;
@@ -23,10 +24,44 @@ pub fn query_def_of_name(
             result
         },
         Err(()) => {
-            let loc = query_ir_module(context, node.get_module_id())?
-                .get_loc(node);
+            let loc = get_node_loc(
+                &*query_ir_module(context, node.get_module_id())?,
+                node,
+            );
             context.error_cyclic_dependency(loc, node)
         },
+    }
+}
+
+/// Returns `true` if and only if `node` is an IR node with a name that refers
+/// to some definition. Nodes that contain a definition are not considered to
+/// be a name node.
+/// 
+/// Effectively, it is valid to call `query_def_of_name(node)` if and only if
+/// `is_name_node(node) == true`.
+/// 
+/// This function has no side effects.
+pub fn is_name_node(
+    module: &IrModule,
+    node: NodeId,
+) -> bool {
+    use NodeId::*;
+
+    match node {
+        Action(id) => true,
+        Expr(id) => {
+            match &module.get_expr(id).value {
+                IrExprEnum::Name { .. } => true,
+                _ => false,
+            }
+        },
+        Sort(id) => {
+            match &module.get_sort(id).value {
+                IrSortEnum::Name { .. } => true,
+                _ => false,
+            }
+        },
+        _ => false,
     }
 }
 
@@ -34,12 +69,14 @@ fn calculate_def_of_name(
     context: &AnalysisContext,
     node: NodeId,
 ) -> Result<DefId, ()> {
+    use NodeId::*;
+
     let module = query_ir_module(context, node.get_module_id())?;
 
     // note that there are three separate name spaces, namely one for
     // expressions, one for processes, and one for sorts
     match node {
-        NodeId::Action(id) => {
+        Action(id) => {
             // for processes, name lookup is slightly annoying because
             // there can be multiple actions with the same name but
             // with different signatures
@@ -59,8 +96,8 @@ fn calculate_def_of_name(
             };
             find_def_of_name(context, parent, &name_lookup, &module)
         },
-        NodeId::Decl(_) => panic!("a declaration is not a name"),
-        NodeId::Expr(id) => {
+        Decl(_) => panic!("a declaration is not a name"),
+        Expr(id) => {
             let expr = module.get_expr(id);
             match &expr.value {
                 IrExprEnum::Name { identifier } => {
@@ -85,13 +122,13 @@ fn calculate_def_of_name(
                 _ => panic!("expression {:?} is not a name", id),
             }
         },
-        NodeId::Module(_) => panic!("a module is not a name"),
-        NodeId::Param(_) => panic!("a parameter is not a name"),
-        NodeId::Proc(_) => panic!("a process is not a name"),
-        NodeId::RewriteSet(_) => panic!("a rewrite set is not a name"),
-        NodeId::RewriteRule(_) => panic!("a rewrite rule is not a name"),
-        NodeId::RewriteVar(_) => panic!("a rewrite var is not a name"),
-        NodeId::Sort(id) => {
+        Module(_) => panic!("a module is not a name"),
+        Param(_) => panic!("a parameter is not a name"),
+        Proc(_) => panic!("a process is not a name"),
+        RewriteSet(_) => panic!("a rewrite set is not a name"),
+        RewriteRule(_) => panic!("a rewrite rule is not a name"),
+        RewriteVar(_) => panic!("a rewrite var is not a name"),
+        Sort(id) => {
             let sort = module.get_sort(id);
             match &sort.value {
                 IrSortEnum::Name { identifier } => {
@@ -202,7 +239,7 @@ fn find_def_of_name(
                 NameLookupEnum::Proc {} => {
                     for decl in module.decls.values() {
                         match &decl.value {
-                            IrDeclEnum::Action { params: sorts } => {
+                            IrDeclEnum::Action { params } => {
                                 todo!()
                             },
                             IrDeclEnum::Process { params, proc } => {

@@ -44,10 +44,7 @@ pub fn query_ir_module(
             context.ir_modules.unlock(&module, result.clone());
             result
         },
-        Err(()) => {
-            let loc = query_ast_module(context, module)?.loc;
-            context.error_cyclic_dependency(loc, module.into())
-        },
+        Err(()) => panic!("cyclic error should really not happen"),
     }
 }
 

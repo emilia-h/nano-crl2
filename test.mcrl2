@@ -1,0 +1,8 @@
+
+act a;
+
+proc A = sum x, y : Nat, z: Nat . a;
+
+proc B = a;
+
+init A;
