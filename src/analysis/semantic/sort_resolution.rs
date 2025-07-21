@@ -103,10 +103,17 @@ fn calculate_sort_of_expr(
         },
 
         IrExprEnum::Lambda { params, value, .. } => {
-            todo!()
-            // let variable_sort = query_resolved_sort(context, *sort)?;
-            // let expr_sort = query_sort_of_expr(context, *expr)?;
-            // Ok(sort_context.get_function_sort(&variable_sort, &expr_sort))
+            let mut param_sorts = Vec::new();
+            for param in params {
+                if let Ok(sort) = query_resolved_sort(context, param.sort) {
+                    param_sorts.push(sort);
+                }
+            }
+            if param_sorts.len() != params.len() {
+                return Err(());
+            }
+            let expr_sort = query_sort_of_expr(context, *value)?;
+            Ok(sort_context.get_function_sort(&param_sorts, &expr_sort))
         },
 
         IrExprEnum::Unary { op: UnaryExprOp::LogicalNot, .. } => {
@@ -231,8 +238,8 @@ fn calculate_sort_of_expr(
                     ResolvedSort::Primitive { sort: sort1 },
                     ResolvedSort::Primitive { sort: sort2 },
                 ) if sort1.is_any_number() && sort2.is_any_number() => {
-                    let g1 = get_number_sort_generality(&lhs_sort).unwrap();
-                    let g2 = get_number_sort_generality(&rhs_sort).unwrap();
+                    let g1 = lhs_sort.get_number_sort_generality().unwrap();
+                    let g2 = rhs_sort.get_number_sort_generality().unwrap();
                     Ok(get_number_sort_from_generality(sort_context, g1.max(g2)))
                 },
                 _ => {
@@ -256,11 +263,26 @@ fn calculate_sort_of_expr(
         IrExprEnum::Binary { op: BinaryExprOp::Divide, .. } => {
             Ok(sort_context.get_primitive_sort(PrimitiveSort::Real))
         },
-        IrExprEnum::Binary { op: BinaryExprOp::IntegerDivide, lhs, rhs } => {
-            todo!()
+        IrExprEnum::Binary { op: BinaryExprOp::IntegerDivide, .. } => {
+            let (g1, g2) = get_binary_op_number_generalities(context, &module, ir_expr)?;
+            if g2 != 0 {
+                let error = format!(
+                    "can only perform integer division with dividend of type `Pos`, not `{}",
+                    display_number_sort_generality(g2),
+                );
+                return context.error(module.id, ir_expr.loc, error);
+            }
+            if g1 <= 1 {
+                Ok(sort_context.get_primitive_sort(PrimitiveSort::Nat))
+            } else if g1 == 2 {
+                Ok(sort_context.get_primitive_sort(PrimitiveSort::Int))
+            } else {
+                let error = "cannot perform integer division with divisor of type `Real`".to_owned();
+                return context.error(module.id, ir_expr.loc, error);
+            }
         },
-        IrExprEnum::Binary { op: BinaryExprOp::Mod, lhs, rhs } => {
-            todo!()
+        IrExprEnum::Binary { op: BinaryExprOp::Mod, .. } => {
+            Ok(sort_context.get_primitive_sort(PrimitiveSort::Nat))
         },
         IrExprEnum::Binary { op: BinaryExprOp::Multiply, .. } => {
             let (g1, g2) = get_binary_op_number_generalities(context, &module, ir_expr)?;
@@ -317,9 +339,9 @@ fn get_binary_op_number_generalities(
         query_sort_of_expr(context, *lhs),
         query_sort_of_expr(context, *rhs),
     )?;
-    let g1 = get_number_sort_generality(&lhs_sort);
-    let g2 = get_number_sort_generality(&rhs_sort);
-    let Some((g1, g2)) = chain_option(g1, g2) else {
+    let g1 = lhs_sort.get_number_sort_generality();
+    let g2 = rhs_sort.get_number_sort_generality();
+    let Some(result) = chain_option(g1, g2) else {
         let error = format!(
             "cannot add expressions of sorts `{}` and `{}`",
             ResolvedSortDisplay::new(&lhs_sort, &module),
@@ -327,7 +349,62 @@ fn get_binary_op_number_generalities(
         );
         return context.error(module.id, expr.loc, error);
     };
-    Ok((g1, g2))
+    Ok(result)
+}
+
+/// Returns the sort that `expr` is desired to have in the context of the IR,
+/// or `None` if this is not implied by the context.
+/// 
+/// For instance, if we have `map x: Set(Int); eqn x = {1}` then the `1`
+/// expression has desired sort `Int`, even though the sort of `1` without
+/// context is `Pos`. Its actual sort is then the common type of `Int` and
+/// `Pos`, which is `Int`, which will typecheck correctly.
+fn find_desired_sort(
+    context: &AnalysisContext,
+    module: &IrModule,
+    expr: ExprId,
+) -> Result<Option<Interned<ResolvedSort>>, ()> {
+    let Some(parent) = module.get_parent(expr.into()) else {
+        return Ok(None);
+    };
+
+    match parent {
+        NodeId::Action(action_id) => {
+            // find index
+            let action = module.get_action(action_id);
+            let (i, _) = action.args.iter().enumerate()
+                .find(|&(i, &arg)| arg == expr)
+                .unwrap();
+
+            let def = query_def_of_name(context, parent)?;
+            // a process name can only be from a declaration, so can safely unwrap
+            let decl_id = module.get_def_source(def).unwrap_decl_id();
+            match &module.get_decl(decl_id).value {
+                IrDeclEnum::Action { params } => {
+                    query_resolved_sort(context, params[i]).map(Some)
+                },
+                IrDeclEnum::Process { params, proc } => {
+                    query_resolved_sort(context, params[i].sort).map(Some)
+                },
+                _ => panic!("expected a process declaration"),
+            }
+        },
+        NodeId::Decl(decl_id) => {
+            todo!() // lots of work to be done here
+        },
+        NodeId::Expr(expr_id) => {
+            todo!() // lots of work to be done here
+        },
+        NodeId::RewriteRule(rewrite_rule_id) => {
+            todo!()
+        },
+        NodeId::Module(_) => Ok(None),
+        NodeId::Param(_) |
+        NodeId::Proc(_) |
+        NodeId::RewriteVar(_) |
+        NodeId::RewriteSet(_) |
+        NodeId::Sort(_) => panic!(),
+    }
 }
 
 /// Returns the sort of the variable/map/constructor that is denoted by `def`.
@@ -336,8 +413,8 @@ fn get_binary_op_number_generalities(
 /// `0.def.0`, then `query_sort_of_def(0.def.0)` will return `Nat -> Nat`.
 /// 
 /// Another example: if there is a process `sum x: S . a(x)` with ID `0.proc.0`
-/// and where the `def_id` is `0.def.1`, then `query_sort_of_def(0.def.1)` will
-/// return the resolved sort of `S`.
+/// and where the `def_id` of `x` is `0.def.1`, then
+/// `query_sort_of_def(0.def.1)` will return the resolved sort of `S`.
 /// 
 /// However, this function does not make sense for definitions that do not
 /// define expressions; for instance, if there is a sort declaration `sort X =
@@ -486,12 +563,15 @@ fn calculate_resolved_sort(
 }
 
 /// Finds the least common sort of two given sorts (the smallest sort that is a
-/// supersort of both), or returns an error if this sort does not exist.
+/// supersort of both), or returns `None` if such a sort does not exist.
 /// 
 /// This operation is commutative, associative, and idempotent, meaning that:
 /// - common(S1, S2) = common(S2, S1)
 /// - common(S1, common(S2, S3)) = common(common(S1, S2), S3)
 /// - common(S, S) = S
+/// 
+/// If we consider the set of sorts to be a lattice, then this is the join
+/// operator.
 /// 
 /// Note that this function does not report errors, it just returns `None` if
 /// the two sorts are incomparable.
@@ -514,10 +594,11 @@ fn find_common_sort(
     match (&**sort1, &**sort2) {
         (Primitive { sort: s1 }, Primitive { sort: s2 }) => {
             assert_ne!(s1, s2); // should have been caught by top-level `if`
-            todo!()
+            let g1 = s1.get_number_sort_generality()?;
+            let g2 = s2.get_number_sort_generality()?;
+            Some(get_number_sort_from_generality(sort_context, g1.max(g2)))
         },
-        // a generic sort can only have a common type with another generic
-        // sort
+        // a generic sort can only have a common type with another generic sort
         (Generic { op: op1, subsort: s1 }, Generic { op: op2, subsort: s2 }) => {
             todo!()
         },
@@ -525,33 +606,13 @@ fn find_common_sort(
             todo!()
         },
         // note that two structural types (`ResolvedSort::Def`) are only equal
-        // if they are the same name (i.e. nominal typing), and otherwise they
+        // if they are the same name (i.e., nominal typing), and otherwise they
         // are always incomparable
         _ => None,
     }
 }
 
-/// Returns a number that represents the generality of a number sort, or `None`
-/// if the sort is not a number sort.
-/// 
-/// It returns the following values:
-/// - `Pos`: 0
-/// - `Nat`: 1
-/// - `Int`: 2
-/// - `Real`: 3
-fn get_number_sort_generality(
-    sort: &Interned<ResolvedSort>,
-) -> Option<u32> {
-    match &**sort {
-        ResolvedSort::Primitive { sort: PrimitiveSort::Pos } => Some(0),
-        ResolvedSort::Primitive { sort: PrimitiveSort::Nat } => Some(1),
-        ResolvedSort::Primitive { sort: PrimitiveSort::Int } => Some(2),
-        ResolvedSort::Primitive { sort: PrimitiveSort::Real } => Some(3),
-        _ => None,
-    }
-}
-
-/// Does the inverse of `get_number_sort_generality`.
+/// Does the inverse of `ResolvedSort::get_number_sort_generality`.
 /// 
 /// Returns as follows:
 /// - 0: `Pos`
@@ -567,6 +628,16 @@ fn get_number_sort_from_generality(
         1 => sort_context.get_primitive_sort(PrimitiveSort::Nat),
         2 => sort_context.get_primitive_sort(PrimitiveSort::Int),
         3 => sort_context.get_primitive_sort(PrimitiveSort::Real),
+        _ => panic!("{:?} is not a number sort generality", generality),
+    }
+}
+
+fn display_number_sort_generality(generality: u32) -> &'static str {
+    match generality {
+        0 => "Pos",
+        1 => "Nat",
+        2 => "Int",
+        3 => "Real",
         _ => panic!("{:?} is not a number sort generality", generality),
     }
 }

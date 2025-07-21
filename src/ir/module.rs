@@ -215,9 +215,9 @@ impl NodeId {
     /// Returns the module that the referred node lies in.
     /// 
     /// If the node ID is a module ID, then it simply returns that.
-    pub fn get_module_id(&self) -> ModuleId {
+    pub fn get_module_id(self) -> ModuleId {
         match self {
-            Self::Module(id) => *id,
+            Self::Module(id) => id,
             Self::Action(id) => id.proc.module,
             Self::Decl(id) => id.module,
             Self::Expr(id) => id.module,
@@ -227,6 +227,13 @@ impl NodeId {
             Self::RewriteSet(id) => id.module,
             Self::RewriteVar(id) => id.rewrite_set.module,
             Self::Sort(id) => id.module,
+        }
+    }
+
+    pub fn unwrap_decl_id(self) -> DeclId {
+        match self {
+            Self::Decl(id) => id,
+            _ => panic!(),
         }
     }
 }

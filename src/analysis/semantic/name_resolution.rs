@@ -9,6 +9,8 @@ use crate::ir::module::{IrModule, NodeId};
 use crate::ir::proc::IrProcEnum;
 use crate::ir::sort::IrSortEnum;
 
+use std::collections::hash_set::HashSet;
+
 /// # Panics
 /// The `node` must refer to a node that refers to a declaration using an
 /// identifier, or the function will panic.
@@ -90,11 +92,17 @@ fn calculate_def_of_name(
             };
 
             let name_lookup = NameLookup {
-                value: NameLookupEnum::Proc {},
+                value: NameLookupEnum::Proc,
                 identifier: &action.identifier,
                 loc: action.loc,
             };
-            find_def_of_name(context, parent, &name_lookup, &module)
+            let set = find_def_of_name(context, parent, &name_lookup, &module)?;
+            assert!(set.len() > 0);
+            if set.len() == 1 {
+                Ok(set.into_iter().next().unwrap())
+            } else {
+                return context.error(module.id, action.loc, "TODO overloading".to_owned());
+            }
         },
         Decl(_) => panic!("a declaration is not a name"),
         Expr(id) => {
@@ -103,7 +111,8 @@ fn calculate_def_of_name(
                 IrExprEnum::Name { identifier } => {
                     // for expressions, name lookup is very annoying, because
                     // there can be multiple maps and constructors with the
-                    // same identifier; then the name lookup depends on the sort
+                    // same identifier; then the name lookup depends on the
+                    // desired sort
                     let Some(parent) = module.get_parent(id.into()) else {
                         let error = format!(
                             "unresolved identifier `{}`",
@@ -113,11 +122,17 @@ fn calculate_def_of_name(
                     };
 
                     let name_lookup = NameLookup {
-                        value: NameLookupEnum::Expr {},
+                        value: NameLookupEnum::Expr,
                         identifier,
                         loc: expr.loc,
                     };
-                    find_def_of_name(context, parent, &name_lookup, &module)
+                    let set = find_def_of_name(context, parent, &name_lookup, &module)?;
+                    assert!(set.len() > 0);
+                    if set.len() == 1 {
+                        Ok(set.into_iter().next().unwrap())
+                    } else {
+                        return context.error(module.id, expr.loc, "TODO overloading".to_owned());
+                    }
                 },
                 _ => panic!("expression {:?} is not a name", id),
             }
@@ -142,11 +157,19 @@ fn calculate_def_of_name(
                     };
 
                     let name_lookup = NameLookup {
-                        value: NameLookupEnum::Sort {},
+                        value: NameLookupEnum::Sort,
                         identifier,
                         loc: sort.loc,
                     };
-                    find_def_of_name(context, parent, &name_lookup, &module)
+                    let set = find_def_of_name(context, parent, &name_lookup, &module)?;
+                    if set.len() > 1 {
+                        let error = format!(
+                            "multiple `sort` declarations with identifier `{}`",
+                            identifier,
+                        );
+                        return context.error(module.id, sort.loc, error);
+                    }
+                    Ok(set.into_iter().next().unwrap())
                 },
                 _ => panic!("sort {:?} is not a name", id),
             }
@@ -161,27 +184,22 @@ fn find_def_of_name(
     node: NodeId,
     name_lookup: &NameLookup,
     module: &IrModule,
-) -> Result<DefId, ()> {
+) -> Result<HashSet<DefId>, ()> {
+    use NodeId::*;
+
     match node {
-        NodeId::Action(_) => {},
-        NodeId::Decl(id) => {
+        Action(_) => {},
+        Decl(id) => {
             let decl = module.decls.get(&id).unwrap();
-            if let NameLookupEnum::Expr {} = &name_lookup.value {
+            if matches!(&name_lookup.value, NameLookupEnum::Expr) {
                 if let IrDeclEnum::Process { params, .. } = &decl.value {
-                    let mut result = None;
+                    let mut result = HashSet::new();
                     for param in params {
                         if &param.identifier == name_lookup.identifier {
-                            if result.is_some() {
-                                let error = format!(
-                                    "multiple parameters with name `{}`",
-                                    &param.identifier,
-                                );
-                                return context.error(module.id, param.identifier_loc, error);
-                            }
-                            result = Some(param.def_id);
+                            result.insert(param.def_id);
                         }
                     }
-                    if let Some(result) = result {
+                    if result.len() > 0 {
                         return Ok(result);
                     }
                 }
@@ -189,25 +207,25 @@ fn find_def_of_name(
             // checks for the identifiers of module-level declarations
             // themselves will be handled in the `NodeId::Module` case
         },
-        NodeId::Expr(id) => {
-            if let NameLookupEnum::Expr {} = &name_lookup.value {
+        Expr(id) => {
+            if matches!(name_lookup.value, NameLookupEnum::Expr) {
                 let expr = module.exprs.get(&id).unwrap();
                 match &expr.value {
-                    IrExprEnum::Binder { def_id, identifier: i2, sort, .. } => {
+                    IrExprEnum::Binder { def_id, identifier: i2, .. } => {
                         if name_lookup.identifier == i2 {
-                            todo!()
+                            return Ok(HashSet::from([*def_id]));
                         }
                     },
                     IrExprEnum::Where { def_id, identifier: i2, .. } => {
                         if name_lookup.identifier == i2 {
-                            return Ok(*def_id);
+                            return Ok(HashSet::from([*def_id]));
                         }
                     },
                     _ => {},
                 }
             }
         },
-        NodeId::Module(id) => {
+        Module(id) => {
             // loop over top-level declarations and find the best matching one
             // (where the method of matching depends on if we're looking for an
             // expression, process or sorts)
@@ -219,8 +237,10 @@ fn find_def_of_name(
                 &*borrow_checker_workaround
             };
 
-            match &name_lookup.value {
-                NameLookupEnum::Expr {} => {
+            match name_lookup.value {
+                NameLookupEnum::Expr => {
+                    // only once we get to top-level declarations, we care
+                    // about the desired type of the expression
                     for decl in module.decls.values() {
                         match &decl.value {
                             IrDeclEnum::Constructor { params, sort } => {
@@ -236,7 +256,7 @@ fn find_def_of_name(
                         }
                     }
                 },
-                NameLookupEnum::Proc {} => {
+                NameLookupEnum::Proc => {
                     for decl in module.decls.values() {
                         match &decl.value {
                             IrDeclEnum::Action { params } => {
@@ -249,58 +269,55 @@ fn find_def_of_name(
                         }
                     }
                 },
-                NameLookupEnum::Sort {} => {
+                NameLookupEnum::Sort => {
                     // sort name lookup is very easy!
-                    let mut result = None;
+                    let mut result = HashSet::new();
                     for decl in module.decls.values() {
                         if matches!(decl.value,
                             IrDeclEnum::Sort |
                             IrDeclEnum::SortAlias { .. }
                         ) && name_lookup.identifier == &decl.identifier {
-                            if result.is_some() {
-                                let error = format!(
-                                    "multiple `sort` declarations with identifier `{}`",
-                                    decl.identifier,
-                                );
-                                return context.error(module.id, decl.identifier_loc, error);
-                            }
-                            result = Some(decl.def_id);
+                            result.insert(decl.def_id);
                         }
                     }
-                    if let Some(result) = result {
+                    if result.len() > 0 {
                         return Ok(result);
                     }
                 },
             }
         },
-        NodeId::Param(_) => {
+        Param(_) => {
             // this case should never be encountered for `NameLookup::Expr`
         },
-        NodeId::Proc(id) => {
-            if let NameLookupEnum::Expr {} = &name_lookup.value {
+        Proc(id) => {
+            if matches!(name_lookup.value, NameLookupEnum::Expr) {
                 let proc = module.procs.get(&id).unwrap();
                 if let IrProcEnum::Sum { def_id, identifier: i2, .. } = &proc.value {
                     if name_lookup.identifier == i2 {
-                        return Ok(*def_id);
+                        return Ok(HashSet::from([*def_id]));
                     }
                 }
             }
         },
-        NodeId::RewriteRule(_) => {},
-        NodeId::RewriteSet(id) => {
-            if let NameLookupEnum::Expr {} = &name_lookup.value {
+        RewriteRule(_) => {},
+        RewriteSet(id) => {
+            if matches!(name_lookup.value, NameLookupEnum::Expr) {
                 let rewrite_set = module.get_rewrite_set(id);
+                let mut result = HashSet::new();
                 for variable in &rewrite_set.variables {
                     if name_lookup.identifier == &variable.identifier {
-                        return Ok(variable.def_id);
+                        result.insert(variable.def_id);
                     }
+                }
+                if result.len() > 0 {
+                    return Ok(result);
                 }
             }
         },
-        NodeId::RewriteVar(_) => {
+        RewriteVar(_) => {
             // this case should never be encountered for `NameLookup::Expr`
         },
-        NodeId::Sort(_) => {},
+        Sort(_) => {},
     }
 
     // if the ID did not match a definition bound by the current node, recurse
@@ -323,7 +340,7 @@ struct NameLookup<'a> {
 }
 
 enum NameLookupEnum {
-    Expr {},
-    Proc {},
-    Sort {},
+    Expr,
+    Proc,
+    Sort,
 }

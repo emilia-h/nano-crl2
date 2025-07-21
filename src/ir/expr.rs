@@ -43,8 +43,7 @@ pub enum IrExprEnum {
         args: Vec<ExprId>,
     },
     /// An expression of the form `<op> identifier: sort . expr` where \<op\>
-    /// is one of `exists`, `forall`, `lambda`, or `set` (of the form
-    /// `{ ... | ... }`).
+    /// is one of `exists`, `forall`,  or `set` (of the form  `{ ... | ... }`).
     Binder {
         op: BinderExprOp,
         def_id: DefId,

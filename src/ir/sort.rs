@@ -100,6 +100,21 @@ impl ResolvedSort {
     pub fn is_fbag(&self) -> bool {
         matches!(self, ResolvedSort::Generic { op: GenericSortOp::FBag, .. })
     }
+
+    /// Returns a number that represents the generality of a number sort, or `None`
+    /// if the sort is not a number sort.
+    /// 
+    /// It returns the following values:
+    /// - `Pos`: 0
+    /// - `Nat`: 1
+    /// - `Int`: 2
+    /// - `Real`: 3
+    pub fn get_number_sort_generality(&self) -> Option<u32> {
+        match self {
+            ResolvedSort::Primitive { sort } => sort.get_number_sort_generality(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -127,6 +142,24 @@ impl PrimitiveSort {
     /// Returns whether this is a `Pos`, `Nat`, `Int` or `Real` variant
     pub fn is_any_number(self) -> bool {
         matches!(self, Self::Pos | Self::Nat | Self::Int | Self::Real)
+    }
+
+    /// Returns a number that represents the generality of a number sort, or `None`
+    /// if the sort is not a number sort.
+    /// 
+    /// It returns the following values:
+    /// - `Pos`: 0
+    /// - `Nat`: 1
+    /// - `Int`: 2
+    /// - `Real`: 3
+    pub fn get_number_sort_generality(&self) -> Option<u32> {
+        match self {
+            Self::Pos => Some(0),
+            Self::Nat => Some(1),
+            Self::Int => Some(2),
+            Self::Real => Some(3),
+            _ => None,
+        }
     }
 }
 
