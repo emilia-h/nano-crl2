@@ -97,7 +97,7 @@ where
                 IrExprEnum::Name { .. } |
                 IrExprEnum::NumberLiteral { .. } |
                 IrExprEnum::BoolLiteral { .. } => {},
-                IrExprEnum::ListLiteral { values } |
+                IrExprEnum::EmptyListLiteral => {},
                 IrExprEnum::SetLiteral { values } => {
                     for &expr_id in values {
                         writer(expr_id.into());

@@ -59,7 +59,7 @@ fn calculate_sort_of_expr(
         IrExprEnum::BoolLiteral { .. } => {
             Ok(sort_context.get_primitive_sort(PrimitiveSort::Bool))
         },
-        IrExprEnum::ListLiteral { values } => {
+        IrExprEnum::EmptyListLiteral => {
             todo!()
         },
         IrExprEnum::SetLiteral { values } => {

@@ -101,19 +101,19 @@ pub fn convert_ir_expr(
             add_expr(module, IrExprEnum::BoolLiteral { value: *value })
         },
         ExprEnum::List { values } => {
-            let mut value_ids = Vec::new();
-            for value in values {
-                value_ids.push(convert_ir_expr(context, value, module)?);
+            let mut current_id = add_expr(module, IrExprEnum::EmptyListLiteral);
+            for value in values.iter().rev() {
+                let expr_id = convert_ir_expr(context, value, module)?;
+                let next_id = add_expr(module, IrExprEnum::Binary {
+                    op: BinaryExprOp::Cons,
+                    lhs: expr_id,
+                    rhs: current_id,
+                });
+                module.add_parent(expr_id.into(), next_id.into());
+                module.add_parent(current_id.into(), next_id.into());
+                current_id = next_id;
             }
-            let expr_id = context.generate_expr_id(module.id);
-            for &value_id in &value_ids {
-                module.add_parent(value_id.into(), expr_id.into());
-            }
-            module.exprs.insert(expr_id, IrExpr {
-                value: IrExprEnum::ListLiteral { values: value_ids },
-                loc: expr.loc,
-            });
-            expr_id
+            current_id
         },
         ExprEnum::Set { values } => {
             let mut value_ids = Vec::new();

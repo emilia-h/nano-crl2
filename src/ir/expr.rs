@@ -24,9 +24,7 @@ pub enum IrExprEnum {
     BoolLiteral {
         value: bool,
     },
-    ListLiteral {
-        values: Vec<ExprId>,
-    },
+    EmptyListLiteral,
     SetLiteral {
         values: Vec<ExprId>,
     },
