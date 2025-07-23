@@ -67,6 +67,7 @@ pub fn verify_lts(
             Diagnostic {
                 severity: DiagnosticSeverity::Error,
                 file: Some(output_file.clone()),
+                module: None,
                 loc: None,
                 message: error.to_string(),
             }

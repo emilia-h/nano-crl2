@@ -33,6 +33,7 @@ impl ParseError {
         Diagnostic {
             severity: DiagnosticSeverity::Error,
             file,
+            module: None,
             loc: Some(self.loc),
             message: self.message,
         }

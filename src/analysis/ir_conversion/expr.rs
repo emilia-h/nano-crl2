@@ -87,6 +87,7 @@ pub fn convert_ir_expr(
             rhs: rhs_id,
         });
         module.add_parent(lhs_id.into(), expr_id.into());
+        module.add_parent(rhs_id.into(), expr_id.into());
         Ok(expr_id)
     };
 

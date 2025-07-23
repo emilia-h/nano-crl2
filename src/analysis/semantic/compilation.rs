@@ -8,8 +8,9 @@ use crate::analysis::semantic::name_resolution::{
 use crate::analysis::semantic::sort_resolution::{
     query_resolved_sort, query_sort_of_def, query_sort_of_expr
 };
+use crate::core::syntax::ModuleId;
 use crate::ir::iterator::IrIterator;
-use crate::ir::module::{ModuleId, NodeId};
+use crate::ir::module::NodeId;
 
 /// Returns `Ok` if compilation is successful (i.e., the semantic analysis
 /// queries of the module have no errors), or `Err` if it is not.

@@ -2,10 +2,10 @@
 
 use crate::core::diagnostic::{Diagnostic, DiagnosticContext, DiagnosticSeverity};
 use crate::core::lexer::Token;
-use crate::core::syntax::SourceRange;
+use crate::core::syntax::{ModuleId, SourceRange};
 use crate::ir::decl::{DeclId, DefId};
 use crate::ir::expr::{ExprId, RewriteSetId};
-use crate::ir::module::{IrModule, ModuleId, NodeId};
+use crate::ir::module::{IrModule, NodeId};
 use crate::ir::proc::ProcId;
 use crate::ir::sort::{GenericSortOp, PrimitiveSort, ResolvedSort, SortId};
 use crate::model::module::Module;
@@ -160,6 +160,7 @@ impl AnalysisContext {
         diagnostics_borrow.push(Diagnostic {
             severity: DiagnosticSeverity::Error,
             file: Some(file.clone()),
+            module: Some(module),
             loc: Some(loc),
             message,
         });

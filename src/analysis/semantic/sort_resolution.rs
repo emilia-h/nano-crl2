@@ -5,7 +5,6 @@ use crate::analysis::semantic::name_resolution::query_def_of_name;
 use crate::ir::decl::{DefId, IrDeclEnum};
 use crate::ir::display::ResolvedSortDisplay;
 use crate::ir::expr::{BinaryExprOp, BinderExprOp, ExprId, IrExpr, IrExprEnum, UnaryExprOp};
-use crate::ir::iterator::get_node_loc;
 use crate::ir::module::{IrModule, NodeId};
 use crate::ir::proc::IrProcEnum;
 use crate::ir::sort::{GenericSortOp, IrSortEnum, PrimitiveSort, ResolvedSort, SortId};
@@ -434,7 +433,7 @@ pub fn query_sort_of_def(
         Err(()) => {
             let ir_module = query_ir_module(context, def.get_module_id())?;
             let source = ir_module.get_def_source(def);
-            let loc = get_node_loc(&ir_module, source);
+            let loc = ir_module.get_node_loc(source);
             context.error_cyclic_dependency(loc, source)
         },
     }

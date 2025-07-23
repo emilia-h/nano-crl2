@@ -1,11 +1,12 @@
 
-use crate::core::syntax::SourceRange;
+use crate::core::syntax::{ModuleId, SourceRange};
 
 use std::fmt::{Display, Formatter};
 
 pub struct Diagnostic {
     pub severity: DiagnosticSeverity,
     pub file: Option<String>,
+    pub module: Option<ModuleId>,
     pub loc: Option<SourceRange>,
     pub message: String,
 }

@@ -17,6 +17,7 @@ impl PgParseError {
         Diagnostic {
             severity: DiagnosticSeverity::Error,
             file,
+            module: None,
             loc: Some(SourceRange::new(
                 self.loc.get_char(),
                 self.loc.get_line(),

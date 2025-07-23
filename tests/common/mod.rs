@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use nano_crl2::analysis::context::AnalysisContext;
 use nano_crl2::core::lexer::tokenize;
 use nano_crl2::core::parser::Parser;
-use nano_crl2::ir::module::ModuleId;
+use nano_crl2::core::syntax::ModuleId;
 use nano_crl2::model::module::Module;
 
 pub fn read_resource_file(file: &str) -> String {

@@ -1,6 +1,6 @@
 
-use crate::core::syntax::{Identifier, SourceRange};
-use crate::ir::module::{DeclOrExprId, ModuleId};
+use crate::core::syntax::{Identifier, ModuleId, SourceRange};
+use crate::ir::module::DeclOrExprId;
 use crate::ir::proc::ProcId;
 use crate::ir::sort::SortId;
 

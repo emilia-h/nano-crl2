@@ -1,8 +1,7 @@
 
-use crate::core::syntax::{Identifier, SourceRange};
+use crate::core::syntax::{Identifier, ModuleId, SourceRange};
 use crate::ir::decl::DefId;
 use crate::ir::expr::ExprId;
-use crate::ir::module::ModuleId;
 use crate::ir::sort::SortId;
 
 use std::fmt::{Debug, Formatter};

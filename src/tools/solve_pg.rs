@@ -44,6 +44,7 @@ pub fn solve_pg(
                 diagnostics.push(Diagnostic {
                     severity: DiagnosticSeverity::Warning,
                     file: None,
+                    module: None,
                     loc: None,
                     message: format!("unknown policy '{}'", string),
                 });
@@ -76,6 +77,7 @@ pub fn solve_pg(
                 Diagnostic {
                     severity: DiagnosticSeverity::Error,
                     file: Some(output_file.clone()),
+                    module: None,
                     loc: None,
                     message: error.to_string(),
                 }

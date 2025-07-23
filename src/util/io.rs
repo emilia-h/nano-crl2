@@ -16,6 +16,7 @@ impl Into<Diagnostic> for IoError {
         Diagnostic {
             severity: DiagnosticSeverity::Error,
             file: self.path,
+            module: None,
             loc: None,
             message: self.message,
         }

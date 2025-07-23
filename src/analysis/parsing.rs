@@ -2,8 +2,7 @@
 use crate::analysis::context::AnalysisContext;
 use crate::core::lexer::{Token, tokenize};
 use crate::core::parser::Parser;
-use crate::core::syntax::SourceRange;
-use crate::ir::module::ModuleId;
+use crate::core::syntax::{ModuleId, SourceRange};
 use crate::model::module::Module;
 
 use std::sync::Arc;

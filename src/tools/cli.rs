@@ -38,6 +38,7 @@ impl Into<Diagnostic> for CliError {
         Diagnostic {
             severity: DiagnosticSeverity::Error,
             file: None,
+            module: None,
             loc: None,
             message: match &self {
                 IncorrectFormat(string) =>

@@ -18,7 +18,7 @@ impl<'m> IntoIterator for &'m IrModule {
 }
 
 /// Iterates its module using depth-first search (preoder tree traversal),
-/// which will output each node ID with its source location once.
+/// which will output each node ID.
 pub struct IrIterator<'m> {
     module: &'m IrModule,
     stack: Vec<NodeId>,
@@ -48,6 +48,10 @@ impl<'m> Iterator for IrIterator<'m> {
 }
 
 /// Calls `writer` once for each direct child of `node`.
+/// 
+/// # Panics
+/// The module that `node` lies in must be the given module, or this function
+/// will panic.
 pub fn for_each_child<T>(
     module: &IrModule,
     node: NodeId,
@@ -56,6 +60,7 @@ pub fn for_each_child<T>(
 where
     T: FnMut(NodeId),
 {
+    assert_eq!(node.get_module_id(), module.id);
     match node {
         NodeId::Action(id) => {
             let action = module.get_action(id);
@@ -226,6 +231,34 @@ where
     }
 }
 
+/// Iterates from the given starting node through all of its parent nodes, including itself. 
+pub struct ParentIterator<'m> {
+    module: &'m IrModule,
+    node: Option<NodeId>,
+}
+
+impl<'m> ParentIterator<'m> {
+    /// # Panics
+    /// The module that `node` lies in must be the given module, or this
+    /// function will panic.
+    pub fn new(module: &'m IrModule, node: NodeId) -> Self {
+        assert_eq!(node.get_module_id(), module.id);
+        ParentIterator { module, node: Some(node) }
+    }
+}
+
+impl<'m> Iterator for ParentIterator<'m> {
+    type Item = NodeId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let Some(current) = self.node else {
+            return None
+        };
+        self.node = self.module.get_parent(current);
+        Some(current)
+    }
+}
+
 /// For a node in the IR, finds the definition ID that is defined by this node,
 /// the identifier for it and the location of that identifier.
 /// 
@@ -233,13 +266,18 @@ where
 /// `0.expr.0`, where `x` has `def_id = 0.def.0`, calling
 /// `get_def_data(0.expr.0)` will return `(0.def.0, "x", location of "x")`.
 /// 
-/// The function `module.get_def_source` is in essence an inverse of this; this
-/// is because `get_def_data(module, module.get_def_source(def_id)).0.unwrap()
-/// == def_id`.
+/// The function `IrModule::get_def_source` is in essence an inverse of this;
+/// this is because `get_def_data(module,
+/// module.get_def_source(def_id)).0.unwrap() == def_id`.
+/// 
+/// # Panics
+/// The module that `node` lies in must be the given module, or this function
+/// will panic.
 pub fn get_def_data(
     module: &IrModule,
     node: NodeId,
 ) -> Option<(DefId, &Identifier, SourceRange)> {
+    assert_eq!(node.get_module_id(), module.id);
     match node {
         NodeId::Action(_) => None,
         NodeId::Decl(id) => {
@@ -277,29 +315,5 @@ pub fn get_def_data(
             Some((*def_id, &identifier, *identifier_loc))
         },
         NodeId::Sort(_) => None,
-    }
-}
-
-/// Returns the source location of an arbitrary node in the IR.
-/// 
-/// # Panics
-/// If the module that `node` is in does not match the given `module`, this
-/// function will panic.
-pub fn get_node_loc(
-    module: &IrModule,
-    node: NodeId,
-) -> SourceRange {
-    assert_eq!(node.get_module_id(), module.id);
-    match node {
-        NodeId::Action(id) => module.get_action(id).loc,
-        NodeId::Decl(id) => module.get_decl(id).loc,
-        NodeId::Expr(id) => module.get_expr(id).loc,
-        NodeId::Module(_) => module.loc,
-        NodeId::Param(id) => module.get_param(id).loc,
-        NodeId::Proc(id) => module.get_proc(id).loc,
-        NodeId::RewriteRule(id) => module.get_rewrite_rule(id).loc,
-        NodeId::RewriteSet(id) => module.get_rewrite_set(id).loc,
-        NodeId::RewriteVar(id) => module.get_rewrite_var(id).loc,
-        NodeId::Sort(id) => module.get_sort(id).loc,
     }
 }

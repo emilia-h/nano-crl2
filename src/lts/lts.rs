@@ -17,8 +17,9 @@ impl LtsParseError {
     /// Converts the error into a generic `Diagnostic`.
     pub fn into_diagnostic(self, file: Option<String>) -> Diagnostic {
         Diagnostic {
-            file,
             severity: DiagnosticSeverity::Error,
+            file,
+            module: None,
             loc: Some(SourceRange::new(
                 self.line,
                 self.character,

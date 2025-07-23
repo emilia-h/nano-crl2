@@ -1,5 +1,5 @@
 
-use crate::core::syntax::SourceRange;
+use crate::core::syntax::{ModuleId, SourceRange};
 use crate::ir::decl::{DeclId, DefId, IrDecl, IrDeclEnum, IrParam, ParamId};
 use crate::ir::expr::{
     ExprId, IrExpr, IrExprEnum, IrRewriteRule, IrRewriteSet, IrRewriteVar,
@@ -182,18 +182,29 @@ impl IrModule {
         assert_eq!(node.get_module_id(), self.id);
         self.sorts.get(&node).unwrap()
     }
-}
 
-/// A (nameless) identifier that, within a given analysis context, refers to a
-/// specific module.
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-pub struct ModuleId {
-    pub(crate) index: usize,
-}
-
-impl Debug for ModuleId {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        write!(f, "{}", self.index)
+    /// Returns the source location of an arbitrary node in the IR.
+    /// 
+    /// # Panics
+    /// If the module that `node` is in does not match `self`, this function
+    /// will panic.
+    pub fn get_node_loc(
+        &self,
+        node: NodeId,
+    ) -> SourceRange {
+        assert_eq!(node.get_module_id(), self.id);
+        match node {
+            NodeId::Action(id) => self.get_action(id).loc,
+            NodeId::Decl(id) => self.get_decl(id).loc,
+            NodeId::Expr(id) => self.get_expr(id).loc,
+            NodeId::Module(_) => self.loc,
+            NodeId::Param(id) => self.get_param(id).loc,
+            NodeId::Proc(id) => self.get_proc(id).loc,
+            NodeId::RewriteRule(id) => self.get_rewrite_rule(id).loc,
+            NodeId::RewriteSet(id) => self.get_rewrite_set(id).loc,
+            NodeId::RewriteVar(id) => self.get_rewrite_var(id).loc,
+            NodeId::Sort(id) => self.get_sort(id).loc,
+        }
     }
 }
 

@@ -29,6 +29,7 @@ pub fn gen_docs(
     diagnostics.push(Diagnostic {
         severity: DiagnosticSeverity::Error,
         file: None,
+        module: None,
         loc: None,
         message: "unimplemented".to_owned(),
     });

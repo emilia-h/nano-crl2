@@ -19,6 +19,7 @@ pub fn check_input(
             Err(error) => return Err(Diagnostic {
                 severity: DiagnosticSeverity::Error,
                 file: Some(input_file.clone()),
+                module: None,
                 loc: None,
                 message: error.to_string(),
             }),
@@ -29,6 +30,7 @@ pub fn check_input(
             None => return Err(Diagnostic {
                 severity: DiagnosticSeverity::Error,
                 file: Some(input_file.clone()),
+                module: None,
                 loc: None,
                 message: String::from("File path does not end in a valid file name"),
             }),
@@ -39,6 +41,7 @@ pub fn check_input(
             None => return Err(Diagnostic {
                 severity: DiagnosticSeverity::Error,
                 file: Some(input_file.clone()),
+                module: None,
                 loc: None,
                 message: String::from("File path is not valid unicode"),
             }),

@@ -2,8 +2,8 @@
 use crate::analysis::context::AnalysisContext;
 use crate::analysis::ir_conversion::decl::convert_ir_decl;
 use crate::analysis::parsing::query_ast_module;
-use crate::core::syntax::{Identifier, SourceRange};
-use crate::ir::module::{IrModule, ModuleId};
+use crate::core::syntax::{Identifier, ModuleId, SourceRange};
+use crate::ir::module::IrModule;
 
 use std::sync::Arc;
 
@@ -79,8 +79,4 @@ fn calculate_ir_module(
     } else {
         Ok(Arc::new(result))
     }
-}
-
-pub enum IrConversionError {
-    
 }

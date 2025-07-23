@@ -36,6 +36,19 @@ impl Display for Identifier {
     }
 }
 
+/// A (nameless) identifier that, within a given context, refers to a specific
+/// module or other kind of input (like a file).
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+pub struct ModuleId {
+    pub(crate) index: usize,
+}
+
+impl Debug for ModuleId {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{}", self.index)
+    }
+}
+
 /// A character position `(line, character)` in a text file.
 /// 
 /// These character positions are lexicographically ordered, i.e. `(l1, c1) <
@@ -69,11 +82,8 @@ impl Debug for SourcePos {
 
 impl Ord for SourcePos {
     fn cmp(&self, other: &Self) -> Ordering {
-        match self.0.cmp(&other.0) {
-            Ordering::Less => Ordering::Less,
-            Ordering::Equal => self.1.cmp(&other.1),
-            Ordering::Greater => Ordering::Greater,
-        }
+        self.0.cmp(&other.0)
+            .then(self.1.cmp(&other.1))
     }
 }
 
@@ -83,7 +93,7 @@ impl PartialOrd for SourcePos {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SourceCursorPos(u32, u32);
 
 impl SourceCursorPos {
@@ -91,12 +101,51 @@ impl SourceCursorPos {
         SourceCursorPos(line, character)
     }
 
-    pub const fn get_line(&self) -> u32 {
+    pub const fn get_line(self) -> u32 {
         self.0
     }
 
-    pub const fn get_char(&self) -> u32 {
+    pub const fn get_char(self) -> u32 {
         self.1
+    }
+
+    /// The distance between two cursor positions is a tuple of:
+    /// - The number of lines distance from the smaller position and the larger
+    /// position
+    /// - The signed difference between the character of the smaller position
+    /// and the character of the larger position
+    /// 
+    /// We must use a signed integer for the second value, since it can be
+    /// negative (the character of the smaller position could be behind the
+    /// character of the larger position, if the two positions are not on the
+    /// same line).
+    /// 
+    /// This is sort of a distance metric, because it satisfies the following
+    /// laws:
+    /// - `dist(a, b) == (0, 0)` iff `a == b`
+    /// - `dist(a, b) == dist(b, a)` (symmetry)
+    /// - `dist(a, b) + dist(b, c) >= dist(a, c)` (triangle inequality)
+    /// where `>=` is lexicographic comparison
+    pub fn dist(self, other: SourceCursorPos) -> (u32, i64) {
+        let (a, b) = if self < other {
+            (self, other)
+        } else {
+            (other, self)
+        };
+        (b.0 - a.0, b.1 as i64 - a.1 as i64)
+    }
+}
+
+impl Ord for SourceCursorPos {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
+            .then(self.1.cmp(&other.1))
+    }
+}
+
+impl PartialOrd for SourceCursorPos {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -120,7 +169,8 @@ impl SourceRange {
     /// `(end_line, end_char)` exclusive.
     /// 
     /// # Panics
-    /// The starting position must come before the ending position, or this function will panic.
+    /// The starting position must come before the ending position, or this
+    /// function will panic.
     pub const fn new(
         start_line: u32,
         start_char: u32,
@@ -156,6 +206,24 @@ impl SourceRange {
 
     pub const fn get_end_char(&self) -> u32 {
         self.end_char
+    }
+
+    /// Returns the distance between the start position and the end position.
+    /// 
+    /// This is equivalent to `self.get_start().dist(self.get_end())`.
+    pub const fn get_distance(&self) -> (u32, i64) {
+        (
+            self.end_line - self.start_line,
+            self.end_char as i64 - self.start_char as i64
+        )
+    }
+
+    /// Compares two source ranges by the distance between their .
+    /// 
+    /// Note that this is not really a "canonical" way of ordering two ranges,
+    /// so we do not implement `Ord` and `PartialOrd` for this.
+    pub fn cmp_distance(&self, other: &SourceRange) -> Ordering {
+        self.get_distance().cmp(&other.get_distance())
     }
 
     /// Creates a new `SourceRange` that spans two given locations.
@@ -199,18 +267,5 @@ impl Display for SourceRange {
             self.start_line, self.start_char,
             self.end_line, self.end_char,
         )
-    }
-}
-
-impl Ord for SourceRange {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.get_start_line().cmp(&other.get_start_line())
-        .then(self.get_start_char().cmp(&other.get_start_char()))
-    }
-}
-
-impl PartialOrd for SourceRange {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
     }
 }

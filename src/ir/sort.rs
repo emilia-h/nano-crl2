@@ -1,7 +1,6 @@
 
-use crate::core::syntax::{Identifier, SourceRange};
+use crate::core::syntax::{Identifier, ModuleId, SourceRange};
 use crate::ir::decl::DefId;
-use crate::ir::module::ModuleId;
 use crate::util::caching::Interned;
 
 use std::fmt::{Debug, Formatter};

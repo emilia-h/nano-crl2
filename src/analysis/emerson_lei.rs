@@ -30,6 +30,7 @@ impl FormulaError {
         Diagnostic {
             severity: DiagnosticSeverity::Error,
             file,
+            module: None,
             loc: self.loc,
             message: self.message,
         }
