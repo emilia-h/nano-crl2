@@ -109,7 +109,7 @@ pub fn convert_ir_proc(
                         identifier: identifier.clone(),
                         identifier_loc: *identifier_loc,
                         sort: sort_id,
-                        proc: current_id,
+                        value: current_id,
                     });
                     module.add_parent(sort_id.into(), next_id.into());
                     module.add_parent(current_id.into(), next_id.into());

@@ -2,11 +2,13 @@
 //! representation (IR).
 
 use crate::core::syntax::{Identifier, SourceRange};
-use crate::ir::decl::{DefId, IrDeclEnum, ParamId};
-use crate::ir::expr::{IrExprEnum, IrRewriteVar, RewriteRuleId, RewriteVarId};
+use crate::ir::decl::{DefId, IrDecl, IrDeclEnum, IrParam, ParamId};
+use crate::ir::expr::{
+    BinderExprOp, ExprId, IrExprEnum, IrRewriteVar, RewriteRuleId, RewriteVarId
+};
 use crate::ir::module::{IrModule, NodeId};
-use crate::ir::proc::{ActionId, IrProcEnum};
-use crate::ir::sort::IrSortEnum;
+use crate::ir::proc::{ActionId, IrProcEnum, ProcId};
+use crate::ir::sort::{IrSortEnum, SortId};
 
 impl<'m> IntoIterator for &'m IrModule {
     type IntoIter = IrIterator<'m>;
@@ -184,7 +186,7 @@ where
                         writer(ActionId { proc: id, index }.into());
                     }
                 },
-                IrProcEnum::Sum { sort, proc, .. } => {
+                IrProcEnum::Sum { sort, value: proc, .. } => {
                     writer((*sort).into());
                     writer((*proc).into());
                 },
@@ -259,6 +261,93 @@ impl<'m> Iterator for ParentIterator<'m> {
     }
 }
 
+pub fn get_defining_node_from_def<'a>(
+    module: &'a IrModule,
+    def_id: DefId,
+) -> DefiningNode<'a> {
+    let node = module.get_def_source(def_id);
+    get_defining_node_from_node(module, node).unwrap()
+}
+
+pub fn get_defining_node_from_node<'a>(
+    module: &'a IrModule,
+    node: NodeId,
+) -> Option<DefiningNode<'a>> {
+    use NodeId::*;
+
+    match node {
+        Action(_) => None,
+        Decl(id) => {
+            Some(DefiningNode::Decl(module.get_decl(id)))
+        },
+        Expr(id) => {
+            let expr = module.get_expr(id);
+            match &expr.value {
+                IrExprEnum::Binder { op, def_id, identifier, identifier_loc, sort, value } => {
+                    Some(DefiningNode::BinderExpr {
+                        op: *op,
+                        def_id: *def_id,
+                        identifier,
+                        identifier_loc: *identifier_loc,
+                        sort: *sort,
+                        value: *value,
+                    })
+                },
+                _ => None,
+            }
+        },
+        Module(_) => None,
+        Param(id) => {
+            Some(DefiningNode::Param(module.get_param(id)))
+        },
+        Proc(id) => {
+            let proc = module.get_proc(id);
+            match &proc.value {
+                IrProcEnum::Sum { def_id, identifier, identifier_loc, sort, value: proc } => {
+                    Some(DefiningNode::SumProc {
+                        def_id: *def_id,
+                        identifier,
+                        identifier_loc: *identifier_loc,
+                        sort: *sort,
+                        proc: *proc,
+                    })
+                },
+                _ => None,
+            }
+        },
+        RewriteRule(_) => None,
+        RewriteSet(_) => None,
+        RewriteVar(id) => {
+            Some(DefiningNode::RewriteVar(module.get_rewrite_var(id)))
+        },
+        Sort(_) => None,
+    }
+}
+
+/// A reference to a node that defines something, i.e., it contains a `def_id`.
+/// 
+/// This enum defines all possible variants of such nodes.
+pub enum DefiningNode<'a> {
+    Decl(&'a IrDecl),
+    BinderExpr {
+        op: BinderExprOp,
+        def_id: DefId,
+        identifier: &'a Identifier,
+        identifier_loc: SourceRange,
+        sort: SortId,
+        value: ExprId,
+    },
+    Param(&'a IrParam),
+    SumProc {
+        def_id: DefId,
+        identifier: &'a Identifier,
+        identifier_loc: SourceRange,
+        sort: SortId,
+        proc: ProcId,
+    },
+    RewriteVar(&'a IrRewriteVar),
+}
+
 /// For a node in the IR, finds the definition ID that is defined by this node,
 /// the identifier for it and the location of that identifier.
 /// 
@@ -278,42 +367,21 @@ pub fn get_def_data(
     node: NodeId,
 ) -> Option<(DefId, &Identifier, SourceRange)> {
     assert_eq!(node.get_module_id(), module.id);
-    match node {
-        NodeId::Action(_) => None,
-        NodeId::Decl(id) => {
-            let decl = module.get_decl(id);
+    match get_defining_node_from_node(module, node)? {
+        DefiningNode::Decl(decl) => {
             Some((decl.def_id, &decl.identifier, decl.identifier_loc))
         },
-        NodeId::Expr(id) => {
-            let expr = module.get_expr(id);
-            match &expr.value {
-                IrExprEnum::Binder { def_id, identifier, identifier_loc, .. } => {
-                    Some((*def_id, identifier, *identifier_loc))
-                },
-                _ => None,
-            }
+        DefiningNode::BinderExpr { def_id, identifier, identifier_loc, .. } => {
+            Some((def_id, identifier, identifier_loc))
         },
-        NodeId::Module(_) => None,
-        NodeId::Param(id) => {
-            let param = module.get_param(id);
+        DefiningNode::Param(param) => {
             Some((param.def_id, &param.identifier, param.identifier_loc))
         },
-        NodeId::Proc(id) => {
-            let proc = module.get_proc(id);
-            match &proc.value {
-                IrProcEnum::Sum { def_id, identifier, identifier_loc, .. } => {
-                    Some((*def_id, identifier, *identifier_loc))
-                },
-                _ => None,
-            }
+        DefiningNode::SumProc { def_id, identifier, identifier_loc, .. } => {
+            Some((def_id, identifier, identifier_loc))
         },
-        NodeId::RewriteRule(_) => None,
-        NodeId::RewriteSet(_) => None,
-        NodeId::RewriteVar(id) => {
-            let IrRewriteVar { def_id, identifier, identifier_loc, .. } =
-                module.get_rewrite_var(id);
-            Some((*def_id, &identifier, *identifier_loc))
+        DefiningNode::RewriteVar(rewrite_var) => {
+            Some((rewrite_var.def_id, &rewrite_var.identifier, rewrite_var.identifier_loc))
         },
-        NodeId::Sort(_) => None,
     }
 }

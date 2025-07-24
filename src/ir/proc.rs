@@ -32,7 +32,7 @@ pub enum IrProcEnum {
         identifier: Identifier,
         identifier_loc: SourceRange,
         sort: SortId,
-        proc: ProcId,
+        value: ProcId,
     },
     IfThenElse {
         condition: ExprId,
