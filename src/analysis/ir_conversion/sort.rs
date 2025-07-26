@@ -2,10 +2,10 @@
 use crate::analysis::context::AnalysisContext;
 use crate::analysis::ir_conversion::decl::add_decl_to_ir_module;
 use crate::core::syntax::{Identifier, SourceRange};
-use crate::ir::decl::{IrDecl, IrDeclEnum};
+use crate::ir::decl::{DeclId, IrDecl, IrDeclEnum};
 use crate::ir::module::IrModule;
 use crate::ir::sort::{GenericSortOp, IrSort, IrSortEnum, PrimitiveSort, SortId};
-use crate::model::sort::{Sort, SortEnum};
+use crate::model::sort::{Constructor, Sort, SortEnum};
 
 use std::sync::Arc;
 
@@ -31,101 +31,56 @@ pub fn convert_ir_sort(
         Ok(sort_id)
     };
 
-    Ok(match &sort.value {
+    match &sort.value {
         SortEnum::Bool => {
-            add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Bool })
+            Ok(add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Bool }))
         },
         SortEnum::Pos => {
-            add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Pos })
+            Ok(add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Pos }))
         },
         SortEnum::Nat => {
-            add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Nat })
+            Ok(add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Nat }))
         },
         SortEnum::Int => {
-            add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Int })
+            Ok(add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Int }))
         },
         SortEnum::Real => {
-            add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Real })
+            Ok(add_sort(module, IrSortEnum::Primitive { sort: PrimitiveSort::Real }))
         },
         SortEnum::List { subsort } => {
-            convert_generic_sort(module, GenericSortOp::List, subsort)?
+            convert_generic_sort(module, GenericSortOp::List, subsort)
         },
         SortEnum::Set { subsort } => {
-            convert_generic_sort(module, GenericSortOp::Set, subsort)?
+            convert_generic_sort(module, GenericSortOp::Set, subsort)
         },
         SortEnum::Bag { subsort } => {
-            convert_generic_sort(module, GenericSortOp::Bag, subsort)?
+            convert_generic_sort(module, GenericSortOp::Bag, subsort)
         },
         SortEnum::FSet { subsort } => {
-            convert_generic_sort(module, GenericSortOp::FSet, subsort)?
+            convert_generic_sort(module, GenericSortOp::FSet, subsort)
         },
         SortEnum::FBag { subsort } => {
-            convert_generic_sort(module, GenericSortOp::FBag, subsort)?
+            convert_generic_sort(module, GenericSortOp::FBag, subsort)
         },
         SortEnum::Id { id } => {
-            add_sort(module, IrSortEnum::Name {
+            Ok(add_sort(module, IrSortEnum::Name {
                 identifier: id.clone(),
-            })
+            }))
         },
         SortEnum::Struct { constructors } => {
-            // desugar into named structured type
-            // https://www.mcrl2.org/web/user_manual/language_reference/data.html#structured-sorts
             let generated = Identifier::new_from_owned(
                 format!("__Struct_{}", context.generate_name_id(module.id))
             );
-            let sort_decl_id = add_decl_to_ir_module(
-                context, module,
-                &generated, SourceRange::EMPTY,
-                IrDeclEnum::Sort,
-                sort.loc,
+            let _ = desugar_struct_sort(
+                context,
+                generated.clone(), SourceRange::EMPTY,
+                constructors, sort.loc,
+                module,
             );
-            module.add_parent(sort_decl_id.into(), module.id.into());
-
-            let name = |module: &mut IrModule| add_sort_to_ir_module(
+            Ok(add_sort_to_ir_module(
                 context, module,
-                IrSortEnum::Name { identifier: generated.clone() },
-                sort.loc,
-            );
-
-            for constructor in constructors {
-                let struct_sort_id = name(module);
-                let params = constructor.properties
-                    .iter()
-                    .map(|(_, sort)| {
-                        convert_ir_sort(context, sort, module)
-                    })
-                    .collect::<Result<Vec<SortId>, ()>>()?;
-
-                let def_id = context.generate_def_id(module.id);
-                let cons_decl_id = context.generate_decl_id(module.id);
-                for &param in &params {
-                    module.add_parent(param.into(), cons_decl_id.into());
-                }
-                module.decls.insert(cons_decl_id, IrDecl {
-                    def_id,
-                    identifier: constructor.id.clone(),
-                    identifier_loc: constructor.id_loc,
-                    value: IrDeclEnum::Constructor {
-                        params,
-                        sort: struct_sort_id,
-                    },
-                    loc: constructor.loc,
-                });
-                module.add_def_source(def_id, cons_decl_id.into());
-                module.add_parent(struct_sort_id.into(), cons_decl_id.into());
-                module.add_parent(cons_decl_id.into(), module.id.into());
-
-                // for (optional_identifier, property_sort) in &constructor.properties {
-                //     if let Some(property_identifier) = optional_identifier {
-                //         todo!()
-                //     }
-                // }
-                // if let Some((recognizer, recognizer_loc)) = &constructor.recognizer_id {
-                //     todo!()
-                // }
-            }
-
-            add_sort(module, IrSortEnum::Name { identifier: generated })
+                IrSortEnum::Name { identifier: generated }, sort.loc,
+            ))
         },
         SortEnum::Carthesian { lhs, rhs } => {
             let error = format!(
@@ -151,10 +106,77 @@ pub fn convert_ir_sort(
                 loc: sort.loc,
             });
             module.add_parent(rhs_id.into(), sort_id.into());
-
-            sort_id
+            Ok(sort_id)
         },
-    })
+    }
+}
+
+/// Adds a struct sort with the given constructors and identifier to the
+/// module.
+pub(crate) fn desugar_struct_sort(
+    context: &AnalysisContext,
+    identifier: Identifier,
+    identifier_loc: SourceRange,
+    constructors: &Vec<Constructor>,
+    loc: SourceRange,
+    module: &mut IrModule,
+) -> Result<DeclId, ()> {
+    // desugar into named structured type
+    // https://www.mcrl2.org/web/user_manual/language_reference/data.html#structured-sorts
+    let sort_decl_id = add_decl_to_ir_module(
+        context, module,
+        &identifier, identifier_loc,
+        IrDeclEnum::Sort,
+        loc,
+    );
+    module.add_parent(sort_decl_id.into(), module.id.into());
+
+    let name = |module: &mut IrModule| add_sort_to_ir_module(
+        context, module,
+        IrSortEnum::Name { identifier: identifier.clone() },
+        loc,
+    );
+
+    for constructor in constructors {
+        let struct_sort_id = name(module);
+        let params = constructor.properties
+            .iter()
+            .map(|(_, sort)| {
+                convert_ir_sort(context, sort, module)
+            })
+            .collect::<Result<Vec<SortId>, ()>>()?;
+
+        let def_id = context.generate_def_id(module.id);
+        let cons_decl_id = context.generate_decl_id(module.id);
+        for &param in &params {
+            module.add_parent(param.into(), cons_decl_id.into());
+        }
+        module.decls.insert(cons_decl_id, IrDecl {
+            def_id,
+            identifier: constructor.id.clone(),
+            identifier_loc: constructor.id_loc,
+            value: IrDeclEnum::Constructor {
+                params,
+                sort: struct_sort_id,
+            },
+            loc: constructor.loc,
+        });
+        module.add_def_source(def_id, cons_decl_id.into());
+        module.add_parent(struct_sort_id.into(), cons_decl_id.into());
+        module.add_parent(cons_decl_id.into(), module.id.into());
+
+        // TODO
+        // for (optional_identifier, property_sort) in &constructor.properties {
+        //     if let Some(property_identifier) = optional_identifier {
+        //         todo!()
+        //     }
+        // }
+        // if let Some((recognizer, recognizer_loc)) = &constructor.recognizer_id {
+        //     todo!()
+        // }
+    }
+
+    Ok(sort_decl_id)
 }
 
 fn add_sort_to_ir_module(

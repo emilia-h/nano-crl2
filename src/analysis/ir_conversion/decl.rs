@@ -2,7 +2,7 @@
 use crate::analysis::context::AnalysisContext;
 use crate::analysis::ir_conversion::expr::convert_ir_expr;
 use crate::analysis::ir_conversion::proc::convert_ir_proc;
-use crate::analysis::ir_conversion::sort::{convert_ir_sort, decompose_carthesian_sort};
+use crate::analysis::ir_conversion::sort::{convert_ir_sort, decompose_carthesian_sort, desugar_struct_sort};
 use crate::core::syntax::{Identifier, SourceRange};
 use crate::ir::decl::{DeclId, IrDecl, IrDeclEnum, IrParam, ParamId};
 use crate::ir::expr::{IrRewriteRule, IrRewriteSet, IrRewriteVar, RewriteRuleId, RewriteVarId};
@@ -186,12 +186,22 @@ pub fn convert_ir_decl(
         },
         DeclEnum::Sort { ids, sort } => {
             if let Some(sort) = sort {
-                // sort A = something;
                 assert_eq!(ids.len(), 1);
-                let sort_id = convert_ir_sort(context, sort, module)?;
-                let value = IrDeclEnum::SortAlias { sort: sort_id };
-                let decl_id = finish(module, &ids[0].0, ids[0].1, value);
-                module.add_parent(sort_id.into(), decl_id.into());
+                if let SortEnum::Struct { constructors } = &sort.value {
+                    // sort A = struct ...; (special case to avoid an extra indirection)
+                    let _ = desugar_struct_sort(
+                        context,
+                        ids[0].0.clone(), ids[0].1,
+                        constructors, sort.loc,
+                        module,
+                    );
+                } else {
+                    // sort A = something;
+                    let sort_id = convert_ir_sort(context, sort, module)?;
+                    let value = IrDeclEnum::SortAlias { sort: sort_id };
+                    let decl_id = finish(module, &ids[0].0, ids[0].1, value);
+                    module.add_parent(sort_id.into(), decl_id.into());
+                }
             } else {
                 // sort A_1, ..., A_n;
                 for (identifier, identifier_loc) in ids {
