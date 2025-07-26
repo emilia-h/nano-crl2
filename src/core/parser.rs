@@ -18,7 +18,7 @@
 
 use crate::core::diagnostic::{Diagnostic, DiagnosticSeverity};
 use crate::core::lexer::{LexicalElement, Token};
-use crate::core::syntax::{Identifier, SourceRange};
+use crate::core::syntax::{Identifier, SourceCursorPos, SourceRange};
 
 /// A syntax error while parsing, which happens when the input is not in a
 /// correct format.
@@ -86,6 +86,8 @@ impl ParseError {
 /// [tokenize()]: ../lexer/fn.tokenize.html
 pub struct Parser<'a> {
     tokens: &'a [Token],
+    /// The end location of the previous non-comment token.
+    previous_loc: SourceRange,
     index: usize,
     errors: Vec<ParseError>, // TODO report as many errors as possible
 }
@@ -96,6 +98,7 @@ impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token]) -> Self {
         let mut parser = Parser {
             tokens,
+            previous_loc: SourceRange::EMPTY,
             index: 0,
             errors: Vec::new(),
         };
@@ -112,6 +115,7 @@ impl<'a> Parser<'a> {
     pub fn create_temp_copy(&self) -> Self {
         Parser {
             tokens: self.tokens,
+            previous_loc: self.previous_loc,
             index: self.index,
             errors: Vec::new(),
         }
@@ -222,6 +226,7 @@ impl<'a> Parser<'a> {
     /// Advances the parser by one token.
     pub fn skip_token(&mut self) {
         assert!(self.has_token());
+        self.previous_loc = self.get_loc();
         self.index += 1;
         self.skip_comments();
     }
@@ -273,11 +278,7 @@ impl<'a> Parser<'a> {
     /// Returns a new token that spans all tokens from `loc` up till (and
     /// excluding) the current token.
     pub fn until_now(&self, loc: &SourceRange) -> SourceRange {
-        if self.index == 0 {
-            SourceRange::new(0, 0, 0, 0)
-        } else {
-            loc.span(&self.tokens[self.index - 1].loc)
-        }
+        loc.span(&self.previous_loc)
     }
 }
 

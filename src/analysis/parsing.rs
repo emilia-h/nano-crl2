@@ -16,7 +16,7 @@ pub fn query_token_list(
         Ok(None) => {
             let (_, input) = context.get_model_input(module);
             let result = match tokenize(input) {
-                Ok(value) => Ok(Arc::new(value)),
+                Ok(tokens) => Ok(Arc::new(tokens)),
                 Err(error) => {
                     let loc = SourceRange::new(
                         error.loc.get_line(),
@@ -67,7 +67,16 @@ fn calculate_ast_module(
     let tokens = query_token_list(context, module)?;
     let mut parser = Parser::new(&tokens);
     match parser.parse::<Module>() {
-        Ok(value) => Ok(Arc::new(value)),
+        Ok(value) => {
+            // we want the parser to consume the entire file, which is not
+            // guaranteed (and not supposed to be) when calling .parse(), so we
+            // check it here
+            if parser.has_token() {
+                let error = "expected end of file but found more tokens".to_owned();
+                return context.error(module, parser.get_loc(), error);
+            }
+            Ok(Arc::new(value))
+        },
         Err(error) => {
             context.error(module, error.loc, error.message)
         }

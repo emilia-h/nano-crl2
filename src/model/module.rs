@@ -68,6 +68,6 @@ pub fn parse_module(parser: &mut Parser) -> Result<Module, ParseError> {
     Ok(Module {
         decls,
         initial,
-        loc,
+        loc: parser.until_now(&loc),
     })
 }

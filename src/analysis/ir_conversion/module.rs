@@ -41,7 +41,6 @@ pub fn query_ir_module(
         Ok(Some(value)) => value,
         Ok(None) => {
             let result = calculate_ir_module(context, module);
-            eprintln!("recalculating IR module {:?}", module);
             context.ir_modules.unlock(&module, result.clone());
             result
         },
@@ -64,8 +63,7 @@ fn calculate_ir_module(
     }
 
     // unfortunate workaround for borrow checker :/
-    let decl_ids = result.decls.keys().map(Clone::clone)
-        .collect::<Vec<_>>();
+    let decl_ids = result.decls.keys().map(Clone::clone).collect::<Vec<_>>();
     for decl_id in decl_ids {
         result.add_parent(decl_id.into(), module.into());
     }

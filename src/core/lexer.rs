@@ -598,10 +598,7 @@ impl<'a> Lexer<'a> {
                     "nil" => LexicalElement::Nil,
                     "tau" => LexicalElement::Tau,
                     "true" => LexicalElement::True,
-                    _ => {
-                        let e = LexicalElement::Identifier(identifier);
-                        e
-                    },
+                    _ => LexicalElement::Identifier(identifier),
                 };
 
                 self.push_token(e);
