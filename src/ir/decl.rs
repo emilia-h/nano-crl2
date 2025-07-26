@@ -43,6 +43,19 @@ pub enum IrDeclEnum {
     },
 }
 
+impl IrDeclEnum {
+    pub fn get_keyword_string(&self) -> &'static str {
+        match self {
+            Self::Action { .. } => "act",
+            Self::Constructor { .. } => "cons",
+            Self::GlobalVariable { .. } => "glob",
+            Self::Map { .. } => "map",
+            Self::Process { .. } => "proc",
+            Self::Sort | Self::SortAlias { .. } => "sort",
+        }
+    }
+}
+
 /// A parameter node in the IR.
 /// 
 /// This is used in `proc` declarations. The reason a parameter is a node of
