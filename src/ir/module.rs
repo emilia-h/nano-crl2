@@ -105,8 +105,10 @@ impl IrModule {
     /// one source, so this function will panic if the given ID is not mapped
     /// to anything.
     pub fn get_def_source(&self, def_id: DefId) -> NodeId {
-        assert_eq!(def_id.module, self.id);
-        *self.def_source_map.get(&def_id).unwrap()
+        assert_eq!(def_id.get_module_id(), self.id);
+        let result = *self.def_source_map.get(&def_id).unwrap();
+        assert_eq!(result.get_module_id(), self.id);
+        result
     }
 
     pub fn get_action(&self, node: ActionId) -> &IrAction {

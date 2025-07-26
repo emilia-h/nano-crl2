@@ -6,26 +6,26 @@ use crate::ir::sort::ResolvedSort;
 use std::fmt::{Display, Formatter};
 
 pub struct ResolvedSortDisplay<'a, 'b> {
-    sort: &'a ResolvedSort,
     module: &'b IrModule,
+    sort: &'a ResolvedSort,
 }
 
 impl<'a, 'b> ResolvedSortDisplay<'a, 'b> {
-    pub fn new(sort: &'a ResolvedSort, module: &'b IrModule) -> Self {
-        ResolvedSortDisplay { sort, module }
+    pub fn new(module: &'b IrModule, sort: &'a ResolvedSort) -> Self {
+        ResolvedSortDisplay { module, sort }
     }
 }
 
 impl<'a, 'b> Display for ResolvedSortDisplay<'a, 'b> {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        fmt_resolved_sort(self.sort, self.module, f)
+        fmt_resolved_sort(self.module, self.sort, f)
     }
 }
 
 /// Prints a pretty version of a `ResolvedSort` to the provided formatter.
 pub fn fmt_resolved_sort(
-    sort: &ResolvedSort,
     module: &IrModule,
+    sort: &ResolvedSort,
     f: &mut Formatter,
 ) -> Result<(), std::fmt::Error> {
     match sort {
@@ -33,7 +33,7 @@ pub fn fmt_resolved_sort(
 
         ResolvedSort::Generic { op, subsort } => {
             write!(f, "{}(", (*op).as_str())?;
-            fmt_resolved_sort(subsort, module, f)?;
+            fmt_resolved_sort(module, subsort, f)?;
             write!(f, ")")?;
         },
         ResolvedSort::Function { lhs, rhs } => {
@@ -42,10 +42,10 @@ pub fn fmt_resolved_sort(
                 if i > 0 {
                     write!(f, " # ")?;
                 }
-                fmt_resolved_sort(param_sort, module, f)?;
+                fmt_resolved_sort(module, param_sort, f)?;
             }
             write!(f, " -> ")?;
-            fmt_resolved_sort(rhs, module, f)?;
+            fmt_resolved_sort(module, rhs, f)?;
             write!(f, ")")?;
         },
         ResolvedSort::Def { id } => {

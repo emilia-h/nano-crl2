@@ -71,7 +71,7 @@ pub fn convert_ir_sort(
             // desugar into named structured type
             // https://www.mcrl2.org/web/user_manual/language_reference/data.html#structured-sorts
             let generated = Identifier::new_from_owned(
-                format!("__Struct_{}", context.generate_name_id())
+                format!("__Struct_{}", context.generate_name_id(module.id))
             );
             let sort_decl_id = add_decl_to_ir_module(
                 context, module,

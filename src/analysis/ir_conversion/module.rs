@@ -41,6 +41,7 @@ pub fn query_ir_module(
         Ok(Some(value)) => value,
         Ok(None) => {
             let result = calculate_ir_module(context, module);
+            eprintln!("recalculating IR module {:?}", module);
             context.ir_modules.unlock(&module, result.clone());
             result
         },

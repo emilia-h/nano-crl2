@@ -2,7 +2,7 @@
 use crate::analysis::context::{AnalysisContext, ResolvedSortContext};
 use crate::analysis::ir_conversion::module::query_ir_module;
 use crate::analysis::semantic::name_resolution::query_def_of_name;
-use crate::ir::decl::{DefId, IrDeclEnum};
+use crate::ir::decl::{DefId, IrDecl, IrDeclEnum};
 use crate::ir::display::ResolvedSortDisplay;
 use crate::ir::expr::{BinaryExprOp, BinderExprOp, ExprId, IrExpr, IrExprEnum, UnaryExprOp};
 use crate::ir::module::{IrModule, NodeId};
@@ -80,7 +80,7 @@ fn calculate_sort_of_expr(
                 _ => {
                     let error = format!(
                         "cannot call a value with a sort `{}` that is not a function",
-                        ResolvedSortDisplay::new(&callee_sort, &module),
+                        ResolvedSortDisplay::new(&module, &callee_sort),
                     );
                     return context.error(expr.get_module_id(), ir_expr.loc, error);
                 },
@@ -132,7 +132,7 @@ fn calculate_sort_of_expr(
                 _ => {
                     let error = format!(
                         "cannot negate a value when its sort `{}` is not a number sort",
-                        ResolvedSortDisplay::new(&value_sort, &module),
+                        ResolvedSortDisplay::new(&module, &value_sort),
                     );
                     return context.error(module.id, ir_expr.loc, error);
                 },
@@ -171,20 +171,20 @@ fn calculate_sort_of_expr(
             if !lhs_sort.is_list() {
                 let error = format!(
                     "cannot concatenate when the left-hand side sort `{}` is not a `List` sort",
-                    ResolvedSortDisplay::new(&lhs_sort, &module),
+                    ResolvedSortDisplay::new(&module, &lhs_sort),
                 );
                 return context.error(module.id, ir_expr.loc, error);
             } else if !rhs_sort.is_list() {
                 let error = format!(
                     "cannot concatenate when the right-hand side sort `{}` is not a `List` sort",
-                    ResolvedSortDisplay::new(&rhs_sort, &module),
+                    ResolvedSortDisplay::new(&module, &rhs_sort),
                 );
                 return context.error(module.id, ir_expr.loc, error);
             } else if lhs_sort != rhs_sort {
                 let error = format!(
                     "cannot concatenate two lists of incompatible sorts `{}` and `{}`",
-                    ResolvedSortDisplay::new(&lhs_sort, &module),
-                    ResolvedSortDisplay::new(&rhs_sort, &module),
+                    ResolvedSortDisplay::new(&module, &lhs_sort),
+                    ResolvedSortDisplay::new(&module, &rhs_sort),
                 );
                 return context.error(module.id, ir_expr.loc, error);
             }
@@ -203,8 +203,8 @@ fn calculate_sort_of_expr(
                     let Some(common) = find_common_sort(context, subsort1, subsort2) else {
                         let error = format!(
                             "cannot add two sets of incompatible sorts `{}` and `{}`",
-                            ResolvedSortDisplay::new(subsort1, &module),
-                            ResolvedSortDisplay::new(subsort2, &module),
+                            ResolvedSortDisplay::new(&module, subsort1),
+                            ResolvedSortDisplay::new(&module, subsort2),
                         );
                         return context.error(module.id, ir_expr.loc, error);
                     };
@@ -222,8 +222,8 @@ fn calculate_sort_of_expr(
                     let Some(common) = find_common_sort(context, subsort1, subsort2) else {
                         let error = format!(
                             "cannot add two bags of incompatible sorts `{}` and `{}`",
-                            ResolvedSortDisplay::new(subsort1, &module),
-                            ResolvedSortDisplay::new(subsort2, &module),
+                            ResolvedSortDisplay::new(&module, subsort1),
+                            ResolvedSortDisplay::new(&module, subsort2),
                         );
                         return context.error(module.id, ir_expr.loc, error);
                     };
@@ -244,8 +244,8 @@ fn calculate_sort_of_expr(
                 _ => {
                     let error = format!(
                         "can only add numbers, sets and bags, not `{}` and `{}`",
-                        ResolvedSortDisplay::new(&lhs_sort, &module),
-                        ResolvedSortDisplay::new(&rhs_sort, &module),
+                        ResolvedSortDisplay::new(&module, &lhs_sort),
+                        ResolvedSortDisplay::new(&module, &rhs_sort),
                     );
                     return context.error(module.id, ir_expr.loc, error);
                 },
@@ -292,7 +292,7 @@ fn calculate_sort_of_expr(
             let ResolvedSort::Generic { op: GenericSortOp::List, subsort } = &*lhs_sort else {
                 let error = format!(
                     "cannot index expression of which sort `{}` is not a `List` sort",
-                    ResolvedSortDisplay::new(&lhs_sort, &module)
+                    ResolvedSortDisplay::new(&module, &lhs_sort)
                 );
                 return context.error(module.id, ir_expr.loc, error);
             };
@@ -307,8 +307,8 @@ fn calculate_sort_of_expr(
             let Some(value) = find_common_sort(context, &then_sort, &else_sort) else {
                 let error = format!(
                     "incompatible expressions in `if`, `{}` and `{}` do not have a common sort",
-                    ResolvedSortDisplay::new(&then_sort, &module),
-                    ResolvedSortDisplay::new(&else_sort, &module),
+                    ResolvedSortDisplay::new(&module, &then_sort),
+                    ResolvedSortDisplay::new(&module, &else_sort),
                 );
                 return context.error(expr.get_module_id(), ir_expr.loc, error);
             };
@@ -343,8 +343,8 @@ fn get_binary_op_number_generalities(
     let Some(result) = chain_option(g1, g2) else {
         let error = format!(
             "cannot add expressions of sorts `{}` and `{}`",
-            ResolvedSortDisplay::new(&lhs_sort, &module),
-            ResolvedSortDisplay::new(&rhs_sort, &module),
+            ResolvedSortDisplay::new(&module, &lhs_sort),
+            ResolvedSortDisplay::new(&module, &rhs_sort),
         );
         return context.error(module.id, expr.loc, error);
     };
@@ -444,17 +444,12 @@ fn calculate_sort_of_def(
     def: DefId,
 ) -> Result<Interned<ResolvedSort>, ()> {
     let module = query_ir_module(context, def.get_module_id())?;
-    let def_source = module.get_def_source(def);
-    match def_source {
+    match module.get_def_source(def) {
         NodeId::Decl(id) => {
             let decl = module.get_decl(id);
-            match &decl.value {
-                IrDeclEnum::Constructor { sort, .. } |
-                IrDeclEnum::GlobalVariable { sort } |
-                IrDeclEnum::Map { sort } => {
-                    query_resolved_sort(context, *sort)
-                },
-                _ => { // NOTE: this has to be an actual error, not `panic`
+            match get_decl_sort(decl) {
+                Some(sort) => query_resolved_sort(context, sort),
+                None => { // NOTE: this has to be an actual error, not `panic`
                     let error = format!(
                         "declaration `{}` does not have a sort, cannot be used in an expression",
                         decl.identifier
@@ -503,6 +498,16 @@ fn calculate_sort_of_def(
     }
 }
 
+/// Returns the sort of a declaration, or `None` if it does not have a sort.
+pub fn get_decl_sort(decl: &IrDecl) -> Option<SortId> {
+    match &decl.value {
+        IrDeclEnum::Constructor { sort, .. } |
+        IrDeclEnum::GlobalVariable { sort } |
+        IrDeclEnum::Map { sort } => Some(*sort),
+        _ => None,
+    }
+}
+
 pub fn query_resolved_sort(
     context: &AnalysisContext,
     sort: SortId,
@@ -528,15 +533,14 @@ fn calculate_resolved_sort(
     sort: SortId,
 ) -> Result<Interned<ResolvedSort>, ()> {
     let module = query_ir_module(context, sort.get_module_id())?;
+    assert_eq!(module.id, sort.get_module_id());
     let ir_sort = module.get_sort(sort);
     let sort_context = context.get_resolved_sort_context();
     match &ir_sort.value {
         IrSortEnum::Function { lhs, rhs } => {
             let lhs_resolved = lhs
                 .iter()
-                .map(|&x| {
-                    query_resolved_sort(context, x)
-                })
+                .map(|&x| query_resolved_sort(context, x))
                 .collect::<Result<Vec<Interned<ResolvedSort>>, ()>>();
             let (lhs_resolved, rhs_resolved) = chain_result(
                 lhs_resolved,

@@ -92,22 +92,26 @@ impl AnalysisContext {
     /// If the given module ID does not exist, this function will panic.
     pub fn remove_model_input(&mut self, id: ModuleId) {
         self.model_inputs.remove(&id).unwrap();
-        self.ast_modules = QueryHashMap::new();
-        self.ir_modules = QueryHashMap::new();
+        self.compilation_checks = QueryHashMap::new();
+        self.defs_of_names = QueryHashMap::new();
+        self.resolved_sorts = QueryHashMap::new();
+        self.sorts_of_def = QueryHashMap::new();
         self.sorts_of_expr = QueryHashMap::new();
-        self.token_lists = QueryHashMap::new();
         self.diagnostic_context = RefCell::new(DiagnosticContext::new());
-        // we don't technically have to invalidate every query hash map, but
-        // for simplicity's sake we do (for now at least)
-        //self.ast_modules.invalidate(&id);
-        //self.token_lists.invalidate(&id);
+        // we should not invalidate all IR modules, because node IDs, which
+        // could be stored outside of this context, refer to the nodes in these
+        // structures; additionally, these queries do not depend on other
+        // modules, so it is valid to only invalidate this id
+        self.ast_modules.invalidate(&id);
+        self.token_lists.invalidate(&id);
+        self.ir_modules.invalidate(&id);
     }
 
     pub fn get_resolved_sort_context(&self) -> &ResolvedSortContext {
         &self.resolved_sort_context
     }
 
-    pub fn generate_name_id(&self) -> usize {
+    pub fn generate_name_id(&self, _module: ModuleId) -> usize {
         let value = self.id_counter.get();
         self.id_counter.set(value + 1);
         value
